@@ -3,9 +3,10 @@
 // Title:	        Agon Video BIOS
 // Author:        	Dean Belfield
 // Created:       	22/03/2022
-// Last Updated:	22/03/2022
+// Last Updated:	11/07/2022
 //
 // Modinfo:
+// 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -14,12 +15,12 @@
 
 #define	ESPSerial Serial2
 
-#define UART_BR		250000	//500000
+#define UART_BR		384000
 #define UART_NA		-1
 #define UART_TX		2
 #define UART_RX		34
-#define UART_RTS    13 		// The eZ80 RTS pin
-#define UART_CTS    14		// The eZ80 CTS pin
+#define UART_RTS    13 		// The ESP32 RTS pin
+#define UART_CTS    14		// The ESP32 CTS pin
 
 #define GPIO_ITRP	17		// VSync Interrupt Pin - for reference only
 
@@ -43,16 +44,16 @@ void setup() {
 	disableCore0WDT();			// Disable the watchdog timers
 	delay(100); 				// Crashes without this delay
 	disableCore1WDT();
-	pinMode(int2gpio(UART_RTS), OUTPUT);
-	pinMode(int2gpio(UART_CTS), INPUT);
+//	pinMode(UART_RTS, OUTPUT);	// This should be done by setPins
+//	pinMode(UART_CTS, INPUT);
 	#if DEBUG == 1
 	DBGSerial.begin(500000, SERIAL_8N1, 3, 1);
 	#endif 
  	ESPSerial.begin(UART_BR, SERIAL_8N1, UART_RX, UART_TX);
-	ESPSerial.setPins(UART_NA, UART_NA, UART_CTS, UART_RTS);
-	ESPSerial.setHwFlowCtrlMode(HW_FLOWCTRL_CTS_RTS, 64);
+//	ESPSerial.setPins(UART_NA, UART_NA, UART_CTS, UART_RTS);
+//	ESPSerial.setHwFlowCtrlMode(HW_FLOWCTRL_CTS_RTS, 64);
  	ESPSerial.setRxBufferSize(1024);
-	setRTSStatus(true);
+//	setRTSStatus(true);
  	PS2Controller.begin(PS2Preset::KeyboardPort0, KbdMode::CreateVirtualKeysQueue);
   	VGAController.begin();
   	set_mode(6);
@@ -106,15 +107,8 @@ void debug_log(const char *format, ...) {
 
 void boot_screen() {
   	cls();
-  	print("AGON Video BIOS v0.2\n\r");
-  	print("2022 Dean Belfield www.breakintoprogram.co.uk\n\r");
-  	print("=============================================\n\r\n\r");
-  	print("Current settings:\n\r");
-  	printFmt("Screen Size   : %d x %d\n\r", VGAController.getScreenWidth(), VGAController.getScreenHeight());
-  	printFmt("Viewport Size : %d x %d\n\r", VGAController.getViewPortWidth(), VGAController.getViewPortHeight());
-  	printFmt("Free Memory   : %d bytes\n\r", heap_caps_get_free_size(MALLOC_CAP_32BIT));
-  	delay(4000);
-  	cls();
+  	print("AGON VPD Version 0.02\n\r");
+	ESPSerial.write(27);
 }
 
 void cls() {
