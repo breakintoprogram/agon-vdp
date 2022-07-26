@@ -1,6 +1,6 @@
 # agon-vdp
 
-The Video Display Processor
+Part of the official Quark firmware for the Agon series of microcomputers
 
 ### What is the Agon
 
