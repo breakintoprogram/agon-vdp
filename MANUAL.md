@@ -41,11 +41,13 @@ When a key is pressed, a packet is sent with the following data:
 - cmd: 0x01
 - keycode: The ASCII value of the key pressed
 - modifiers: A byte with the following bits set (1 = pressed):
-	0. CTRL
-	1. SHIFT
-	2. ALT LEFT
-	3. ALT RIGHT
-	4. CAPS LOCK
-	5. NUM LOCK
-	6. SCROLL LOCK
-	7. GUI
+```
+0. CTRL
+1. SHIFT
+2. ALT LEFT
+3. ALT RIGHT
+4. CAPS LOCK
+5. NUM LOCK
+6. SCROLL LOCK
+7. GUI
+```
