@@ -3,13 +3,18 @@
 // Title:	        Agon Video BIOS
 // Author:        	Dean Belfield
 // Created:       	22/03/2022
-// Last Updated:	11/07/2022
+// Last Updated:	03/08/2022
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
+// 26/07/2022:		Added VDU 29 support
+// 03/08/2022:		Set codepage 1252, fixed keyboard mappings for AGON, added cursorTab, VDP serial protocol
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
+
+#define VERSION		0
+#define REVISION	3
 
 #define	DEBUG		0
 
@@ -31,6 +36,7 @@ fabgl::Canvas * Canvas;
 
 int         charX, charY;
 
+Point		origin;
 Point       p1, p2, p3;
 RGB888      fg, bg;
 
@@ -55,6 +61,7 @@ void setup() {
  	ESPSerial.setRxBufferSize(1024);
 //	setRTSStatus(true);
  	PS2Controller.begin(PS2Preset::KeyboardPort0, KbdMode::CreateVirtualKeysQueue);
+	PS2Controller.keyboard()->setCodePage(fabgl::CodePages::get(1252));
   	VGAController.begin();
   	set_mode(6);
 }
@@ -107,8 +114,8 @@ void debug_log(const char *format, ...) {
 
 void boot_screen() {
   	cls();
-  	print("AGON VPD Version 0.02\n\r");
-	ESPSerial.write(27);
+  	printFmt("AGON VPD Version %d.%02d\n\r", VERSION, REVISION);
+	ESPSerial.write(27);	// The MOS will wait for this escape character during initialisation
 }
 
 void cls() {
@@ -136,7 +143,7 @@ void set_mode(int mode) {
 
   	Canvas = new fabgl::Canvas(&VGAController);
   	fg = Color::BrightWhite;
-  	bg = Color::Black;;
+  	bg = Color::Black;
   	Canvas->selectFont(&fabgl::FONT_8x8);
   	Canvas->setGlyphOptions(GlyphOptions().FillBackground(true));
   	Canvas->setPenWidth(1);
@@ -168,16 +175,72 @@ void printFmt(const char *format, ...) {
 // 
 void do_keyboard() {
   	fabgl::Keyboard* kb = PS2Controller.keyboard();
-  	bool isKeyDown;
-  	if(kb->virtualKeyAvailable() > 0) {
-    	fabgl::VirtualKey vk = kb->getNextVirtualKey(&isKeyDown, 20);
-		if(isKeyDown) {
-    		int a = kb->virtualKeyToASCII(vk);
-    		if(a != -1) {
-	      		ESPSerial.write(a);
-    		}
+	fabgl::VirtualKeyItem item;
+	byte keycode;
+	byte modifiers;
+
+	if(kb->getNextVirtualKey(&item, 0)) {
+		if(item.down) {
+			switch(item.vk) {
+				case fabgl::VK_LEFT:
+					keycode = 0x08;
+					break;
+				case fabgl::VK_TAB:
+					keycode = 0x09;
+					break;
+				case fabgl::VK_RIGHT:
+					keycode = 0x15;
+					break;
+				case fabgl::VK_DOWN:
+					keycode = 0x0A;
+					break;
+				case fabgl::VK_UP:
+					keycode = 0x0B;
+					break;
+				case fabgl::VK_BACKSPACE:
+					keycode = 0x7F;
+					break;
+				case fabgl::VK_AT:
+					keycode = '"';
+					break;
+				case fabgl::VK_QUOTEDBL:
+					keycode = '@';
+					break;
+				default:
+					keycode = item.ASCII;
+					break;
+			}
+			// Pack the modifiers into a byte
+			//
+			modifiers = 
+				item.CTRL		<< 0 |
+				item.SHIFT		<< 1 |
+				item.LALT		<< 2 |
+				item.RALT		<< 3 |
+				item.CAPSLOCK	<< 4 |
+				item.NUMLOCK	<< 5 |
+				item.SCROLLLOCK << 6 |
+				item.GUI		<< 7
+			;
+			// Create and send the packet back to MOS
+			//
+			byte packet[] = {
+				keycode,
+				modifiers,
+			};
+			send_packet(0x01, sizeof packet, packet);
 		}
-  	} 
+	}
+}
+
+// Send a packet of data to the MOS
+//
+void send_packet(byte code, byte len, byte data[]) {
+	ESPSerial.write(code + 0x80);
+	ESPSerial.write(len);
+	for(int i = 0; i < len; i++) {
+		ESPSerial.write(data[i]);
+	}
 }
 
 // Render a cursor at the current screen position
@@ -190,19 +253,28 @@ void do_cursor() {
   	Canvas->swapRectangle(x, y, x + w - 1, y + h - 1);
 }
 
-// Read a byte from the serial port
+// Read an unsigned byte from the serial port
 //
 byte readByte() {
   	while(ESPSerial.available() == 0);
   	return ESPSerial.read();
 }
 
-// Read a word from the serial port
+// Read an unsigned word from the serial port
 //
 word readWord() {
   	byte l = readByte();
   	byte h = readByte();
   	return (h << 8) | l;
+}
+
+// Translate a point
+//
+Point translate(Point p) {
+	return translate(p.X, p.Y);
+}
+Point translate(int X, int Y) {
+	return Point(origin.X + X, origin.Y + Y);
 }
 
 void vdu(byte c) {
@@ -240,9 +312,14 @@ void vdu(byte c) {
     	case 0x19:  // PLOT
       		vdu_plot();
       		break;
+		case 0x1D:	// VDU_29
+			vdu_origin();
     	case 0x1E:  // Home
       		cursorHome();
       		break;
+		case 0x1F:	// TAB(X,Y)
+			cursorTab();
+			break;
     	case 0x7F:  // Backspace
       		cursorLeft();
       		Canvas->drawText(charX, charY, " ");
@@ -286,8 +363,14 @@ void cursorUp() {
 		charY = 0;
   	}
 }
+
 void cursorHome() {
   	charX = 0;
+}
+
+void cursorTab() {
+	charX = readByte() * Canvas->getFontInfo()->width;
+	charY = readByte() * Canvas->getFontInfo()->height;
 }
 
 // Handle MODE
@@ -296,6 +379,14 @@ void vdu_mode() {
   	byte mode = readByte();
 	debug_log("vdu_mode: %d\n\r", mode);
   	set_mode(mode);
+}
+
+// Handle VDU 29
+//
+void vdu_origin() {
+	origin.X = readWord();
+	origin.Y = readWord();
+	debug_log("vdu_origin: %d,%d\n\r", origin.X, origin.Y);
 }
 
 // Handle GCOL
@@ -320,10 +411,10 @@ void vdu_plot() {
 	debug_log("vdu_plot: %d,%d,%d\n\r", mode, p1.X, p1.Y);
   	switch(mode) {
     	case 0x04: 
-      		Canvas->moveTo(p1.X, p1.Y);
+      		Canvas->moveTo(origin.X + p1.X, origin.Y + p1.Y);
       		break;
     	case 0x05: // Line
-      		Canvas->lineTo(p1.X, p1.Y);
+      		Canvas->lineTo(origin.X + p1.X, origin.Y + p1.Y);
       		break;
 		case 0x40 ... 0x47: // Point
 			vdu_plot_point(mode);
@@ -338,11 +429,15 @@ void vdu_plot() {
 }
 
 void vdu_plot_point(byte mode) {
-	Canvas->setPixel(p1.X, p1.Y);
+	Canvas->setPixel(origin.X + p1.X, origin.Y + p1.Y);
 }
 
 void vdu_plot_triangle(byte mode) {
-  	Point p[3] = { p3, p2, p1 };
+  	Point p[3] = { 
+		translate(p3),
+		translate(p2),
+		translate(p1), 
+	};
   	Canvas->setBrushColor(fg);
   	Canvas->fillPath(p, 3);
   	Canvas->setBrushColor(bg);
@@ -353,13 +448,13 @@ void vdu_plot_circle(byte mode) {
   	switch(mode) {
     	case 0x90 ... 0x93: // Circle
       		r = 2 * (p1.X + p1.Y);
-      		Canvas->drawEllipse(p2.X, p2.Y, r, r);
+      		Canvas->drawEllipse(origin.X + p2.X, origin.Y + p2.Y, r, r);
       		break;
     	case 0x94 ... 0x97: // Circle
       		a = p2.X - p1.X;
       		b = p2.Y - p1.Y;
       		r = 2 * sqrt(a * a + b * b);
-      		Canvas->drawEllipse(p2.X, p2.Y, r, r);
+      		Canvas->drawEllipse(origin.X + p2.X, origin.Y + p2.Y, r, r);
       		break;
   	}
 }
