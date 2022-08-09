@@ -20,6 +20,7 @@ The VDU command is a work-in-progress with a handful of mappings implemented.
 - `VDU 13` Carriage return
 - `VDU 18,mode,r,g,b` GCOL mode,r,g,b
 - `VDU 22,n` Mode n
+- `VDU 23,n`: UDG / System Commands
 - `VDU 25,mode,x;y;` PLOT mode,x,y
 - `VDU 30` Home cursor
 - `VDU 31,x,y` TAB(x,y)
@@ -34,6 +35,12 @@ Data sent from the VPD to the eZ80's UART0 is sent as a packet in the following 
 - cmd: The packet command, with bit 7 set
 - len: Number of data bytes
 - data: The data byte(s)
+
+Packets:
+
+- `0x00`: General Poll
+- `0x01, keycode, modifiers`: Keyboard
+- `0x02, x, y`: Cursor position
 
 ## Keyboard
 
