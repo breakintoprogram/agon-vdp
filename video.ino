@@ -1,6 +1,8 @@
 //
 // Title:	        Agon Video BIOS
 // Author:        	Dean Belfield
+// Contributors:	Jeroen Venema (Sprite Code)
+//					Damien Guard (Fonts)
 // Created:       	22/03/2022
 // Last Updated:	10/08/2022
 //
