@@ -1,26 +1,27 @@
-
 //
 // Title:	        Agon Video BIOS
 // Author:        	Dean Belfield
 // Created:       	22/03/2022
-// Last Updated:	06/08/2022
+// Last Updated:	10/08/2022
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
 // 26/07/2022:		Added VDU 29 support
 // 03/08/2022:		Set codepage 1252, fixed keyboard mappings for AGON, added cursorTab, VDP serial protocol
 // 06/08/2022:		Added a custom font, fixed UART initialisation, flow control
+// 10/08/2022:		Improved keyboard mappings, added sprites, audio, new font
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
 
-#include "font_agon.h"
+#include "font_agon.h"			// The Acorn BBC Micro Font
 
 #define VERSION			0
-#define REVISION		4
+#define REVISION		5
 
-#define	DEBUG			0		// 1 = enable debug mode
-#define USE_HWFLOW		1		// 1 = enable hardware flow control 
+#define	DEBUG			1		// Serial Debug Mode: 1 = enable
+#define USE_HWFLOW		1		// Flow Control: 1 = enable hardware flow control to eZ80
+#define AUDIO_CHANNELS	3		// Number of audio channels
 
 #define	ESPSerial Serial2
 
@@ -39,12 +40,22 @@
 #define PACKET_GP		0		// General poll data
 #define PACKET_KEYCODE	1		// Keyboard data
 #define PACKET_CURSOR	2		// Cursor positions
+#define PACKET_SCRCHAR	3		// Character read from screen
+#define PACKET_SCRPIXEL	4		// Pixel read from screen
+#define PACKET_AUDIO	5		// Audio acknowledgement
 
-fabgl::PS2Controller    PS2Controller;
-fabgl::VGA16Controller  VGAController;
-fabgl::SoundGenerator	SoundGenerator;
+#if CONFIG_FREERTOS_UNICORE
+#define ARDUINO_RUNNING_CORE 0
+#else
+#define ARDUINO_RUNNING_CORE 1
+#endif
 
-fabgl::Canvas * Canvas;
+#define PLAY_SOUND_PRIORITY 3
+
+fabgl::PS2Controller		PS2Controller;
+fabgl::VGA16Controller		VGAController;
+fabgl::Canvas *				Canvas;
+fabgl::SoundGenerator		SoundGenerator;
 
 int         charX, charY;
 
@@ -55,14 +66,77 @@ RGB888      tfg, tbg;
 
 int         count = 0;
 
+// Function prototypes
+//
+void debug_log(const char *format, ...);
+
+// The audio channel class
+//
+class audio_channel {	
+	public:
+		audio_channel(int channel);		
+		word	play_note(byte volume, word frequency, word duration);
+		void	loop();
+	private:
+		fabgl::WaveformGenerator *	_waveform;			
+	 	byte _flag;
+		byte _channel;
+		byte _volume;
+		word _frequency;
+		word _duration;
+};
+
+audio_channel::audio_channel(int channel) {
+	this->_channel = channel;
+	this->_flag = 0;
+	this->_waveform = new SawtoothWaveformGenerator();
+	SoundGenerator.attach(_waveform);
+	SoundGenerator.play(true);
+	debug_log("audio_driver: init %d\n\r", this->_channel);			
+}
+
+word audio_channel::play_note(byte volume, word frequency, word duration) {
+	if(this->_flag == 0) {
+		this->_volume = volume;
+		this->_frequency = frequency;
+		this->_duration = duration;
+		this->_flag++;
+		debug_log("audio_driver: play_note %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);		
+		return 1;	
+	}
+	return 0;
+}
+
+void audio_channel::loop() {
+	if(this->_flag > 0) {
+		debug_log("audio_driver: play %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);			
+		this->_waveform->setVolume(this->_volume);
+		this->_waveform->setFrequency(this->_frequency);
+		this->_waveform->enable(true);
+		vTaskDelay(this->_duration);
+		this->_waveform->enable(false);
+		debug_log("audio_driver: end\n\r");			
+		this->_flag = 0; 
+	}
+}
+
+audio_channel *	audio_channels[AUDIO_CHANNELS];
+
+// Sprite data
+//
+uint8_t	numsprites = 0;
+uint8_t current_sprite = 0; 
+uint8_t current_bitmap = 0;
+Bitmap	bitmaps[256];
+Sprite	sprites[256];
+
 #if DEBUG == 1
 HardwareSerial DBGSerial(0);
 #endif 
 
 void setup() {
-	disableCore0WDT();				// Disable the watchdog timers
-	delay(100); 					// Crashes without this delay
-	disableCore1WDT();
+	disableCore0WDT(); delay(200);								// Disable the watchdog timers
+	disableCore1WDT(); delay(200);
 	#if DEBUG == 1
 	DBGSerial.begin(500000, SERIAL_8N1, 3, 1);
 	#endif 
@@ -78,10 +152,12 @@ void setup() {
 	setRTSStatus(true);
 	#endif
  	PS2Controller.begin(PS2Preset::KeyboardPort0, KbdMode::CreateVirtualKeysQueue);
-	PS2Controller.keyboard()->setCodePage(fabgl::CodePages::get(1252));
+	PS2Controller.keyboard()->setLayout(&fabgl::UKLayout);
   	VGAController.begin();
+	init_audio();
 	copy_font();
   	set_mode(5);
+	boot_screen();
 }
 
 // Copy the AGON font data from Flash to RAM
@@ -96,13 +172,40 @@ void setRTSStatus(bool value) {
 	digitalWrite(UART_RTS, value ? LOW : HIGH);		// Asserts when LOW
 }
 
+// Initialise the sound driver
+//
+void init_audio() {
+	for(int i = 0; i < AUDIO_CHANNELS; i++) {
+		init_audio_channel(i);
+	}
+}
+void init_audio_channel(int channel) {
+  	xTaskCreatePinnedToCore(audio_driver,  "audio_driver",
+    	4096,					// This stack size can be checked & adjusted by reading the Stack Highwater
+        &channel,				// Parameters
+        PLAY_SOUND_PRIORITY,	// Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
+        NULL,
+    	ARDUINO_RUNNING_CORE
+	);
+}
+
+// The music driver task
+//
+void audio_driver(void * parameters) {
+	int channel = *(int *)parameters;
+
+	audio_channels[channel] = new audio_channel(channel);
+	while(true) {
+		audio_channels[channel]->loop();
+		vTaskDelay(1);
+	}
+}
+
 // The main loop
 //
 void loop() {
 	bool cursorVisible = false;
 	bool cursorState = false;
-
-	boot_screen();
 
 	while(true) {
     	cursorVisible = ((count & 0xFFFF) == 0);
@@ -123,7 +226,6 @@ void loop() {
       		}
       		byte c = ESPSerial.read();
       		vdu(c);
-			sendCursorPosition();
     	}
 		#if USE_HWFLOW == 0
 		else {
@@ -133,15 +235,55 @@ void loop() {
     	count++;
   	}
 }
-
+	
+// Send the cursor position back to MOS
+//
 void sendCursorPosition() {
-	// Create and send the packet back to MOS
-	//
 	byte packet[] = {
 		charX / Canvas->getFontInfo()->width,
 		charY / Canvas->getFontInfo()->height,
 	};
 	send_packet(PACKET_CURSOR, sizeof packet, packet);	
+}
+
+// Send a character back to MOS
+//
+void sendScreenChar(int x, int y) {
+	int	px = x * Canvas->getFontInfo()->width;
+	int py = y * Canvas->getFontInfo()->height;
+	char c = get_screen_char(px, py);
+	byte packet[] = {
+		c,
+	};
+	send_packet(PACKET_SCRCHAR, sizeof packet, packet);
+}
+
+// Send a pixel value back to MOS
+//
+void sendScreenPixel(int x, int y) {
+	RGB888 pixel;
+
+	// Do some bounds checking first
+	//
+	if(x >= 0 && y >= 0 && x < Canvas->getWidth() && y < Canvas->getHeight()) {
+		pixel = Canvas->getPixel(x, y);
+	}	
+	byte packet[] = {
+		pixel.R,
+		pixel.G,
+		pixel.B,
+	};
+	send_packet(PACKET_SCRPIXEL, sizeof packet, packet);	
+}
+
+// Send an audio acknowledgement
+//
+void sendPlayNote(int channel, int success) {
+	byte packet[] = {
+		channel,
+		success,
+	};
+	send_packet(PACKET_AUDIO, sizeof packet, packet);	
 }
 
 // Debug printf to PC
@@ -183,6 +325,51 @@ void cls() {
 //
 void clg() {
 	Canvas->clear();
+}
+
+// Try and match a character
+//
+char get_screen_char(int px, int py) {
+	RGB888	pixel;
+	uint8_t	charRow;
+	uint8_t	charData[8];
+
+	// Do some bounds checking first
+	//
+	if(px < 0 || py < 0 || px >= Canvas->getWidth() - 8 || py >= Canvas->getHeight() - 8) {
+		return 0;
+	}
+
+	// Now scan the screen and get the 8 byte pixel representation in charData
+	//
+	for(int y = 0; y < 8; y++) {
+		charRow = 0;
+		for(int x = 0; x < 8; x++) {
+			pixel = Canvas->getPixel(px + x, py + y);
+			if(pixel == tfg) {
+				charRow |= (0x80 >> x);
+			}
+		}
+		charData[y] = charRow;
+	}
+	//
+	// Finally try and match with the character set array
+	//
+	for(int i = 32; i < 128; i++) {
+		if(cmp_char(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {	
+			return i;		
+		}
+	}
+	return 0;
+}
+
+bool cmp_char(uint8_t * c1, uint8_t *c2, int len) {
+	for(int i = 0; i < len; i++) {
+		if(*c1++ != *c2++) {
+			return false;
+		}
+	}
+	return true;
 }
 
 // Set the video mode
@@ -270,14 +457,14 @@ void do_keyboard() {
 				case fabgl::VK_UP:
 					keycode = 0x0B;
 					break;
+				case fabgl::VK_POUND:
+					keycode = '`';
+					break;
 				case fabgl::VK_BACKSPACE:
 					keycode = 0x7F;
 					break;
-				case fabgl::VK_AT:
-					keycode = '"';
-					break;
-				case fabgl::VK_QUOTEDBL:
-					keycode = '@';
+				case fabgl::VK_GRAVEACCENT:
+					keycode = 0x00;
 					break;
 				default:
 					keycode = item.ASCII;
@@ -339,6 +526,17 @@ word readWord() {
   	byte l = readByte();
   	byte h = readByte();
   	return (h << 8) | l;
+}
+
+// Read an unsigned word from the serial port
+//
+uint32_t readLong() {
+  uint32_t temp;
+  temp  =  readByte();			// LSB;
+  temp |= (readByte() << 8);
+  temp |= (readByte() << 16);
+  temp |= (readByte() << 24);
+  return temp;
 }
 
 // Translate a point
@@ -570,8 +768,8 @@ void vdu_sys() {
 		    case 0x00:				// VDU 23, 0
       			vdu_sys_video();	// Video system control
       			break;
-			case 0x1C:				// VDU 28, 28
-				vdu_sys_audio();	// Audio system control
+			case 0x1B:				// VDU 23, 27
+				vdu_sys_sprites();	// Sprite system control
 				break;
   		}
 	}
@@ -589,29 +787,215 @@ void vdu_sys() {
 }
 
 // VDU 23,0: Video system control
+// These send responses back and have a packet # that matches the VDU command
 //
 void vdu_sys_video() {
   	byte mode = readByte();
   	switch(mode) {
+		case PACKET_CURSOR: {		// VDU 23, 0, 2, x; y;
+			sendCursorPosition();	// Send cursor position
+		}	break;
+		case PACKET_SCRCHAR: {		// VDU 23, 0, 3, x; y;
+			word x = readWord();	// Get character at screen position x, y
+			word y = readWord();
+			sendScreenChar(x, y);
+		}	break;
+		case PACKET_SCRPIXEL: {		// VDU 23, 0, 4, x; y;
+			word x = readWord();	// Get pixel value at screen position x, y
+			word y = readWord();
+			sendScreenPixel(x, y);
+		} 	break;		
+		case PACKET_AUDIO: {		// VDU 23, 0, 5, channel, waveform, volume, freq; duration;
+			byte channel = readByte();
+			byte waveform = readByte();
+			byte volume = readByte();
+			word frequency = readWord();
+			word duration = readWord();
+			word success = play_note(channel, volume, frequency, duration);
+			sendPlayNote(channel, success);
+		}	break;
   	}
 }
 
-// VDU 23, 28: Audio system control
+// Play a note
 //
-void vdu_sys_audio() {
-	byte mode = readByte();
-	switch(mode) {
-		case 0:						// VDU 23, 28, 0, volume, frequency; duration;
-			play_sound();
-			break;
+word play_note(byte channel, byte volume, word frequency, word duration) {
+	if(channel >=0 && channel < AUDIO_CHANNELS) {
+		return audio_channels[channel]->play_note(volume, frequency, duration);
 	}
+	return 0;
 }
 
-// Play a sound
+// Sprite Engine
 //
-void play_sound(void) {
-	int volume = readByte();
-	int frequency = readWord();
-	int duration = readWord();
-	SoundGenerator.playSound(SineWaveformGenerator(), frequency, duration, volume);
+void vdu_sys_sprites(void) {
+    uint32_t color;
+    void *dataptr;
+    int16_t x,y;
+    int16_t width,height;
+    uint16_t n,temp;
+    bool refresh = false;
+    
+    byte cmd = readByte();
+
+    switch(cmd) {
+      case 0: // select bitmap
+        current_bitmap = readByte();
+        debug_log("vdu - bitmap %d selected\n\r", current_bitmap);
+        break;
+      case 1: // Send bitmap data
+      case 2: // Define bitmap in single color
+        width = readWord();
+        height = readWord();
+        
+        // Clear out any old data first
+		//
+        free(bitmaps[current_bitmap].data);
+
+        // Allocate new heap data
+		//
+        dataptr = (void *)heap_caps_malloc(sizeof(uint32_t)*width*height, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
+        bitmaps[current_bitmap].data = (uint8_t *)dataptr;
+        
+        if(dataptr != NULL) {                  
+          if(cmd == 1) {
+            // Read data to the new databuffer
+			//
+            for(n = 0; n < width*height; n++) ((uint32_t *)bitmaps[current_bitmap].data)[n] = readLong();  
+            debug_log("vdu - bitmap %d - data received - width %d, height %d\n\r", current_bitmap, width, height);
+          }
+          if(cmd == 2) {
+            color = readLong();
+            // Define single color
+			//
+            for(n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = color;            
+            debug_log("vdu - bitmap %d - set to solid color - width %d, height %d\n\r", current_bitmap, width, height);            
+          }
+          // Create bitmap structure
+		  //
+          bitmaps[current_bitmap] = Bitmap(width,height,dataptr,PixelFormat::RGBA8888);
+          bitmaps[current_bitmap].dataAllocated = false;
+        }
+        else {
+          for(n = 0; n < width*height; n++) readLong(); // discard incoming data
+          debug_log("vdu - bitmap %d - data discarded, no memory available - width %d, height %d\n\r", current_bitmap, width, height);
+        }
+        break;
+
+      case 3: // Draw bitmap to screen (x,y)
+        x = readWord();
+        y = readWord();
+
+        if(bitmaps[current_bitmap].data) Canvas->drawBitmap(x,y,&bitmaps[current_bitmap]);
+   
+        debug_log("vdu - bitmap %d draw command\n\r", current_bitmap);
+        break;
+
+      /*
+       * Sprites
+       * 
+       * Sprite creation order:
+       * 1) Create bitmap(s) for sprite, or re-use bitmaps already created
+       * 2) Select the correct sprite ID (0-255). The GDU only accepts sequential sprite sets, starting from ID 0. All sprites must be adjacent to 0
+       * 3) Clear out any frames from previous program definitions
+       * 4) Add one or more frames to each sprite
+       * 5) Activate sprite to the GDU
+       * 6) Show sprites on screen / move them around as needed
+       */
+      case 4: // select sprite
+        current_sprite = readByte();
+        debug_log("vdu - sprite %d selected\n\r", current_sprite);
+        break;
+
+      case 5: // clear frames
+        sprites[current_sprite].clearBitmaps();
+        debug_log("vdu - sprite %d - all frames cleared\n\r", current_sprite);
+        break;
+        
+      case 6: // add frame to sprite
+        n = readByte();
+
+        sprites[current_sprite].addBitmap(&bitmaps[n]);
+        sprites[current_sprite].visible = false;
+       
+        debug_log("vdu - sprite %d - bitmap %d added as frame %d\n\r", current_sprite, n, sprites[current_sprite].framesCount-1);
+        break;
+
+      case 7: // Active sprites to GDU
+        /*
+         * Sprites 0-(numsprites-1) will be activated on-screen
+         * Make sure all sprites have at least one frame attached to them
+         */
+        numsprites = readByte();
+        VGAController.setSprites(sprites, numsprites);
+        debug_log("vdu - %d sprites activated\n\r", numsprites);
+        break;
+
+      case 8: // set next frame on sprite
+        sprites[current_sprite].nextFrame();
+        refresh = true;
+        debug_log("vdu - sprite %d next frame\n\r", current_sprite);
+        break;
+
+      case 9: // set previous frame on sprite
+        n = sprites[current_sprite].currentFrame;
+        
+        if(n) sprites[current_sprite].currentFrame = n-1; // previous frame
+        else sprites[current_sprite].currentFrame = sprites[current_sprite].framesCount - 1;  // last frame
+
+        refresh = true;
+        debug_log("vdu - sprite %d previous frame\n\r", current_sprite);
+        break;
+
+      case 10: // set current frame id on sprite
+        n = readByte();
+
+        if(n < sprites[current_sprite].framesCount) sprites[current_sprite].currentFrame = n;
+
+        refresh = true;
+        debug_log("vdu - sprite %d set to frame %d\n\r", current_sprite,n);
+        break;
+
+      case 11: // show sprite
+        sprites[current_sprite].visible = 1;
+
+        refresh = true;
+        debug_log("vdu - sprite %d show cmd\n\r", current_sprite);
+        break;
+
+      case 12: // hide sprite
+        sprites[current_sprite].visible = 0;
+
+        refresh = true;
+        debug_log("vdu - sprite %d hide cmd\n\r", current_sprite);
+        break;
+
+      case 13: // move sprite to coordinate on screen
+        x = readWord();
+        y = readWord();
+        
+        sprites[current_sprite].moveTo(x,y); 
+
+        refresh = true;
+        debug_log("vdu - sprite %d - move to (%d,%d)\n\r", current_sprite, x, y);
+        break;
+
+      case 14: // move sprite by offset to current coordinate on screen
+        x = readWord();
+        y = readWord();
+        
+        sprites[current_sprite].x += x;
+        sprites[current_sprite].y += y;
+
+        refresh = true;
+        debug_log("vdu - sprite %d - move by offset (%d,%d)\n\r", current_sprite, x, y);
+        break;
+    }
+	
+	// Only refresh if needed and number of sprites is activated to the GDU
+	//
+    if(numsprites && refresh) { 
+      debug_log("vdu - perform sprite refresh\n\r");
+      VGAController.refreshSprites();
+    }
 }
