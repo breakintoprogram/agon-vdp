@@ -28,6 +28,17 @@ The VDU command is a work-in-progress with a handful of mappings implemented.
 
 All other characters are sent to the screen as ASCII, unaltered.
 
+## VDU 23, 0
+
+VDU 23, 0 is reserved for commands sent to the VDP
+
+- `VDU 23, 0, 2`: Request cursor position
+- `VDU 23, 0, 3, x; y;`: Get ASCII code of character at character position x, y
+- `VDU 23, 0, 4, x; y;`: Get colour of pixel at pixel position x, y
+- `VDU 23, 0, 5, channel, waveform, volume, freq; duration;`: Send a note to the VDP audio driver
+
+These commands will return their data back to the eZ80 via the serial protocol
+
 ## Serial Protocol
 
 Data sent from the VPD to the eZ80's UART0 is sent as a packet in the following format:
@@ -41,6 +52,9 @@ Packets:
 - `0x00`: General Poll
 - `0x01, keycode, modifiers`: Keyboard
 - `0x02, x, y`: Cursor position
+- `0x03, char`: Character read from screen
+- `0x04, r, g, b`: Pixel colour read from screen
+- `0x05, channel, success`: Audio play note acknowledgement
 
 ## Keyboard
 
