@@ -6,7 +6,7 @@ Whilst it is tailored to work well with the Agon version of BBC Basic for Z80, t
 
 ## Interface
 
-The interface between the eZ80 and the VDP is via a serial UART running at 250,000 baud.
+The interface between the eZ80 and the VDP is via a serial UART running at 384,000 baud.
 
 ## VDU Character Sequences
 
