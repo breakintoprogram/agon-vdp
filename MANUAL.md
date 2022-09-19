@@ -36,6 +36,7 @@ VDU 23, 0 is reserved for commands sent to the VDP
 - `VDU 23, 0, 3, x; y;`: Get ASCII code of character at character position x, y
 - `VDU 23, 0, 4, x; y;`: Get colour of pixel at pixel position x, y
 - `VDU 23, 0, 5, channel, waveform, volume, freq; duration;`: Send a note to the VDP audio driver
+- `VDU 23, 0, 6`: Fetch the screen dimensions 
 
 These commands will return their data back to the eZ80 via the serial protocol
 
@@ -47,6 +48,8 @@ Data sent from the VPD to the eZ80's UART0 is sent as a packet in the following 
 - len: Number of data bytes
 - data: The data byte(s)
 
+Words are 16 bit, and sent in little-endian format
+
 Packets:
 
 - `0x00`: General Poll
@@ -55,6 +58,7 @@ Packets:
 - `0x03, char`: Character read from screen
 - `0x04, r, g, b`: Pixel colour read from screen
 - `0x05, channel, success`: Audio play note acknowledgement
+- `0x06, width, height, cols, rows`: Screen dimensions - width and height are words
 
 ## Keyboard
 

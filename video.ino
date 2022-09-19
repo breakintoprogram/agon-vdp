@@ -4,7 +4,7 @@
 // Contributors:	Jeroen Venema (Sprite Code)
 //					Damien Guard (Fonts)
 // Created:       	22/03/2022
-// Last Updated:	10/08/2022
+// Last Updated:	05/09/2022
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -12,52 +12,24 @@
 // 03/08/2022:		Set codepage 1252, fixed keyboard mappings for AGON, added cursorTab, VDP serial protocol
 // 06/08/2022:		Added a custom font, fixed UART initialisation, flow control
 // 10/08/2022:		Improved keyboard mappings, added sprites, audio, new font
+// 05/09/2022:		Moved the audio class to agon_audio.h, added function prototypes in agon.h
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
 
-#include "font_agon.h"			// The Acorn BBC Micro Font
-
 #define VERSION			0
-#define REVISION		5
+#define REVISION		6
 
-#define	DEBUG			1		// Serial Debug Mode: 1 = enable
-#define USE_HWFLOW		1		// Flow Control: 1 = enable hardware flow control to eZ80
-#define AUDIO_CHANNELS	3		// Number of audio channels
-
-#define	ESPSerial Serial2
-
-#define UART_BR			384000
-#define UART_NA			-1
-#define UART_TX			2
-#define UART_RX			34
-#define UART_RTS  	  	13 		// The ESP32 RTS pin (eZ80 CTS)
-#define UART_CTS  	  	14		// The ESP32 CTS pin (eZ80 RTS)
-
-#define UART_RX_SIZE	256		// The RX buffer size
-#define UART_RX_THRESH	128		// Point at which RTS is toggled
-
-#define GPIO_ITRP		17		// VSync Interrupt Pin - for reference only
-
-#define PACKET_GP		0		// General poll data
-#define PACKET_KEYCODE	1		// Keyboard data
-#define PACKET_CURSOR	2		// Cursor positions
-#define PACKET_SCRCHAR	3		// Character read from screen
-#define PACKET_SCRPIXEL	4		// Pixel read from screen
-#define PACKET_AUDIO	5		// Audio acknowledgement
-
-#if CONFIG_FREERTOS_UNICORE
-#define ARDUINO_RUNNING_CORE 0
-#else
-#define ARDUINO_RUNNING_CORE 1
-#endif
-
-#define PLAY_SOUND_PRIORITY 3
+#define	DEBUG			0		// Serial Debug Mode: 1 = enable
 
 fabgl::PS2Controller		PS2Controller;
 fabgl::VGA16Controller		VGAController;
 fabgl::Canvas *				Canvas;
 fabgl::SoundGenerator		SoundGenerator;
+
+#include "agon.h"
+#include "agon_fonts.h"			// The Acorn BBC Micro Font
+#include "agon_audio.h"			// The Audio class
 
 int         charX, charY;
 
@@ -67,60 +39,6 @@ RGB888      gfg;
 RGB888      tfg, tbg;
 
 int         count = 0;
-
-// Function prototypes
-//
-void debug_log(const char *format, ...);
-
-// The audio channel class
-//
-class audio_channel {	
-	public:
-		audio_channel(int channel);		
-		word	play_note(byte volume, word frequency, word duration);
-		void	loop();
-	private:
-		fabgl::WaveformGenerator *	_waveform;			
-	 	byte _flag;
-		byte _channel;
-		byte _volume;
-		word _frequency;
-		word _duration;
-};
-
-audio_channel::audio_channel(int channel) {
-	this->_channel = channel;
-	this->_flag = 0;
-	this->_waveform = new SawtoothWaveformGenerator();
-	SoundGenerator.attach(_waveform);
-	SoundGenerator.play(true);
-	debug_log("audio_driver: init %d\n\r", this->_channel);			
-}
-
-word audio_channel::play_note(byte volume, word frequency, word duration) {
-	if(this->_flag == 0) {
-		this->_volume = volume;
-		this->_frequency = frequency;
-		this->_duration = duration;
-		this->_flag++;
-		debug_log("audio_driver: play_note %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);		
-		return 1;	
-	}
-	return 0;
-}
-
-void audio_channel::loop() {
-	if(this->_flag > 0) {
-		debug_log("audio_driver: play %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);			
-		this->_waveform->setVolume(this->_volume);
-		this->_waveform->setFrequency(this->_frequency);
-		this->_waveform->enable(true);
-		vTaskDelay(this->_duration);
-		this->_waveform->enable(false);
-		debug_log("audio_driver: end\n\r");			
-		this->_flag = 0; 
-	}
-}
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];
 
@@ -286,6 +204,22 @@ void sendPlayNote(int channel, int success) {
 		success,
 	};
 	send_packet(PACKET_AUDIO, sizeof packet, packet);	
+}
+
+// Send MODE information (screen details)
+//
+void sendModeInformation() {
+	int w = Canvas->getWidth();
+	int h = Canvas->getHeight();
+	byte packet[] = {
+		w & 0xFF,	 						// Width in pixels (L)
+		(w >> 8) & 0xFF,					// Width in pixels (H)
+		h & 0xFF,							// Height in pixels (L)
+		(h >> 8) & 0xFF,					// Height in pixels (H)
+		w / Canvas->getFontInfo()->width ,	// Width in characters (byte)
+		h / Canvas->getFontInfo()->height ,	// Height in characters (byte)
+	};
+	send_packet(PACKET_MODE, sizeof packet, packet);
 }
 
 // Debug printf to PC
@@ -794,7 +728,7 @@ void vdu_sys() {
 void vdu_sys_video() {
   	byte mode = readByte();
   	switch(mode) {
-		case PACKET_CURSOR: {		// VDU 23, 0, 2, x; y;
+		case PACKET_CURSOR: {		// VDU 23, 0, 2
 			sendCursorPosition();	// Send cursor position
 		}	break;
 		case PACKET_SCRCHAR: {		// VDU 23, 0, 3, x; y;
@@ -815,6 +749,9 @@ void vdu_sys_video() {
 			word duration = readWord();
 			word success = play_note(channel, volume, frequency, duration);
 			sendPlayNote(channel, success);
+		}	break;
+		case PACKET_MODE: {			// VDU 23, 0, 6
+			sendModeInformation();	// Send mode information (screen dimensions, etc)
 		}	break;
   	}
 }
