@@ -4,7 +4,7 @@
 // Contributors:	Jeroen Venema (Sprite Code)
 //					Damien Guard (Fonts)
 // Created:       	22/03/2022
-// Last Updated:	05/09/2022
+// Last Updated:	02/10/2022
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -13,12 +13,13 @@
 // 06/08/2022:		Added a custom font, fixed UART initialisation, flow control
 // 10/08/2022:		Improved keyboard mappings, added sprites, audio, new font
 // 05/09/2022:		Moved the audio class to agon_audio.h, added function prototypes in agon.h
+// 02/10/2022:		Version 1.00: Tweaked the sprite code, changed bootup title to Quark
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
 
-#define VERSION			0
-#define REVISION		6
+#define VERSION			1
+#define REVISION		0
 
 #define	DEBUG			0		// Serial Debug Mode: 1 = enable
 
@@ -244,7 +245,7 @@ void debug_log(const char *format, ...) {
 //
 void boot_screen() {
   	cls();
-  	printFmt("AGON VPD Version %d.%02d\n\r", VERSION, REVISION);
+  	printFmt("Agon Quark VPD Version %d.%02d\n\r", VERSION, REVISION);
 	ESPSerial.write(27);	// The MOS will wait for this escape character during initialisation
 }
 
@@ -768,173 +769,155 @@ word play_note(byte channel, byte volume, word frequency, word duration) {
 // Sprite Engine
 //
 void vdu_sys_sprites(void) {
-    uint32_t color;
-    void *dataptr;
-    int16_t x,y;
-    int16_t width,height;
-    uint16_t n,temp;
-    bool refresh = false;
+    uint32_t	color;
+    void *		dataptr;
+    int16_t 	x, y;
+    int16_t 	width, height;
+    uint16_t 	n, temp;
     
     byte cmd = readByte();
 
     switch(cmd) {
-      case 0: // select bitmap
-        current_bitmap = readByte();
-        debug_log("vdu - bitmap %d selected\n\r", current_bitmap);
-        break;
-      case 1: // Send bitmap data
-      case 2: // Define bitmap in single color
-        width = readWord();
-        height = readWord();
-        
-        // Clear out any old data first
-		//
-        free(bitmaps[current_bitmap].data);
-
-        // Allocate new heap data
-		//
-        dataptr = (void *)heap_caps_malloc(sizeof(uint32_t)*width*height, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
-        bitmaps[current_bitmap].data = (uint8_t *)dataptr;
-        
-        if(dataptr != NULL) {                  
-          if(cmd == 1) {
-            // Read data to the new databuffer
+    	case 0: // Select bitmap
+        	current_bitmap = readByte();
+        	debug_log("vdu - bitmap %d selected\n\r", current_bitmap);
+        	break;
+      	case 1: // Send bitmap data
+      	case 2: // Define bitmap in single color
+        	width = readWord();
+        	height = readWord();
 			//
-            for(n = 0; n < width*height; n++) ((uint32_t *)bitmaps[current_bitmap].data)[n] = readLong();  
-            debug_log("vdu - bitmap %d - data received - width %d, height %d\n\r", current_bitmap, width, height);
-          }
-          if(cmd == 2) {
-            color = readLong();
-            // Define single color
+        	// Clear out any old data first
 			//
-            for(n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = color;            
-            debug_log("vdu - bitmap %d - set to solid color - width %d, height %d\n\r", current_bitmap, width, height);            
-          }
-          // Create bitmap structure
-		  //
-          bitmaps[current_bitmap] = Bitmap(width,height,dataptr,PixelFormat::RGBA8888);
-          bitmaps[current_bitmap].dataAllocated = false;
-        }
-        else {
-          for(n = 0; n < width*height; n++) readLong(); // discard incoming data
-          debug_log("vdu - bitmap %d - data discarded, no memory available - width %d, height %d\n\r", current_bitmap, width, height);
-        }
+        	free(bitmaps[current_bitmap].data);
+			//
+        	// Allocate new heap data
+			//
+        	dataptr = (void *)heap_caps_malloc(sizeof(uint32_t)*width*height, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
+        	bitmaps[current_bitmap].data = (uint8_t *)dataptr;
+
+        	if(dataptr != NULL) {                  
+				if(cmd == 1) {
+					//
+					// Read data to the new databuffer
+					//
+					for(n = 0; n < width*height; n++) ((uint32_t *)bitmaps[current_bitmap].data)[n] = readLong();  
+					debug_log("vdu - bitmap %d - data received - width %d, height %d\n\r", current_bitmap, width, height);
+				}
+				if(cmd == 2) {
+					color = readLong();
+					// Define single color
+					//
+					for(n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = color;            
+					debug_log("vdu - bitmap %d - set to solid color - width %d, height %d\n\r", current_bitmap, width, height);            
+				}
+				// Create bitmap structure
+				//
+				bitmaps[current_bitmap] = Bitmap(width,height,dataptr,PixelFormat::RGBA8888);
+				bitmaps[current_bitmap].dataAllocated = false;
+			}
+	        else {
+    	    	for(n = 0; n < width*height; n++) readLong(); // discard incoming data
+        		debug_log("vdu - bitmap %d - data discarded, no memory available - width %d, height %d\n\r", current_bitmap, width, height);
+        	}
+        	break;
+
+      	case 3: // Draw bitmap to screen (x,y)
+			x = readWord();
+			y = readWord();
+
+			if(bitmaps[current_bitmap].data) Canvas->drawBitmap(x,y,&bitmaps[current_bitmap]);
+	
+			debug_log("vdu - bitmap %d draw command\n\r", current_bitmap);
         break;
 
-      case 3: // Draw bitmap to screen (x,y)
-        x = readWord();
-        y = readWord();
+	   /*
+		* Sprites
+		* 
+		* Sprite creation order:
+		* 1) Create bitmap(s) for sprite, or re-use bitmaps already created
+		* 2) Select the correct sprite ID (0-255). The GDU only accepts sequential sprite sets, starting from ID 0. All sprites must be adjacent to 0
+		* 3) Clear out any frames from previous program definitions
+		* 4) Add one or more frames to each sprite
+		* 5) Activate sprite to the GDU
+		* 6) Show sprites on screen / move them around as needed
+		* 7) Refresh
+		*/
+    	case 4: // Select sprite
+			current_sprite = readByte();
+			debug_log("vdu - sprite %d selected\n\r", current_sprite);
+			break;
 
-        if(bitmaps[current_bitmap].data) Canvas->drawBitmap(x,y,&bitmaps[current_bitmap]);
-   
-        debug_log("vdu - bitmap %d draw command\n\r", current_bitmap);
-        break;
-
-      /*
-       * Sprites
-       * 
-       * Sprite creation order:
-       * 1) Create bitmap(s) for sprite, or re-use bitmaps already created
-       * 2) Select the correct sprite ID (0-255). The GDU only accepts sequential sprite sets, starting from ID 0. All sprites must be adjacent to 0
-       * 3) Clear out any frames from previous program definitions
-       * 4) Add one or more frames to each sprite
-       * 5) Activate sprite to the GDU
-       * 6) Show sprites on screen / move them around as needed
-       */
-      case 4: // select sprite
-        current_sprite = readByte();
-        debug_log("vdu - sprite %d selected\n\r", current_sprite);
-        break;
-
-      case 5: // clear frames
-        sprites[current_sprite].clearBitmaps();
-        debug_log("vdu - sprite %d - all frames cleared\n\r", current_sprite);
-        break;
+      	case 5: // Clear frames
+			sprites[current_sprite].clearBitmaps();
+			debug_log("vdu - sprite %d - all frames cleared\n\r", current_sprite);
+			break;
         
-      case 6: // add frame to sprite
-        n = readByte();
-
-        sprites[current_sprite].addBitmap(&bitmaps[n]);
-        sprites[current_sprite].visible = false;
-       
-        debug_log("vdu - sprite %d - bitmap %d added as frame %d\n\r", current_sprite, n, sprites[current_sprite].framesCount-1);
-        break;
+      case 6: // Add frame to sprite
+			n = readByte();
+			sprites[current_sprite].addBitmap(&bitmaps[n]);
+			sprites[current_sprite].visible = false;
+			debug_log("vdu - sprite %d - bitmap %d added as frame %d\n\r", current_sprite, n, sprites[current_sprite].framesCount-1);
+			break;
 
       case 7: // Active sprites to GDU
-        /*
-         * Sprites 0-(numsprites-1) will be activated on-screen
-         * Make sure all sprites have at least one frame attached to them
-         */
-        numsprites = readByte();
-        VGAController.setSprites(sprites, numsprites);
-        debug_log("vdu - %d sprites activated\n\r", numsprites);
-        break;
+			/*
+			* Sprites 0-(numsprites-1) will be activated on-screen
+			* Make sure all sprites have at least one frame attached to them
+			*/
+			numsprites = readByte();
+			VGAController.setSprites(sprites, numsprites);
+			debug_log("vdu - %d sprites activated\n\r", numsprites);
+			break;
 
       case 8: // set next frame on sprite
-        sprites[current_sprite].nextFrame();
-        refresh = true;
-        debug_log("vdu - sprite %d next frame\n\r", current_sprite);
-        break;
+			sprites[current_sprite].nextFrame();
+			debug_log("vdu - sprite %d next frame\n\r", current_sprite);
+			break;
 
       case 9: // set previous frame on sprite
-        n = sprites[current_sprite].currentFrame;
-        
-        if(n) sprites[current_sprite].currentFrame = n-1; // previous frame
-        else sprites[current_sprite].currentFrame = sprites[current_sprite].framesCount - 1;  // last frame
-
-        refresh = true;
-        debug_log("vdu - sprite %d previous frame\n\r", current_sprite);
-        break;
+			n = sprites[current_sprite].currentFrame;
+			if(n) sprites[current_sprite].currentFrame = n-1; // previous frame
+			else sprites[current_sprite].currentFrame = sprites[current_sprite].framesCount - 1;  // last frame
+			debug_log("vdu - sprite %d previous frame\n\r", current_sprite);
+			break;
 
       case 10: // set current frame id on sprite
-        n = readByte();
+			n = readByte();
+			if(n < sprites[current_sprite].framesCount) sprites[current_sprite].currentFrame = n;
+			debug_log("vdu - sprite %d set to frame %d\n\r", current_sprite,n);
+			break;
 
-        if(n < sprites[current_sprite].framesCount) sprites[current_sprite].currentFrame = n;
+      case 11: // Show sprite
+        	sprites[current_sprite].visible = 1;
+			debug_log("vdu - sprite %d show cmd\n\r", current_sprite);
+			break;
 
-        refresh = true;
-        debug_log("vdu - sprite %d set to frame %d\n\r", current_sprite,n);
-        break;
+      case 12: // Hide sprite
+			sprites[current_sprite].visible = 0;
+			debug_log("vdu - sprite %d hide cmd\n\r", current_sprite);
+			break;
 
-      case 11: // show sprite
-        sprites[current_sprite].visible = 1;
-
-        refresh = true;
-        debug_log("vdu - sprite %d show cmd\n\r", current_sprite);
-        break;
-
-      case 12: // hide sprite
-        sprites[current_sprite].visible = 0;
-
-        refresh = true;
-        debug_log("vdu - sprite %d hide cmd\n\r", current_sprite);
-        break;
-
-      case 13: // move sprite to coordinate on screen
-        x = readWord();
-        y = readWord();
-        
-        sprites[current_sprite].moveTo(x,y); 
-
-        refresh = true;
-        debug_log("vdu - sprite %d - move to (%d,%d)\n\r", current_sprite, x, y);
-        break;
+      case 13: // Move sprite to coordinate on screen
+			x = readWord();
+			y = readWord();	
+			sprites[current_sprite].moveTo(x,y); 
+			debug_log("vdu - sprite %d - move to (%d,%d)\n\r", current_sprite, x, y);
+			break;
 
       case 14: // move sprite by offset to current coordinate on screen
-        x = readWord();
-        y = readWord();
-        
-        sprites[current_sprite].x += x;
-        sprites[current_sprite].y += y;
+			x = readWord();
+			y = readWord();
+			sprites[current_sprite].x += x;
+			sprites[current_sprite].y += y;
+			debug_log("vdu - sprite %d - move by offset (%d,%d)\n\r", current_sprite, x, y);
+			break;
 
-        refresh = true;
-        debug_log("vdu - sprite %d - move by offset (%d,%d)\n\r", current_sprite, x, y);
-        break;
-    }
-	
-	// Only refresh if needed and number of sprites is activated to the GDU
-	//
-    if(numsprites && refresh) { 
-      debug_log("vdu - perform sprite refresh\n\r");
-      VGAController.refreshSprites();
+	  case 15: // Refresh
+			if(numsprites) { 
+				VGAController.refreshSprites();
+			}
+			debug_log("vdu - perform sprite refresh\n\r");
+			break;
     }
 }
