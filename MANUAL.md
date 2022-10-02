@@ -12,23 +12,23 @@ The interface between the eZ80 and the VDP is via a serial UART running at 384,0
 
 The VDU command is a work-in-progress with a handful of mappings implemented.
 
-- `VDU 8` Cursor left
-- `VDU 9` Cursor right
-- `VDU 10` Cursor down
-- `VDU 11` Cursor up
-- `VDU 12` CLS
-- `VDU 13` Carriage return
-- `VDU 18,mode,r,g,b` GCOL mode,r,g,b
-- `VDU 22,n` Mode n
-- `VDU 23,n`: UDG / System Commands
-- `VDU 25,mode,x;y;` PLOT mode,x,y
-- `VDU 30` Home cursor
-- `VDU 31,x,y` TAB(x,y)
-- `VDU 127` Backspace
+- `VDU 8`: Cursor left
+- `VDU 9`: Cursor right
+- `VDU 10`: Cursor down
+- `VDU 11`: Cursor up
+- `VDU 12`: CLS
+- `VDU 13`: Carriage return
+- `VDU 18, mode, r, g, b`: GCOL mode, r, g, b
+- `VDU 22, n`: Mode n
+- `VDU 23, n`: UDG / System Commands
+- `VDU 25, mode, x; y;`: PLOT mode, x, y
+- `VDU 30`: Home cursor
+- `VDU 31, x, y`: TAB(x, y)
+- `VDU 127`: Backspace
 
 All other characters are sent to the screen as ASCII, unaltered.
 
-## VDU 23, 0
+## VDU 23, 0: VPD commands
 
 VDU 23, 0 is reserved for commands sent to the VDP
 
@@ -39,6 +39,32 @@ VDU 23, 0 is reserved for commands sent to the VDP
 - `VDU 23, 0, 6`: Fetch the screen dimensions 
 
 These commands will return their data back to the eZ80 via the serial protocol
+
+## VDU 23, 27: Sprites and Bitmaps
+
+VDU 23, 27 is reserved for the bitmap and sprite functionality
+
+### Bitmaps
+
+- `VDU 23, 27, 0, n`: Select bitmap n
+- `VDU 23. 27, 1, n, w; h; b1, b2 ... bn`: Load colour bitmap data into current bitmap
+- `VDU 23, 27, 2, n, w; h; col1; col2; b1, b2 ... bn`: Load monochrome bitmap data into current bitmap
+- `VDU 23, 27, 3, x; y;`: Draw current bitmap on screen at pixel position x, y
+
+### Sprites
+
+- `VDU 23, 27, 4, n`: Select sprite n
+- `VDU 23, 27, 5`: Clear frames in current sprite
+- `VDU 23, 27, 6, n`: Add bitmap n as a frame to current sprite
+- `VDU 23, 27, 7, n`: Activate n sprites
+- `VDU 23, 27, 8`: Select next frame of current sprite
+- `VDU 23, 27, 9`: Select previous frame of current sprite
+- `VDU 23, 27, 10, n`: Select the nth frame of current sprite
+- `VDU 23, 27, 11`: Show current sprite
+- `VDU 23, 27, 12`: Hide current sprite
+- `VDU 23, 27, 13, x; y;`: Move current sprite to pixel position x, y
+- `VDU 23, 27, 14, x; y;`: Move current sprite by x, y pixels
+- `VDU 23, 27, 15`: Update the sprites in the GPU
 
 ## Serial Protocol
 
