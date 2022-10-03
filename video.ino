@@ -4,7 +4,7 @@
 // Contributors:	Jeroen Venema (Sprite Code)
 //					Damien Guard (Fonts)
 // Created:       	22/03/2022
-// Last Updated:	02/10/2022
+// Last Updated:	03/10/2022
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -14,12 +14,13 @@
 // 10/08/2022:		Improved keyboard mappings, added sprites, audio, new font
 // 05/09/2022:		Moved the audio class to agon_audio.h, added function prototypes in agon.h
 // 02/10/2022:		Version 1.00: Tweaked the sprite code, changed bootup title to Quark
+// 03/10/2022:		Version 1.01: Can now change keyboard layout, origin and sprites reset on mode change, available modes tweaked
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
 
 #define VERSION			1
-#define REVISION		0
+#define REVISION		1
 
 #define	DEBUG			0		// Serial Debug Mode: 1 = enable
 
@@ -77,7 +78,7 @@ void setup() {
   	VGAController.begin();
 	init_audio();
 	copy_font();
-  	set_mode(5);
+  	set_mode(1);
 	boot_screen();
 }
 
@@ -314,26 +315,14 @@ bool cmp_char(uint8_t * c1, uint8_t *c2, int len) {
 void set_mode(int mode) {
 	switch(mode) {
 		case 0:
-			VGAController.setResolution(SVGA_1024x768_75Hz);
-			break;
-		case 1:
-			VGAController.setResolution(SVGA_800x600_56Hz);
-			break;
-		case 2:
       		VGAController.setResolution(VGA_640x480_60Hz);
       		break;
-		case 3:
-			VGAController.setResolution(VGA_400x300_60Hz);
-			break;
-    	case 4:
-      		VGAController.setResolution(VGA_320x200_75Hz);
-      		break;
-		case 5:
+		case 1:
 		    VGAController.setResolution(VGA_512x384_60Hz);
       		break;
-		case 7:
-			VGAController.setResolution(PAL_720x576_50Hz);
-			break;
+    	case 2:
+      		VGAController.setResolution(VGA_320x200_75Hz);
+      		break;
   	}
   	delete Canvas;
 
@@ -346,6 +335,10 @@ void set_mode(int mode) {
   	Canvas->setPenWidth(1);
   	Canvas->setPenColor(tfg);
   	Canvas->setBrushColor(tbg);	
+	origin.X = 0;
+	origin.Y = 0;
+	numsprites = 0;
+	VGAController.setSprites(sprites, numsprites);
 }
 
 void print(char const * text) {
@@ -723,12 +716,23 @@ void vdu_sys() {
 	}
 }
 
-// VDU 23,0: Video system control
-// These send responses back and have a packet # that matches the VDU command
+// VDU 23,0: VDP control
+// These can send responses back; the response contains a packet # that matches the VDU command mode byte
 //
 void vdu_sys_video() {
   	byte mode = readByte();
   	switch(mode) {
+		case PACKET_KEYCODE: {		// VDU 23, 0, 1, layout
+			byte layout = readByte();
+			switch(layout) {
+				case 0:				// UK Layout
+					PS2Controller.keyboard()->setLayout(&fabgl::UKLayout);
+					break;
+				case 1:				// US Layout
+					PS2Controller.keyboard()->setLayout(&fabgl::USLayout);
+					break;
+			}
+		}	break;
 		case PACKET_CURSOR: {		// VDU 23, 0, 2
 			sendCursorPosition();	// Send cursor position
 		}	break;
