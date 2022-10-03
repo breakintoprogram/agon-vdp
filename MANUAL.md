@@ -32,13 +32,14 @@ All other characters are sent to the screen as ASCII, unaltered.
 
 VDU 23, 0 is reserved for commands sent to the VDP
 
+- `VDU 23, 0, 1, n`: Set the keyboard locale (0=UK, 1=US) 
 - `VDU 23, 0, 2`: Request cursor position
 - `VDU 23, 0, 3, x; y;`: Get ASCII code of character at character position x, y
 - `VDU 23, 0, 4, x; y;`: Get colour of pixel at pixel position x, y
 - `VDU 23, 0, 5, channel, waveform, volume, freq; duration;`: Send a note to the VDP audio driver
 - `VDU 23, 0, 6`: Fetch the screen dimensions 
 
-These commands will return their data back to the eZ80 via the serial protocol
+Commands 2 onwards will return their data back to the eZ80 via the serial protocol
 
 ## VDU 23, 27: Sprites and Bitmaps
 
