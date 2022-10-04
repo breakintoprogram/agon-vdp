@@ -4,7 +4,7 @@
 // Contributors:	Jeroen Venema (Sprite Code)
 //					Damien Guard (Fonts)
 // Created:       	22/03/2022
-// Last Updated:	03/10/2022
+// Last Updated:	04/10/2022
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -14,7 +14,7 @@
 // 10/08/2022:		Improved keyboard mappings, added sprites, audio, new font
 // 05/09/2022:		Moved the audio class to agon_audio.h, added function prototypes in agon.h
 // 02/10/2022:		Version 1.00: Tweaked the sprite code, changed bootup title to Quark
-// 03/10/2022:		Version 1.01: Can now change keyboard layout, origin and sprites reset on mode change, available modes tweaked
+// 04/10/2022:		Version 1.01: Can now change keyboard layout, origin and sprites reset on mode change, available modes tweaked
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -325,7 +325,6 @@ void set_mode(int mode) {
       		break;
   	}
   	delete Canvas;
-
   	Canvas = new fabgl::Canvas(&VGAController);
   	gfg = Color::BrightWhite;
 	tfg = Color::BrightWhite;
@@ -337,8 +336,12 @@ void set_mode(int mode) {
   	Canvas->setBrushColor(tbg);	
 	origin.X = 0;
 	origin.Y = 0;
-	numsprites = 0;
-	VGAController.setSprites(sprites, numsprites);
+	cls();
+	if(numsprites) {
+		numsprites = 0;
+		VGAController.removeSprites();
+		VGAController.refreshSprites();
+	}
 }
 
 void print(char const * text) {
@@ -870,7 +873,12 @@ void vdu_sys_sprites(void) {
 			* Make sure all sprites have at least one frame attached to them
 			*/
 			numsprites = readByte();
-			VGAController.setSprites(sprites, numsprites);
+			if(numsprites) {
+				VGAController.setSprites(sprites, numsprites);
+			}
+			else {
+				VGAController.removeSprites();
+			}
 			debug_log("vdu - %d sprites activated\n\r", numsprites);
 			break;
 
