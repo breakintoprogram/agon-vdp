@@ -4,7 +4,7 @@
 // Contributors:	Jeroen Venema (Sprite Code)
 //					Damien Guard (Fonts)
 // Created:       	22/03/2022
-// Last Updated:	04/10/2022
+// Last Updated:	23/10/2022
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -15,12 +15,13 @@
 // 05/09/2022:		Moved the audio class to agon_audio.h, added function prototypes in agon.h
 // 02/10/2022:		Version 1.00: Tweaked the sprite code, changed bootup title to Quark
 // 04/10/2022:		Version 1.01: Can now change keyboard layout, origin and sprites reset on mode change, available modes tweaked
+// 23/10/2022:		Version 1.02: Bug fixes, cursor visibility and scrolling
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
 
 #define VERSION			1
-#define REVISION		1
+#define REVISION		2
 
 #define	DEBUG			0		// Serial Debug Mode: 1 = enable
 
@@ -39,6 +40,8 @@ Point		origin;
 Point       p1, p2, p3;
 RGB888      gfg;
 RGB888      tfg, tbg;
+
+bool		cursorEnabled = true;
 
 int         count = 0;
 
@@ -253,7 +256,8 @@ void boot_screen() {
 // Clear the screen
 // 
 void cls() {
-//	Canvas->swapBuffers();
+	Canvas->setPenColor(tfg);
+ 	Canvas->setBrushColor(tbg);	
 	Canvas->clear();
 	charX = 0;
 	charY = 0;
@@ -326,22 +330,22 @@ void set_mode(int mode) {
   	}
   	delete Canvas;
   	Canvas = new fabgl::Canvas(&VGAController);
-  	gfg = Color::BrightWhite;
+ 	gfg = Color::BrightWhite;
 	tfg = Color::BrightWhite;
 	tbg = Color::Black;
   	Canvas->selectFont(&fabgl::FONT_AGON);
   	Canvas->setGlyphOptions(GlyphOptions().FillBackground(true));
   	Canvas->setPenWidth(1);
-  	Canvas->setPenColor(tfg);
-  	Canvas->setBrushColor(tbg);	
 	origin.X = 0;
 	origin.Y = 0;
+	cursorEnabled = true;
 	cls();
 	if(numsprites) {
 		numsprites = 0;
 		VGAController.removeSprites();
 		VGAController.refreshSprites();
 	}
+	debug_log("set_mode: canvas(%d,%d)\n\r", Canvas->getWidth(), Canvas->getHeight());
 }
 
 void print(char const * text) {
@@ -439,11 +443,13 @@ void send_packet(byte code, byte len, byte data[]) {
 // Render a cursor at the current screen position
 //
 void do_cursor() {
-  	int w = Canvas->getFontInfo()->width;
-  	int h = Canvas->getFontInfo()->height;
-  	int x = charX; 
-  	int y = charY;
-  	Canvas->swapRectangle(x, y, x + w - 1, y + h - 1);
+	if(cursorEnabled) {
+  		int w = Canvas->getFontInfo()->width;
+  		int h = Canvas->getFontInfo()->height;
+	  	int x = charX; 
+	  	int y = charY;
+	  	Canvas->swapRectangle(x, y, x + w - 1, y + h - 1);
+	}
 }
 
 // Read an unsigned byte from the serial port
@@ -698,11 +704,17 @@ void vdu_sys() {
 	//
 	if(mode < 32) {
   		switch(mode) {
-		    case 0x00:				// VDU 23, 0
-      			vdu_sys_video();	// Video system control
+		    case 0x00:						// VDU 23, 0
+      			vdu_sys_video();			// Video system control
       			break;
-			case 0x1B:				// VDU 23, 27
-				vdu_sys_sprites();	// Sprite system control
+			case 0x01:						// VDU 23, 1
+				cursorEnabled = readByte();	// Cursor control
+				break;
+			case 0x07:						// VDU 23, 7
+				vdu_sys_scroll();			// Scroll 
+				break;
+			case 0x1B:						// VDU 23, 27
+				vdu_sys_sprites();			// Sprite system control
 				break;
   		}
 	}
@@ -762,6 +774,28 @@ void vdu_sys_video() {
 			sendModeInformation();	// Send mode information (screen dimensions, etc)
 		}	break;
   	}
+}
+
+// VDU 23,7: Scroll rectangle on screen
+//
+void vdu_sys_scroll() {
+	byte extent = readByte();		// Extent (0 = current text window, 1 = entire screen)
+	byte direction = readByte();	// Direction
+	byte movement = readByte();		// Number of pixels to scroll
+	switch(direction) {
+		case 0:	// Right
+			Canvas->scroll(movement, 0);
+			break;
+		case 1: // Left
+			Canvas->scroll(-movement, 0);
+			break;
+		case 2: // Down
+			Canvas->scroll(0, movement);
+			break;
+		case 3: // Up
+			Canvas->scroll(0, -movement);
+			break;
+	}
 }
 
 // Play a note
