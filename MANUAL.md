@@ -41,6 +41,15 @@ VDU 23, 0 is reserved for commands sent to the VDP
 
 Commands 2 onwards will return their data back to the eZ80 via the serial protocol
 
+## VDU 23, 1: Cursor display
+
+- `VDU 23, 1, 0`: Disable the text cursor
+- `VDU 23, 1, 1`: Enable the text cursor
+
+## VDU 23, 7: Scrolling
+
+- `VDU 23, 7, extent, direction, speed`: Scroll the screen
+
 ## VDU 23, 27: Sprites and Bitmaps
 
 VDU 23, 27 is reserved for the bitmap and sprite functionality
