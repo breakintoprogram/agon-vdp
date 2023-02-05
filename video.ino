@@ -26,7 +26,9 @@
 #define	DEBUG			0		// Serial Debug Mode: 1 = enable
 
 fabgl::PS2Controller		PS2Controller;
-fabgl::VGA16Controller		VGAController;
+fabgl::VGA16Controller		VGAController16;
+fabgl::VGAController		VGAController64;
+fabgl::VGABaseController*   VGAController;
 fabgl::Canvas *				Canvas;
 fabgl::SoundGenerator		SoundGenerator;
 
@@ -50,35 +52,36 @@ audio_channel *	audio_channels[AUDIO_CHANNELS];
 // Sprite data
 //
 uint8_t	numsprites = 0;
-uint8_t current_sprite = 0; 
+uint8_t current_sprite = 0;
 uint8_t current_bitmap = 0;
 Bitmap	bitmaps[256];
 Sprite	sprites[256];
 
 #if DEBUG == 1
 HardwareSerial DBGSerial(0);
-#endif 
+#endif
 
 void setup() {
 	disableCore0WDT(); delay(200);								// Disable the watchdog timers
 	disableCore1WDT(); delay(200);
 	#if DEBUG == 1
 	DBGSerial.begin(500000, SERIAL_8N1, 3, 1);
-	#endif 
+	#endif
 	ESPSerial.end();
  	ESPSerial.setRxBufferSize(UART_RX_SIZE);					// Can't be called when running
  	ESPSerial.begin(UART_BR, SERIAL_8N1, UART_RX, UART_TX);
 	#if USE_HWFLOW == 1
 	ESPSerial.setHwFlowCtrlMode(HW_FLOWCTRL_RTS, 64);			// Can be called whenever
 	ESPSerial.setPins(UART_NA, UART_NA, UART_CTS, UART_RTS);	// Must be called after begin
-	#else 
+	#else
 	pinMode(UART_RTS, OUTPUT);
-	pinMode(UART_CTS, INPUT);	
+	pinMode(UART_CTS, INPUT);
 	setRTSStatus(true);
 	#endif
  	PS2Controller.begin(PS2Preset::KeyboardPort0, KbdMode::CreateVirtualKeysQueue);
 	PS2Controller.keyboard()->setLayout(&fabgl::UKLayout);
-  	VGAController.begin();
+  	VGAController = &VGAController16;
+    VGAController->begin();
 	init_audio();
 	copy_font();
   	set_mode(1);
@@ -142,9 +145,9 @@ void loop() {
     	if(ESPSerial.available() > 0) {
 			#if USE_HWFLOW == 0
 			if(ESPSerial.available() > UART_RX_THRESH) {
-				setRTSStatus(false);		
+				setRTSStatus(false);
 			}
-			#endif 
+			#endif
       		if(cursorState) {
  	    		cursorState = false;
         		do_cursor();
@@ -160,7 +163,7 @@ void loop() {
     	count++;
   	}
 }
-	
+
 // Send the cursor position back to MOS
 //
 void sendCursorPosition() {
@@ -168,7 +171,7 @@ void sendCursorPosition() {
 		charX / Canvas->getFontInfo()->width,
 		charY / Canvas->getFontInfo()->height,
 	};
-	send_packet(PACKET_CURSOR, sizeof packet, packet);	
+	send_packet(PACKET_CURSOR, sizeof packet, packet);
 }
 
 // Send a character back to MOS
@@ -192,13 +195,13 @@ void sendScreenPixel(int x, int y) {
 	//
 	if(x >= 0 && y >= 0 && x < Canvas->getWidth() && y < Canvas->getHeight()) {
 		pixel = Canvas->getPixel(x, y);
-	}	
+	}
 	byte packet[] = {
 		pixel.R,
 		pixel.G,
 		pixel.B,
 	};
-	send_packet(PACKET_SCRPIXEL, sizeof packet, packet);	
+	send_packet(PACKET_SCRPIXEL, sizeof packet, packet);
 }
 
 // Send an audio acknowledgement
@@ -208,7 +211,7 @@ void sendPlayNote(int channel, int success) {
 		channel,
 		success,
 	};
-	send_packet(PACKET_AUDIO, sizeof packet, packet);	
+	send_packet(PACKET_AUDIO, sizeof packet, packet);
 }
 
 // Send MODE information (screen details)
@@ -254,10 +257,10 @@ void boot_screen() {
 }
 
 // Clear the screen
-// 
+//
 void cls() {
 	Canvas->setPenColor(tfg);
- 	Canvas->setBrushColor(tbg);	
+ 	Canvas->setBrushColor(tbg);
 	Canvas->clear();
 	charX = 0;
 	charY = 0;
@@ -298,8 +301,8 @@ char get_screen_char(int px, int py) {
 	// Finally try and match with the character set array
 	//
 	for(int i = 32; i < 128; i++) {
-		if(cmp_char(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {	
-			return i;		
+		if(cmp_char(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {
+			return i;
 		}
 	}
 	return 0;
@@ -315,21 +318,28 @@ bool cmp_char(uint8_t * c1, uint8_t *c2, int len) {
 }
 
 // Set the video mode
-// 
+//
 void set_mode(int mode) {
+    VGAController->end();
 	switch(mode) {
 		case 0:
-      		VGAController.setResolution(VGA_640x480_60Hz);
+            VGAController = &VGAController16;
+            VGAController->begin();
+      		VGAController->setResolution(VGA_640x480_60Hz);
       		break;
 		case 1:
-		    VGAController.setResolution(VGA_512x384_60Hz);
+            VGAController = &VGAController16;
+            VGAController->begin();
+		    VGAController->setResolution(VGA_512x384_60Hz);
       		break;
     	case 2:
-      		VGAController.setResolution(VGA_320x200_75Hz);
+            VGAController = &VGAController64;
+            VGAController->begin();
+      		VGAController->setResolution(VGA_320x200_75Hz);
       		break;
   	}
   	delete Canvas;
-  	Canvas = new fabgl::Canvas(&VGAController);
+  	Canvas = new fabgl::Canvas(VGAController);
  	gfg = Color::BrightWhite;
 	tfg = Color::BrightWhite;
 	tbg = Color::Black;
@@ -342,8 +352,8 @@ void set_mode(int mode) {
 	cls();
 	if(numsprites) {
 		numsprites = 0;
-		VGAController.removeSprites();
-		VGAController.refreshSprites();
+		VGAController->removeSprites();
+		VGAController->refreshSprites();
 	}
 	debug_log("set_mode: canvas(%d,%d)\n\r", Canvas->getWidth(), Canvas->getHeight());
 }
@@ -369,7 +379,7 @@ void printFmt(const char *format, ...) {
  }
 
 // Handle the keyboard
-// 
+//
 void do_keyboard() {
   	fabgl::Keyboard* kb = PS2Controller.keyboard();
 	fabgl::VirtualKeyItem item;
@@ -409,7 +419,7 @@ void do_keyboard() {
 			}
 			// Pack the modifiers into a byte
 			//
-			modifiers = 
+			modifiers =
 				item.CTRL		<< 0 |
 				item.SHIFT		<< 1 |
 				item.LALT		<< 2 |
@@ -446,7 +456,7 @@ void do_cursor() {
 	if(cursorEnabled) {
   		int w = Canvas->getFontInfo()->width;
   		int h = Canvas->getFontInfo()->height;
-	  	int x = charX; 
+	  	int x = charX;
 	  	int y = charY;
 	  	Canvas->swapRectangle(x, y, x + w - 1, y + h - 1);
 	}
@@ -607,7 +617,7 @@ void vdu_origin() {
 }
 
 // Handle COLOUR
-// 
+//
 void vdu_colour() {
   	byte mode = readByte();
 	if(mode == 0) {
@@ -624,7 +634,7 @@ void vdu_colour() {
 }
 
 // Handle GCOL
-// 
+//
 void vdu_gcol() {
   	byte mode = readByte();
   	gfg.R = readByte();
@@ -644,7 +654,7 @@ void vdu_plot() {
 	Canvas->setPenColor(gfg);
 	debug_log("vdu_plot: %d,%d,%d\n\r", mode, p1.X, p1.Y);
   	switch(mode) {
-    	case 0x04: 
+    	case 0x04:
       		Canvas->moveTo(origin.X + p1.X, origin.Y + p1.Y);
       		break;
     	case 0x05: // Line
@@ -667,10 +677,10 @@ void vdu_plot_point(byte mode) {
 }
 
 void vdu_plot_triangle(byte mode) {
-  	Point p[3] = { 
+  	Point p[3] = {
 		translate(p3),
 		translate(p2),
-		translate(p1), 
+		translate(p1),
 	};
   	Canvas->setBrushColor(gfg);
   	Canvas->fillPath(p, 3);
@@ -711,7 +721,7 @@ void vdu_sys() {
 				cursorEnabled = readByte();	// Cursor control
 				break;
 			case 0x07:						// VDU 23, 7
-				vdu_sys_scroll();			// Scroll 
+				vdu_sys_scroll();			// Scroll
 				break;
 			case 0x1B:						// VDU 23, 27
 				vdu_sys_sprites();			// Sprite system control
@@ -727,7 +737,7 @@ void vdu_sys() {
 		uint8_t * ptr = &fabgl::FONT_AGON_DATA[mode * 8];
 		for(int i = 0; i < 8; i++) {
 			*ptr++ = readByte();
-		}	
+		}
 	}
 }
 
@@ -760,7 +770,7 @@ void vdu_sys_video() {
 			word x = readWord();	// Get pixel value at screen position x, y
 			word y = readWord();
 			sendScreenPixel(x, y);
-		} 	break;		
+		} 	break;
 		case PACKET_AUDIO: {		// VDU 23, 0, 5, channel, waveform, volume, freq; duration;
 			byte channel = readByte();
 			byte waveform = readByte();
@@ -815,7 +825,7 @@ void vdu_sys_sprites(void) {
     int16_t 	x, y;
     int16_t 	width, height;
     uint16_t 	n, temp;
-    
+
     byte cmd = readByte();
 
     switch(cmd) {
@@ -837,20 +847,20 @@ void vdu_sys_sprites(void) {
         	dataptr = (void *)heap_caps_malloc(sizeof(uint32_t)*width*height, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
         	bitmaps[current_bitmap].data = (uint8_t *)dataptr;
 
-        	if(dataptr != NULL) {                  
+        	if(dataptr != NULL) {
 				if(cmd == 1) {
 					//
 					// Read data to the new databuffer
 					//
-					for(n = 0; n < width*height; n++) ((uint32_t *)bitmaps[current_bitmap].data)[n] = readLong();  
+					for(n = 0; n < width*height; n++) ((uint32_t *)bitmaps[current_bitmap].data)[n] = readLong();
 					debug_log("vdu - bitmap %d - data received - width %d, height %d\n\r", current_bitmap, width, height);
 				}
 				if(cmd == 2) {
 					color = readLong();
 					// Define single color
 					//
-					for(n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = color;            
-					debug_log("vdu - bitmap %d - set to solid color - width %d, height %d\n\r", current_bitmap, width, height);            
+					for(n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = color;
+					debug_log("vdu - bitmap %d - set to solid color - width %d, height %d\n\r", current_bitmap, width, height);
 				}
 				// Create bitmap structure
 				//
@@ -868,13 +878,13 @@ void vdu_sys_sprites(void) {
 			y = readWord();
 
 			if(bitmaps[current_bitmap].data) Canvas->drawBitmap(x,y,&bitmaps[current_bitmap]);
-	
+
 			debug_log("vdu - bitmap %d draw command\n\r", current_bitmap);
         break;
 
 	   /*
 		* Sprites
-		* 
+		*
 		* Sprite creation order:
 		* 1) Create bitmap(s) for sprite, or re-use bitmaps already created
 		* 2) Select the correct sprite ID (0-255). The GDU only accepts sequential sprite sets, starting from ID 0. All sprites must be adjacent to 0
@@ -893,7 +903,7 @@ void vdu_sys_sprites(void) {
 			sprites[current_sprite].clearBitmaps();
 			debug_log("vdu - sprite %d - all frames cleared\n\r", current_sprite);
 			break;
-        
+
       case 6: // Add frame to sprite
 			n = readByte();
 			sprites[current_sprite].addBitmap(&bitmaps[n]);
@@ -908,10 +918,10 @@ void vdu_sys_sprites(void) {
 			*/
 			numsprites = readByte();
 			if(numsprites) {
-				VGAController.setSprites(sprites, numsprites);
+				VGAController->setSprites(sprites, numsprites);
 			}
 			else {
-				VGAController.removeSprites();
+				VGAController->removeSprites();
 			}
 			debug_log("vdu - %d sprites activated\n\r", numsprites);
 			break;
@@ -946,8 +956,8 @@ void vdu_sys_sprites(void) {
 
       case 13: // Move sprite to coordinate on screen
 			x = readWord();
-			y = readWord();	
-			sprites[current_sprite].moveTo(x,y); 
+			y = readWord();
+			sprites[current_sprite].moveTo(x,y);
 			debug_log("vdu - sprite %d - move to (%d,%d)\n\r", current_sprite, x, y);
 			break;
 
@@ -960,8 +970,8 @@ void vdu_sys_sprites(void) {
 			break;
 
 	  case 15: // Refresh
-			if(numsprites) { 
-				VGAController.refreshSprites();
+			if(numsprites) {
+				VGAController->refreshSprites();
 			}
 			debug_log("vdu - perform sprite refresh\n\r");
 			break;
