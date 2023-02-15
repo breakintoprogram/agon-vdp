@@ -18,10 +18,14 @@ The VDU command is a work-in-progress with a handful of mappings implemented.
 - `VDU 11`: Cursor up
 - `VDU 12`: CLS
 - `VDU 13`: Carriage return
-- `VDU 18, mode, r, g, b`: GCOL mode, r, g, b
+- `VDU 16`: CLG
+- `VDU 17 colour`: COLOUR colour
+- `VDU 18, mode, colour`: GCOL mode, colour
+- `VDU 19, l, r, g, b`: COLOUR l, r, g, b
 - `VDU 22, n`: Mode n
 - `VDU 23, n`: UDG / System Commands
 - `VDU 25, mode, x; y;`: PLOT mode, x, y
+- `VDU 29, x; y;`: Graphics origin
 - `VDU 30`: Home cursor
 - `VDU 31, x, y`: TAB(x, y)
 - `VDU 127`: Backspace
