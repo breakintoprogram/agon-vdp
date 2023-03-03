@@ -17,7 +17,7 @@
 // 02/10/2022:		Version 1.00: Tweaked the sprite code, changed bootup title to Quark
 // 04/10/2022:		Version 1.01: Can now change keyboard layout, origin and sprites reset on mode change, available modes tweaked
 // 23/10/2022:		Version 1.02: Bug fixes, cursor visibility and scrolling#
-// 15/02/2023:		Version 1.03: Improved mode and colour handling
+// 15/02/2023:		Version 1.03: Improved mode, colour handling and international support
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -25,63 +25,42 @@
 #define VERSION			1
 #define REVISION		3
 
-#define	DEBUG			0		// Serial Debug Mode: 1 = enable
-#define SERIALKB		0		// Serial Keyboard: 1 = enable (Experimental)
+#define	DEBUG			0						// Serial Debug Mode: 1 = enable
+#define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
 
-fabgl::PS2Controller		PS2Controller;
-fabgl::Canvas *				Canvas;
-fabgl::SoundGenerator		SoundGenerator;
-fabgl::VGABaseController *	VGAController;
+fabgl::PS2Controller		PS2Controller;		// The keyboard class
+fabgl::Canvas *				Canvas;				// The canvas class
+fabgl::SoundGenerator		SoundGenerator;		// The audio class
 
-fabgl::VGA2Controller		VGAController2;
-fabgl::VGA4Controller		VGAController4;
-fabgl::VGA8Controller		VGAController8;
-fabgl::VGA16Controller		VGAController16;
-fabgl::VGAController		VGAController64;
+fabgl::VGA2Controller		VGAController2;		// VGA class - 2 colours
+fabgl::VGA4Controller		VGAController4;		// VGA class - 4 colours
+fabgl::VGA8Controller		VGAController8;		// VGA class - 8 colours
+fabgl::VGA16Controller		VGAController16;	// VGA class - 16 colours
+fabgl::VGAController		VGAController64;	// VGA class - 64 colours
 
-#include "agon.h"
-#include "agon_fonts.h"			// The Acorn BBC Micro Font
-#include "agon_audio.h"			// The Audio class
+fabgl::VGABaseController *	VGAController;		// Pointer to the current VGA controller class (one of the above)
 
-int			VGAColourDepth;
-int         charX, charY;
-Point		origin;
-Point       p1, p2, p3;
-RGB888      gfg;
-RGB888      tfg, tbg;
-bool		cursorEnabled = true;
-int         count = 0;
+#include "agon.h"								// Configuration file
+#include "agon_fonts.h"							// The Acorn BBC Micro Font
+#include "agon_audio.h"							// The Audio class
+#include "agon_palette.h"						// Colour lookup table
 
-audio_channel *	audio_channels[AUDIO_CHANNELS];
+int			VGAColourDepth;						// Number of colours per pixel (2, 4,8, 16 or 64)
+int         charX, charY;						// Current character (X, Y) coordinates
+Point		origin;								// Screen origin
+Point       p1, p2, p3;							// Coordinate store for lot
+RGB888      gfg;								// Graphics colour
+RGB888      tfg, tbg;							// Text foreground and background colour
+bool		cursorEnabled = true;				// Cursor visibility
+bool		logicalCoords = true;				// Use BBC BASIC logical coordinates
+int         count = 0;							// Generic counter, incremented every iteration of loop
+uint8_t		numsprites = 0;						// Number of sprites on stage
+uint8_t 	current_sprite = 0; 				// Current sprite number
+uint8_t 	current_bitmap = 0;					// Current bitmap number
+Bitmap		bitmaps[256];						// Bitmap object storage
+Sprite		sprites[256];						// Sprite object storage
 
-// Colour lookup table
-//
-const RGB888 colourLookup[64] = {
-	RGB888(0x00, 0x00, 0x00), RGB888(0x00, 0x00, 0x40), RGB888(0x00, 0x00, 0x80), RGB888(0x00, 0x00, 0xC0),
-	RGB888(0x00, 0x40, 0x00), RGB888(0x00, 0x40, 0x40), RGB888(0x00, 0x40, 0x80), RGB888(0x00, 0x40, 0xC0),
-	RGB888(0x00, 0x80, 0x00), RGB888(0x00, 0x80, 0x40), RGB888(0x00, 0x80, 0x80), RGB888(0x00, 0x80, 0xC0),
-	RGB888(0x00, 0xC0, 0x00), RGB888(0x00, 0xC0, 0x40), RGB888(0x00, 0xC0, 0x80), RGB888(0x00, 0xC0, 0xC0),
-	RGB888(0x40, 0x00, 0x00), RGB888(0x40, 0x00, 0x40), RGB888(0x40, 0x00, 0x80), RGB888(0x40, 0x00, 0xC0),
-	RGB888(0x40, 0x40, 0x00), RGB888(0x40, 0x40, 0x40), RGB888(0x40, 0x40, 0x80), RGB888(0x40, 0x40, 0xC0),
-	RGB888(0x40, 0x80, 0x00), RGB888(0x40, 0x80, 0x40), RGB888(0x40, 0x80, 0x80), RGB888(0x40, 0x80, 0xC0),
-	RGB888(0x40, 0xC0, 0x00), RGB888(0x40, 0xC0, 0x40), RGB888(0x40, 0xC0, 0x80), RGB888(0x40, 0xC0, 0xC0),
-	RGB888(0x80, 0x00, 0x00), RGB888(0x80, 0x00, 0x40), RGB888(0x80, 0x00, 0x80), RGB888(0x80, 0x00, 0xC0),
-	RGB888(0x80, 0x40, 0x00), RGB888(0x80, 0x40, 0x40), RGB888(0x80, 0x40, 0x80), RGB888(0x80, 0x40, 0xC0),
-	RGB888(0x80, 0x80, 0x00), RGB888(0x80, 0x80, 0x40), RGB888(0x80, 0x80, 0x80), RGB888(0x80, 0x80, 0xC0),
-	RGB888(0x80, 0xC0, 0x00), RGB888(0x80, 0xC0, 0x40), RGB888(0x80, 0xC0, 0x80), RGB888(0x80, 0xC0, 0xC0),
-	RGB888(0xC0, 0x00, 0x00), RGB888(0xC0, 0x00, 0x40), RGB888(0xC0, 0x00, 0x80), RGB888(0xC0, 0x00, 0xC0),
-	RGB888(0xC0, 0x40, 0x00), RGB888(0xC0, 0x40, 0x40), RGB888(0xC0, 0x40, 0x80), RGB888(0xC0, 0x40, 0xC0),
-	RGB888(0xC0, 0x80, 0x00), RGB888(0xC0, 0x80, 0x40), RGB888(0xC0, 0x80, 0x80), RGB888(0xC0, 0x80, 0xC0),
-	RGB888(0xC0, 0xC0, 0x00), RGB888(0xC0, 0xC0, 0x40), RGB888(0xC0, 0xC0, 0x80), RGB888(0xC0, 0xC0, 0xC0),
-};
-
-// Sprite data
-//
-uint8_t	numsprites = 0;
-uint8_t current_sprite = 0; 
-uint8_t current_bitmap = 0;
-Bitmap	bitmaps[256];
-Sprite	sprites[256];
+audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
 
 #if DEBUG == 1 || SERIALKB == 1
 HardwareSerial DBGSerial(0);
@@ -106,8 +85,10 @@ void setup() {
 	#endif
  	PS2Controller.begin(PS2Preset::KeyboardPort0, KbdMode::CreateVirtualKeysQueue);
 	PS2Controller.keyboard()->setLayout(&fabgl::UKLayout);
+	PS2Controller.keyboard()->setCodePage(fabgl::CodePages::get(1252));
 	init_audio();
 	copy_font();
+	ESPSerial.write(27);										// The MOS will wait for this escape character during initialisation
   	set_mode(1);
 	boot_screen();
 }
@@ -250,6 +231,7 @@ void sendModeInformation() {
 		(h >> 8) & 0xFF,					// Height in pixels (H)
 		w / Canvas->getFontInfo()->width ,	// Width in characters (byte)
 		h / Canvas->getFontInfo()->height ,	// Height in characters (byte)
+		VGAColourDepth,						// Colour depth
 	};
 	send_packet(PACKET_MODE, sizeof packet, packet);
 }
@@ -275,17 +257,17 @@ void debug_log(const char *format, ...) {
 // The boot screen
 //
 void boot_screen() {
-  	cls();
   	printFmt("Agon Quark VPD Version %d.%02d\n\r", VERSION, REVISION);
-	ESPSerial.write(27);	// The MOS will wait for this escape character during initialisation
 }
 
 // Clear the screen
 // 
 void cls() {
-	Canvas->setPenColor(tfg);
- 	Canvas->setBrushColor(tbg);	
-	Canvas->clear();
+	if(Canvas) {
+		Canvas->setPenColor(tfg);
+ 		Canvas->setBrushColor(tbg);	
+		Canvas->clear();
+	}
 	charX = 0;
 	charY = 0;
 }
@@ -293,7 +275,9 @@ void cls() {
 // Clear the graphics area
 //
 void clg() {
-	Canvas->clear();
+	if(Canvas) {
+		Canvas->clear();
+	}
 }
 
 // Try and match a character
@@ -386,6 +370,7 @@ void change_resolution(int colours, char * modeLine) {
 // - mode: The video mode
 // 
 void set_mode(int mode) {
+	cls();
 	if(numsprites) {
 		numsprites = 0;
 		VGAController->removeSprites();
@@ -402,18 +387,21 @@ void set_mode(int mode) {
     	case 2:
 			change_resolution(64, VGA_320x200_75Hz);
       		break;
+		case 3:
+			change_resolution(16, VGA_640x480_60Hz);
+			break;
   	}
   	Canvas = new fabgl::Canvas(VGAController);
- 	gfg = Color::BrightWhite;
-	tfg = Color::BrightWhite;
-	tbg = Color::Black;
+ 	gfg = colourLookup[15];
+	tfg = colourLookup[15];
+	tbg = colourLookup[0];
   	Canvas->selectFont(&fabgl::FONT_AGON);
   	Canvas->setGlyphOptions(GlyphOptions().FillBackground(true));
   	Canvas->setPenWidth(1);
 	origin.X = 0;
 	origin.Y = 0;
 	cursorEnabled = true;
-	cls();
+	sendModeInformation();
 	debug_log("set_mode: canvas(%d,%d)\n\r", Canvas->getWidth(), Canvas->getHeight());
 }
 
@@ -474,17 +462,11 @@ void do_keyboard() {
 				case fabgl::VK_UP:
 					keycode = 0x0B;
 					break;
-				case fabgl::VK_POUND:
-					keycode = '`';
-					break;
 				case fabgl::VK_BACKSPACE:
 					keycode = 0x7F;
 					break;
-				case fabgl::VK_GRAVEACCENT:
-					keycode = 0x00;
-					break;
 				default:
-					keycode = item.ASCII;
+					keycode = item.ASCII;	
 					break;
 			}
 			// Pack the modifiers into a byte
@@ -571,7 +553,7 @@ void vdu(byte c) {
 	if(c >= 0x20 && c != 0x7F) {
 		Canvas->setPenColor(tfg);
 		Canvas->setBrushColor(tbg);
-  		Canvas->drawTextFmt(charX, charY, "%c", c);
+ 		Canvas->drawChar(charX, charY, c);
    		cursorRight();
 	}
 	else {
@@ -625,7 +607,7 @@ void vdu(byte c) {
 				break;
 			case 0x7F:  // Backspace
 				cursorLeft();
-				Canvas->drawText(charX, charY, " ");
+				Canvas->drawChar(charX, charY, ' ');
 				break;
 		}
 	}
@@ -693,12 +675,12 @@ void vdu_origin() {
 // 
 void vdu_colour() {
 	byte colour = readByte();
-	if(colour >= 0 && colour < 64) {
+	if(colour >= 0 && colour < 80) {
 		tfg = colourLookup[colour];
 		debug_log("vdu_colour: tfg %d = %d,%d,%d\n\r", colour, tfg.R, tfg.G, tfg.B);
 	}
-	else if(colour >= 128 && colour < 192) {
-		tbg = colourLookup[colour-128];
+	else if(colour >= 128 && colour < 208) {
+		tbg = colourLookup[colour - 128];
 		debug_log("vdu_colour: tbg %d = %d,%d,%d\n\r", colour, tbg.R, tbg.G, tbg.B);	
 	}
 	else {
@@ -711,7 +693,7 @@ void vdu_colour() {
 void vdu_gcol() {
 	byte mode = readByte();
 	byte colour = readByte();
-	if(colour >= 0 && colour < 64) {
+	if(colour >= 0 && colour < 80) {
 		gfg = colourLookup[colour];
 		debug_log("vdu_gcol: gfg %d = %d,%d,%d\n\r", colour, gfg.R, gfg.G, gfg.B);
 	}
@@ -813,7 +795,6 @@ void vdu_plot_circle(byte mode) {
 //
 void vdu_sys() {
   	byte mode = readByte();
-	debug_log("vdu_sys: %d\n\r", mode);
 	//
 	// If mode < 32, then it's a system command
 	//
