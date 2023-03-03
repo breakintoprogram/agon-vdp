@@ -21,7 +21,7 @@ The VDU command is a work-in-progress with a handful of mappings implemented.
 - `VDU 16`: CLG
 - `VDU 17 colour`: COLOUR colour
 - `VDU 18, mode, colour`: GCOL mode, colour
-- `VDU 19, l, r, g, b`: COLOUR l, r, g, b
+- `VDU 19, l, p, r, g, b`: COLOUR l, r, g, b
 - `VDU 22, n`: Mode n
 - `VDU 23, n`: UDG / System Commands
 - `VDU 25, mode, x; y;`: PLOT mode, x, y
