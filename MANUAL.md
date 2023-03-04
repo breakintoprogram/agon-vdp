@@ -36,7 +36,7 @@ All other characters are sent to the screen as ASCII, unaltered.
 
 VDU 23, 0 is reserved for commands sent to the VDP
 
-- `VDU 23, 0, 1, n`: Set the keyboard locale (0=UK, 1=US) 
+- `VDU 23, 0, 1, n`: Set the keyboard locale (0=UK, 1=US, etc) 
 - `VDU 23, 0, 2`: Request cursor position
 - `VDU 23, 0, 3, x; y;`: Get ASCII code of character at character position x, y
 - `VDU 23, 0, 4, x; y;`: Get colour of pixel at pixel position x, y
@@ -96,9 +96,9 @@ Packets:
 - `0x01, keycode, modifiers`: Keyboard
 - `0x02, x, y`: Cursor position
 - `0x03, char`: Character read from screen
-- `0x04, r, g, b`: Pixel colour read from screen
+- `0x04, r, g, b, index`: Pixel colour read from screen
 - `0x05, channel, success`: Audio play note acknowledgement
-- `0x06, width, height, cols, rows`: Screen dimensions - width and height are words
+- `0x06, width, height, cols, rows, colours`: Screen dimensions - width and height are words
 
 ## Keyboard
 
