@@ -2,9 +2,10 @@
 // Title:	        Agon Video BIOS - Function prototypes
 // Author:        	Dean Belfield
 // Created:       	05/09/2022
-// Last Updated:	05/09/2022
+// Last Updated:    04/03/2023
 //
 // Modinfo:
+// 04/03/2023:      Added LOGICAL_SCRW and LOGICAL_SCRH
 
 #pragma once
 
@@ -33,7 +34,10 @@
 #define PACKET_MODE				6		// Get screen dimensions
 
 #define AUDIO_CHANNELS			3		// Number of audio channels
-#define PLAY_SOUND_PRIORITY 	3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
+#define PLAY_SOUND_PRIORITY 	3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest
+
+#define LOGICAL_SCRW            1280    // As per the BBC Micro standard
+#define LOGICAL_SCRH            1024
 
 #if CONFIG_FREERTOS_UNICORE
 #define ARDUINO_RUNNING_CORE	0
