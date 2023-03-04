@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	15/02/2023
+// Last Updated:	04/03/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -18,6 +18,7 @@
 // 04/10/2022:		Version 1.01: Can now change keyboard layout, origin and sprites reset on mode change, available modes tweaked
 // 23/10/2022:		Version 1.02: Bug fixes, cursor visibility and scrolling#
 // 15/02/2023:		Version 1.03: Improved mode, colour handling and international support
+// 04/03/2023:					+ Added logical screen resolution, sendScreenPixel now sends palette index as well as RGB values
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -53,6 +54,8 @@ RGB888      gfg;								// Graphics colour
 RGB888      tfg, tbg;							// Text foreground and background colour
 bool		cursorEnabled = true;				// Cursor visibility
 bool		logicalCoords = true;				// Use BBC BASIC logical coordinates
+double		logicalScaleX;						// Scaling factor for logical coordinates
+double		logicalScaleY;
 int         count = 0;							// Generic counter, incremented every iteration of loop
 uint8_t		numsprites = 0;						// Number of sprites on stage
 uint8_t 	current_sprite = 0; 				// Current sprite number
@@ -194,17 +197,26 @@ void sendScreenChar(int x, int y) {
 // Send a pixel value back to MOS
 //
 void sendScreenPixel(int x, int y) {
-	RGB888 pixel;
-
+	RGB888	pixel;
+	byte 	pixelIndex = 0;
+	Point	p = translate(scale(x, y));
+	//
 	// Do some bounds checking first
 	//
-	if(x >= 0 && y >= 0 && x < Canvas->getWidth() && y < Canvas->getHeight()) {
-		pixel = Canvas->getPixel(x, y);
+	if(p.X >= 0 && p.Y >= 0 && p.X < Canvas->getWidth() && p.Y < Canvas->getHeight()) {
+		pixel = Canvas->getPixel(p.X, p.Y);
+		for(byte i = 0; i < 80; i++) {
+			if(colourLookup[i]== pixel) {
+				pixelIndex = i;
+				break;
+			}
+		}
 	}	
 	byte packet[] = {
-		pixel.R,
+		pixel.R,	// Send the colour components
 		pixel.G,
 		pixel.B,
+		pixelIndex,	// And the pixel index in the palette
 	};
 	send_packet(PACKET_SCRPIXEL, sizeof packet, packet);	
 }
@@ -398,11 +410,15 @@ void set_mode(int mode) {
   	Canvas->selectFont(&fabgl::FONT_AGON);
   	Canvas->setGlyphOptions(GlyphOptions().FillBackground(true));
   	Canvas->setPenWidth(1);
-	origin.X = 0;
-	origin.Y = 0;
+	origin = Point(0,0);
+	p1 = Point(0,0);
+	p2 = Point(0,0);
+	p3 = Point(0,0);
+	logicalScaleX = LOGICAL_SCRW / (double)Canvas->getWidth();
+	logicalScaleY = LOGICAL_SCRH / (double)Canvas->getHeight();
 	cursorEnabled = true;
 	sendModeInformation();
-	debug_log("set_mode: canvas(%d,%d)\n\r", Canvas->getWidth(), Canvas->getHeight());
+	debug_log("set_mode: canvas(%d,%d), scale(%f,%f)\n\r", Canvas->getWidth(), Canvas->getHeight(), logicalScaleX, logicalScaleY);
 }
 
 void print(char const * text) {
@@ -540,12 +556,25 @@ uint32_t readLong() {
   return temp;
 }
 
-// Translate a point
+// Scale and Translate a point
 //
+Point scale(Point p) {
+	return scale(p.X, p.Y);
+}
+Point scale(int X, int Y) {
+	if(logicalCoords) {
+		return Point((double)X / logicalScaleX, (double)Y / logicalScaleY);
+	}
+	return Point(X, Y);
+}
+
 Point translate(Point p) {
 	return translate(p.X, p.Y);
 }
 Point translate(int X, int Y) {
+	if(logicalCoords) {
+		return Point(origin.X + X, (Canvas->getHeight() - 1) - (origin.Y + Y));
+	}
 	return Point(origin.X + X, origin.Y + Y);
 }
 
@@ -666,8 +695,9 @@ void vdu_mode() {
 // Handle VDU 29
 //
 void vdu_origin() {
-	origin.X = readWord();
-	origin.Y = readWord();
+	word x = readWord();
+	word y = readWord();
+	origin = scale(x, y);
 	debug_log("vdu_origin: %d,%d\n\r", origin.X, origin.Y);
 }
 
@@ -734,21 +764,22 @@ void vdu_palette() {
 //
 void vdu_plot() {
   	byte mode = readByte();
+	int x = (short)readWord();
+	int y = (short)readWord();
   	p3 = p2;
   	p2 = p1;
-  	p1.X = readWord();
-  	p1.Y = readWord();
+	p1 = translate(scale(x, y));
 	Canvas->setPenColor(gfg);
-	debug_log("vdu_plot: %d,%d,%d\n\r", mode, p1.X, p1.Y);
+	debug_log("vdu_plot: mode %d, (%d,%d) -> (%d,%d)\n\r", mode, x, y, p1.X, p1.Y);
   	switch(mode) {
-    	case 0x04: 
-      		Canvas->moveTo(origin.X + p1.X, origin.Y + p1.Y);
+    	case 0x04: 			// Move 
+      		Canvas->moveTo(p1.X, p1.Y);
       		break;
-    	case 0x05: // Line
-      		Canvas->lineTo(origin.X + p1.X, origin.Y + p1.Y);
+    	case 0x05: 			// Line
+      		Canvas->lineTo(p1.X, p1.Y);
       		break;
-		case 0x40 ... 0x47: // Point
-			vdu_plot_point(mode);
+		case 0x40 ... 0x47:	// Point
+			Canvas->setPixel(p1.X, p1.Y);
 			break;
     	case 0x50 ... 0x57: // Triangle
       		vdu_plot_triangle(mode);
@@ -759,15 +790,11 @@ void vdu_plot() {
   	}
 }
 
-void vdu_plot_point(byte mode) {
-	Canvas->setPixel(origin.X + p1.X, origin.Y + p1.Y);
-}
-
 void vdu_plot_triangle(byte mode) {
-  	Point p[3] = { 
-		translate(p3),
-		translate(p2),
-		translate(p1), 
+  	Point p[3] = {
+		p3,
+		p2,
+		p1, 
 	};
   	Canvas->setBrushColor(gfg);
   	Canvas->fillPath(p, 3);
@@ -779,13 +806,13 @@ void vdu_plot_circle(byte mode) {
   	switch(mode) {
     	case 0x90 ... 0x93: // Circle
       		r = 2 * (p1.X + p1.Y);
-      		Canvas->drawEllipse(origin.X + p2.X, origin.Y + p2.Y, r, r);
+      		Canvas->drawEllipse(p2.X, p2.Y, r, r);
       		break;
     	case 0x94 ... 0x97: // Circle
       		a = p2.X - p1.X;
       		b = p2.Y - p1.Y;
       		r = 2 * sqrt(a * a + b * b);
-      		Canvas->drawEllipse(origin.X + p2.X, origin.Y + p2.Y, r, r);
+      		Canvas->drawEllipse(p2.X, p2.Y, r, r);
       		break;
   	}
 }
@@ -874,8 +901,8 @@ void vdu_sys_video() {
 			sendScreenChar(x, y);
 		}	break;
 		case PACKET_SCRPIXEL: {		// VDU 23, 0, 4, x; y;
-			word x = readWord();	// Get pixel value at screen position x, y
-			word y = readWord();
+			short x = readWord();	// Get pixel value at screen position x, y
+			short y = readWord();
 			sendScreenPixel(x, y);
 		} 	break;		
 		case PACKET_AUDIO: {		// VDU 23, 0, 5, channel, waveform, volume, freq; duration;
