@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	04/03/2023
+// Last Updated:	09/03/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -16,9 +16,10 @@
 // 05/09/2022:		Moved the audio class to agon_audio.h, added function prototypes in agon.h
 // 02/10/2022:		Version 1.00: Tweaked the sprite code, changed bootup title to Quark
 // 04/10/2022:		Version 1.01: Can now change keyboard layout, origin and sprites reset on mode change, available modes tweaked
-// 23/10/2022:		Version 1.02: Bug fixes, cursor visibility and scrolling#
+// 23/10/2022:		Version 1.02: Bug fixes, cursor visibility and scrolling
 // 15/02/2023:		Version 1.03: Improved mode, colour handling and international support
 // 04/03/2023:					+ Added logical screen resolution, sendScreenPixel now sends palette index as well as RGB values
+// 09/03/2023:					+ Keyboard now sends virtual key data, improved VDU 19 to handle COLOUR l,p as well as COLOUR l,r,g,b
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -62,6 +63,8 @@ uint8_t 	current_sprite = 0; 				// Current sprite number
 uint8_t 	current_bitmap = 0;					// Current bitmap number
 Bitmap		bitmaps[256];						// Bitmap object storage
 Sprite		sprites[256];						// Sprite object storage
+byte 		keycode = 0;						// Last pressed key code
+byte 		modifiers = 0;						// Last pressed key modifiers
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
 
@@ -446,8 +449,6 @@ void printFmt(const char *format, ...) {
 void do_keyboard() {
   	fabgl::Keyboard* kb = PS2Controller.keyboard();
 	fabgl::VirtualKeyItem item;
-	byte keycode;
-	byte modifiers;
 
 	#if SERIALKB == 1
 	if(DBGSerial.available()) {
@@ -497,14 +498,17 @@ void do_keyboard() {
 				item.SCROLLLOCK << 6 |
 				item.GUI		<< 7
 			;
-			// Create and send the packet back to MOS
-			//
-			byte packet[] = {
-				keycode,
-				modifiers,
-			};
-			send_packet(PACKET_KEYCODE, sizeof packet, packet);
 		}
+		// Create and send the packet back to MOS
+		//
+		byte packet[] = {
+			keycode,
+			modifiers,
+			item.vk,
+			item.down,
+		};
+		send_packet(PACKET_KEYCODE, sizeof packet, packet);
+		debug_log("do_keyboard: keycode=%d, vk=%d, down=%d\n\r", keycode, item.vk, item.down);
 	}
 }
 
@@ -741,19 +745,29 @@ void vdu_palette() {
 	byte g = readByte();	// The green component
 	byte b = readByte(); 	// The blue component
 
-	if(VGAColourDepth < 64) {
-		if(p == 16) {
-			switch(VGAColourDepth) {
-				case 2: VGAController2.setPaletteItem(l, RGB888(r, g, b)); break;
-				case 4: VGAController4.setPaletteItem(l, RGB888(r, g, b)); break;
-				case 8: VGAController8.setPaletteItem(l, RGB888(r, g, b)); break;
-				case 16: VGAController16.setPaletteItem(l, RGB888(r, g, b)); break;
-			}
-			debug_log("vdu_palette: %d,%d,%d,%d,%d\n\r", l, p, r, g, b);
+	RGB888 col;				// The colour to set
+
+	if(VGAColourDepth < 64) {			// If it is a paletted video mode
+		if(p == 255) {					// If p = 255, then use the RGB values
+			col = RGB888(r, g, b);
 		}
-		else {
+		else if(p < 80) {				// If p < 80, then look the value up in the colour lookup table
+			col = colourLookup[p];
+		}
+		else {				
 			debug_log("vdu_palette: p=%d not supported\n\r", p);
+			return;
 		}
+		//
+		// Set the palette
+		//
+		switch(VGAColourDepth) {
+			case 2: VGAController2.setPaletteItem(l, col); break;
+			case 4: VGAController4.setPaletteItem(l, col); break;
+			case 8: VGAController8.setPaletteItem(l, col); break;
+			case 16: VGAController16.setPaletteItem(l, col); break;
+		}
+		debug_log("vdu_palette: %d,%d,%d,%d,%d\n\r", l, p, r, g, b);
 	}
 	else {
 		debug_log("vdu_palette: not supported in this mode\n\r");
