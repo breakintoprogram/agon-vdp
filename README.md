@@ -8,15 +8,19 @@ Agon is a modern, fully open-source, 8-bit microcomputer and microcontroller in 
 
 https://www.thebyteattic.com/p/agon.html
 
-### What is the VPD
+### What is the VDP
 
-The VPD is a serial graphics terminal that takes a BBC Basic text output stream as input. The output is via the VGA connector on the Agon.
+The VDP is a serial graphics terminal that takes a BBC Basic text output stream as input. The output is via the VGA connector on the Agon.
 
 It will process any valid BBC Basic VDU commands (starting with a character between 0 and 31).
 
 For example:
 
 `VDU 25, mode, x; y;` is the same as `PLOT mode, x, y` 
+
+### Documentation
+
+The AGON documentation can now be found on the [Agon Light Documentation Wiki](https://github.com/breakintoprogram/agon-docs/wiki)
 
 ### Building
 
