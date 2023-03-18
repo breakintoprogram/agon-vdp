@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	09/03/2023
+// Last Updated:	15/03/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -20,12 +20,15 @@
 // 15/02/2023:		Version 1.03: Improved mode, colour handling and international support
 // 04/03/2023:					+ Added logical screen resolution, sendScreenPixel now sends palette index as well as RGB values
 // 09/03/2023:					+ Keyboard now sends virtual key data, improved VDU 19 to handle COLOUR l,p as well as COLOUR l,r,g,b
+// 15/03/2023:					+ Added terminal support for CP/M, RTC support for MOS
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
+#include "ESP32Time.h"
 
 #define VERSION			1
 #define REVISION		3
+#define RC				1
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
@@ -41,6 +44,8 @@ fabgl::VGA16Controller		VGAController16;	// VGA class - 16 colours
 fabgl::VGAController		VGAController64;	// VGA class - 64 colours
 
 fabgl::VGABaseController *	VGAController;		// Pointer to the current VGA controller class (one of the above)
+
+fabgl::Terminal				Terminal;			// Used for CP/M mode
 
 #include "agon.h"								// Configuration file
 #include "agon_fonts.h"							// The Acorn BBC Micro Font
@@ -61,12 +66,16 @@ int         count = 0;							// Generic counter, incremented every iteration of 
 uint8_t		numsprites = 0;						// Number of sprites on stage
 uint8_t 	current_sprite = 0; 				// Current sprite number
 uint8_t 	current_bitmap = 0;					// Current bitmap number
-Bitmap		bitmaps[256];						// Bitmap object storage
-Sprite		sprites[256];						// Sprite object storage
+Bitmap		bitmaps[MAX_BITMAPS];				// Bitmap object storage
+Sprite		sprites[MAX_SPRITES];				// Sprite object storage
 byte 		keycode = 0;						// Last pressed key code
 byte 		modifiers = 0;						// Last pressed key modifiers
+bool		terminalMode = false;				// Terminal mode
+int			videoMode;							// Current video mode
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
+
+ESP32Time	rtc(0);								// The RTC
 
 #if DEBUG == 1 || SERIALKB == 1
 HardwareSerial DBGSerial(0);
@@ -147,6 +156,10 @@ void loop() {
 	bool cursorState = false;
 
 	while(true) {
+		if(terminalMode) {
+			do_keyboard_terminal();
+			continue;
+		}
     	cursorVisible = ((count & 0xFFFF) == 0);
     	if(cursorVisible) {
       		cursorState = !cursorState;
@@ -251,6 +264,22 @@ void sendModeInformation() {
 	send_packet(PACKET_MODE, sizeof packet, packet);
 }
 
+// Send TIME information (from ESP32 RTC)
+//
+void sendTime() {
+	byte packet[] = {
+		rtc.getYear() - EPOCH_YEAR,			// 0 - 255
+		rtc.getMonth(),						// 0 - 11
+		rtc.getDay(),						// 1 - 31
+		rtc.getDayofYear(),					// 0 - 365
+		rtc.getDayofWeek(),					// 0 - 6
+		rtc.getHour(true),					// 0 - 23
+		rtc.getMinute(),					// 0 - 59
+		rtc.getSecond(),					// 0 - 59
+	};
+	send_packet(PACKET_RTC, sizeof packet, packet);
+}
+
 // Debug printf to PC
 //
 void debug_log(const char *format, ...) {
@@ -272,16 +301,31 @@ void debug_log(const char *format, ...) {
 // The boot screen
 //
 void boot_screen() {
-  	printFmt("Agon Quark VPD Version %d.%02d\n\r", VERSION, REVISION);
+  	printFmt("Agon Quark VPD Version %d.%02d", VERSION, REVISION);
+	#if RC > 0
+	  	printFmt(" RC%d", RC);
+	#endif
+	printFmt("\n\r");
 }
 
 // Clear the screen
 // 
 void cls() {
+	int i;
+
 	if(Canvas) {
 		Canvas->setPenColor(tfg);
  		Canvas->setBrushColor(tbg);	
 		Canvas->clear();
+	}
+	if(numsprites) {
+		if(VGAController) {
+			VGAController->removeSprites();
+			if(Canvas) {
+				Canvas->clear();
+			}
+		}
+		numsprites = 0;
 	}
 	charX = 0;
 	charY = 0;
@@ -340,6 +384,17 @@ bool cmp_char(uint8_t * c1, uint8_t *c2, int len) {
 	return true;
 }
 
+// Switch to terminal mode
+//
+void switchTerminalMode() {
+	cls();
+  	delete Canvas;
+	Terminal.begin(VGAController);	
+	Terminal.connectSerialPort(ESPSerial);
+	Terminal.enableCursor(true);
+	terminalMode = true;
+}
+
 // Get controller
 // Parameters:
 // - colours: Number of colours per pixel (2, 4, 8, 16 or 64)
@@ -361,52 +416,74 @@ fabgl::VGABaseController * get_VGAController(int colours) {
 // Parameters:
 // - colours: Number of colours per pixel (2, 4, 8, 16 or 64)
 // - modeLine: A modeline string (see the FagGL documentation for more details)
+// Returns:
+// - 0: Successful
+// - 1: Invalid # of colours
+// - 2: Not enough memory for mode
 //
-void change_resolution(int colours, char * modeLine) {
+int change_resolution(int colours, char * modeLine) {
 	fabgl::VGABaseController * controller = get_VGAController(colours);
 
-	if(controller != nullptr) {							// Do we have a valid controller to switch to?
-		VGAColourDepth = colours;						// Set the number of colours per pixel
-		if(VGAController != controller) {				// Is it a different controller?
-			if(VGAController) {							// If there is an existing controller running then
-				VGAController->end();					// end it
-			}
-			VGAController = controller;					// Switch to the new controller
-			VGAController->begin();						// And spin it up
-		}
-		if(modeLine) {									// If modeLine is not a null pointer then
-			VGAController->setResolution(modeLine);		// Set the resolution
-		}
+	if(controller == nullptr) {						// If controller is null, then an invalid # of colours was passed
+		return 1;									// So return the error
 	}
+  	delete Canvas;									// Delete the canvas
+
+	VGAColourDepth = colours;						// Set the number of colours per pixel
+	if(VGAController != controller) {				// Is it a different controller?
+		if(VGAController) {							// If there is an existing controller running then
+			VGAController->end();					// end it
+		}
+		VGAController = controller;					// Switch to the new controller
+		VGAController->begin();						// And spin it up
+	}
+	if(modeLine) {									// If modeLine is not a null pointer then
+		VGAController->setResolution(modeLine);		// Set the resolution
+	}
+
+  	Canvas = new fabgl::Canvas(VGAController);		// Create the new canvas
+
+	//
+	// Check whether the selected mode has enough memory for the vertical resolution
+	//
+	if(VGAController->getScreenHeight() != VGAController->getViewPortHeight()) {
+		return 2;
+	}
+	return 0;										// Return with no errors
 }
 
-// Set the video mode
+// Do the mode change
 // Parameters:
 // - mode: The video mode
-// 
-void set_mode(int mode) {
+// Returns:
+// -  0: Successful
+// -  1: Invalid # of colours
+// -  2: Not enough memory for mode
+// - -1: Invalid mode
+//
+int change_mode(int mode) {
+	int errVal = -1;
+
 	cls();
-	if(numsprites) {
-		numsprites = 0;
-		VGAController->removeSprites();
-		VGAController->refreshSprites();
+	if(mode != videoMode) {
+		switch(mode) {
+			case 0:
+				errVal = change_resolution(2, SVGA_1024x768_60Hz);
+				break;
+			case 1:
+				errVal = change_resolution(16, VGA_512x384_60Hz);
+				break;
+			case 2:
+				errVal = change_resolution(64, VGA_320x200_75Hz);
+				break;
+			case 3:
+				errVal = change_resolution(16, VGA_640x480_60Hz);
+				break;
+		}
+		if(errVal != 0) {
+			return errVal;
+		}
 	}
-  	delete Canvas;
-	switch(mode) {
-		case 0:
-			change_resolution(2, SVGA_1024x768_60Hz);
-      		break;
-		case 1:
-			change_resolution(16, VGA_512x384_60Hz);
-      		break;
-    	case 2:
-			change_resolution(64, VGA_320x200_75Hz);
-      		break;
-		case 3:
-			change_resolution(16, VGA_640x480_60Hz);
-			break;
-  	}
-  	Canvas = new fabgl::Canvas(VGAController);
  	gfg = colourLookup[15];
 	tfg = colourLookup[15];
 	tbg = colourLookup[0];
@@ -421,7 +498,23 @@ void set_mode(int mode) {
 	logicalScaleY = LOGICAL_SCRH / (double)Canvas->getHeight();
 	cursorEnabled = true;
 	sendModeInformation();
-	debug_log("set_mode: canvas(%d,%d), scale(%f,%f)\n\r", Canvas->getWidth(), Canvas->getHeight(), logicalScaleX, logicalScaleY);
+	debug_log("do_modeChange: canvas(%d,%d), scale(%f,%f)\n\r", Canvas->getWidth(), Canvas->getHeight(), logicalScaleX, logicalScaleY);
+	return 0;
+}
+
+// Change the video mode
+// If there is an error, restore the last mode
+// Parameters:
+// - mode: The video mode
+// 
+void set_mode(int mode) {
+	int errVal = change_mode(mode);
+	if(errVal != 0) {
+		debug_log("set_mode: error %d\n\r", errVal);
+		change_mode(videoMode);
+		return;
+	}
+	videoMode = mode;
 }
 
 void print(char const * text) {
@@ -444,8 +537,29 @@ void printFmt(const char *format, ...) {
    	va_end(ap);
  }
 
-// Handle the keyboard
+// Handle the keyboard: CP/M Terminal Mode
 // 
+void do_keyboard_terminal() {
+  	fabgl::Keyboard* kb = PS2Controller.keyboard();
+	fabgl::VirtualKeyItem item;
+
+	// Read the keyboard and transmit to the Z80
+	//
+	if(kb->getNextVirtualKey(&item, 0)) {
+		if(item.down) {
+			ESPSerial.write(item.ASCII);
+		}
+	}
+
+	// Wait for the response and write to the screen
+	//
+	while(ESPSerial.available()) {
+		Terminal.write(ESPSerial.read());
+	}
+}
+
+// Handle the keyboard: BBC VDU Mode
+//
 void do_keyboard() {
   	fabgl::Keyboard* kb = PS2Controller.keyboard();
 	fabgl::VirtualKeyItem item;
@@ -508,7 +622,6 @@ void do_keyboard() {
 			item.down,
 		};
 		send_packet(PACKET_KEYCODE, sizeof packet, packet);
-		debug_log("do_keyboard: keycode=%d, vk=%d, down=%d\n\r", keycode, item.vk, item.down);
 	}
 }
 
@@ -875,36 +988,7 @@ void vdu_sys_video() {
   	byte mode = readByte();
   	switch(mode) {
 		case PACKET_KEYCODE: {		// VDU 23, 0, 1, layout
-			byte layout = readByte();
-			switch(layout) {
-				case 1:				// US Layout
-					PS2Controller.keyboard()->setLayout(&fabgl::USLayout);
-					break;
-				case 2:				// German Layout
-					PS2Controller.keyboard()->setLayout(&fabgl::GermanLayout);
-					break;
-				case 3:				// Italian Layout
-					PS2Controller.keyboard()->setLayout(&fabgl::ItalianLayout);
-					break;
-				case 4:				// Spanish Layout
-					PS2Controller.keyboard()->setLayout(&fabgl::SpanishLayout);
-					break;
-				case 5:				// French Layout
-					PS2Controller.keyboard()->setLayout(&fabgl::FrenchLayout);
-					break;
-				case 6:				// Belgian Layout
-					PS2Controller.keyboard()->setLayout(&fabgl::BelgianLayout);
-					break;
-				case 7:				// Norwegian Layout
-					PS2Controller.keyboard()->setLayout(&fabgl::NorwegianLayout);
-					break;
-				case 8:				// Japanese Layout
-					PS2Controller.keyboard()->setLayout(&fabgl::JapaneseLayout);
-					break;
-				default:
-					PS2Controller.keyboard()->setLayout(&fabgl::UKLayout);
-					break;
-			}
+			vdu_sys_video_kblayout();
 		}	break;
 		case PACKET_CURSOR: {		// VDU 23, 0, 2
 			sendCursorPosition();	// Send cursor position
@@ -931,7 +1015,57 @@ void vdu_sys_video() {
 		case PACKET_MODE: {			// VDU 23, 0, 6
 			sendModeInformation();	// Send mode information (screen dimensions, etc)
 		}	break;
+		case PACKET_RTC: {			// VDU 23, 0, 7, mode
+			vdu_sys_video_time();	// Send time information
+			break;
+		}
+		//
+		// Now any VDU 23, 0 codes that don't have a corresponding return packet
+		//
+		case 255: {					// VDU 23, 0, 255
+			switchTerminalMode(); 	// Switch to terminal mode
+			break;
+		}
   	}
+}
+
+// Set the keyboard layout
+//
+void vdu_sys_video_kblayout() {
+	byte region = readByte();		// Fetch the region
+	switch(region) {
+		case 1:	PS2Controller.keyboard()->setLayout(&fabgl::USLayout); break;
+		case 2:	PS2Controller.keyboard()->setLayout(&fabgl::GermanLayout); break;
+		case 3:	PS2Controller.keyboard()->setLayout(&fabgl::ItalianLayout); break;
+		case 4:	PS2Controller.keyboard()->setLayout(&fabgl::SpanishLayout); break;
+		case 5: PS2Controller.keyboard()->setLayout(&fabgl::FrenchLayout); break;
+		case 6:	PS2Controller.keyboard()->setLayout(&fabgl::BelgianLayout); break;
+		case 7:	PS2Controller.keyboard()->setLayout(&fabgl::NorwegianLayout); break;
+		case 8:	PS2Controller.keyboard()->setLayout(&fabgl::JapaneseLayout);break;
+		default:
+			PS2Controller.keyboard()->setLayout(&fabgl::UKLayout);
+			break;
+	}
+}
+
+// Handle time requests
+//
+void vdu_sys_video_time() {
+	byte mode = readByte();
+	if(mode == 1) {
+		int  yr = EPOCH_YEAR + (int8_t)readByte();	// Fetch the data from the packet
+		byte mo = readByte();
+		byte da = readByte();
+		byte ho = readByte();							
+		byte mi = readByte();
+		byte se = readByte();
+		if(yr >= 1970) {
+			rtc.setTime(se, mi, ho, da, mo, yr);
+		}
+	}
+	if(mode <= 1) {
+		sendTime();
+	}
 }
 
 // VDU 23,7: Scroll rectangle on screen
@@ -977,12 +1111,12 @@ void vdu_sys_sprites(void) {
     byte cmd = readByte();
 
     switch(cmd) {
-    	case 0: // Select bitmap
+    	case 0: 	// Select bitmap
         	current_bitmap = readByte();
         	debug_log("vdu_sys_sprites: bitmap %d selected\n\r", current_bitmap);
         	break;
-      	case 1: // Send bitmap data
-      	case 2: // Define bitmap in single color
+      	case 1: 	// Send bitmap data
+      	case 2: 	// Define bitmap in single color
         	width = readWord();
         	height = readWord();
 			//
@@ -1021,7 +1155,7 @@ void vdu_sys_sprites(void) {
         	}
         	break;
 
-      	case 3: // Draw bitmap to screen (x,y)
+      	case 3: 	// Draw bitmap to screen (x,y)
 			x = readWord();
 			y = readWord();
 
@@ -1042,24 +1176,24 @@ void vdu_sys_sprites(void) {
 		* 6) Show sprites on screen / move them around as needed
 		* 7) Refresh
 		*/
-    	case 4: // Select sprite
+    	case 4: 	// Select sprite
 			current_sprite = readByte();
 			debug_log("vdu_sys_sprites: sprite %d selected\n\r", current_sprite);
 			break;
 
-      	case 5: // Clear frames
+      	case 5: 	// Clear frames
 			sprites[current_sprite].clearBitmaps();
 			debug_log("vdu_sys_sprites: sprite %d - all frames cleared\n\r", current_sprite);
 			break;
         
-      case 6: // Add frame to sprite
+      	case 6:		// Add frame to sprite
 			n = readByte();
 			sprites[current_sprite].addBitmap(&bitmaps[n]);
 			sprites[current_sprite].visible = false;
 			debug_log("vdu_sys_sprites: sprite %d - bitmap %d added as frame %d\n\r", current_sprite, n, sprites[current_sprite].framesCount-1);
 			break;
 
-      case 7: // Active sprites to GDU
+      	case 7:		// Active sprites to GDU
 			/*
 			* Sprites 0-(numsprites-1) will be activated on-screen
 			* Make sure all sprites have at least one frame attached to them
@@ -1074,42 +1208,42 @@ void vdu_sys_sprites(void) {
 			debug_log("vdu_sys_sprites: %d sprites activated\n\r", numsprites);
 			break;
 
-      case 8: // set next frame on sprite
+      	case 8: 	// Set next frame on sprite
 			sprites[current_sprite].nextFrame();
 			debug_log("vdu_sys_sprites: sprite %d next frame\n\r", current_sprite);
 			break;
 
-      case 9: // set previous frame on sprite
+      	case 9:		// Set previous frame on sprite
 			n = sprites[current_sprite].currentFrame;
 			if(n) sprites[current_sprite].currentFrame = n-1; // previous frame
 			else sprites[current_sprite].currentFrame = sprites[current_sprite].framesCount - 1;  // last frame
 			debug_log("vdu_sys_sprites: sprite %d previous frame\n\r", current_sprite);
 			break;
 
-      case 10: // set current frame id on sprite
+      	case 10:	// Set current frame id on sprite
 			n = readByte();
 			if(n < sprites[current_sprite].framesCount) sprites[current_sprite].currentFrame = n;
 			debug_log("vdu_sys_sprites: sprite %d set to frame %d\n\r", current_sprite,n);
 			break;
 
-      case 11: // Show sprite
+      	case 11:	// Show sprite
         	sprites[current_sprite].visible = 1;
 			debug_log("vdu_sys_sprites: sprite %d show cmd\n\r", current_sprite);
 			break;
 
-      case 12: // Hide sprite
+      	case 12:	// Hide sprite
 			sprites[current_sprite].visible = 0;
 			debug_log("vdu_sys_sprites: sprite %d hide cmd\n\r", current_sprite);
 			break;
 
-      case 13: // Move sprite to coordinate on screen
+      	case 13:	// Move sprite to coordinate on screen
 			x = readWord();
 			y = readWord();	
 			sprites[current_sprite].moveTo(x,y); 
 			debug_log("vdu_sys_sprites: sprite %d - move to (%d,%d)\n\r", current_sprite, x, y);
 			break;
 
-      case 14: // move sprite by offset to current coordinate on screen
+      	case 14:	// Move sprite by offset to current coordinate on screen
 			x = readWord();
 			y = readWord();
 			sprites[current_sprite].x += x;
@@ -1117,11 +1251,23 @@ void vdu_sys_sprites(void) {
 			debug_log("vdu_sys_sprites: sprite %d - move by offset (%d,%d)\n\r", current_sprite, x, y);
 			break;
 
-	  case 15: // Refresh
+	  	case 15:	// Refresh
 			if(numsprites) { 
 				VGAController->refreshSprites();
 			}
 			debug_log("vdu_sys_sprites: perform sprite refresh\n\r");
+			break;
+		case 16:	// Reset
+			cls();
+			for(n = 0; n < MAX_SPRITES; n++) {
+				sprites[n].clearBitmaps();
+				sprites[n].visible = false;
+			}
+			for(n = 0; n < MAX_BITMAPS; n++) {
+	        	free(bitmaps[n].data);
+				bitmaps[n].dataAllocated = false;
+			}
+			debug_log("vdu_sys_sprites: reset\n\r");
 			break;
     }
 }
