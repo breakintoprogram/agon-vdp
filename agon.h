@@ -2,16 +2,21 @@
 // Title:	        Agon Video BIOS - Function prototypes
 // Author:        	Dean Belfield
 // Created:       	05/09/2022
-// Last Updated:    04/03/2023
+// Last Updated:    17/03/2023
 //
 // Modinfo:
 // 04/03/2023:      Added LOGICAL_SCRW and LOGICAL_SCRH
+// 17/03/2023:		Added PACKET_RTC, EPOCH_YEAR, MAX_SPRITES, MAX_BITMAPS
 
 #pragma once
 
 #define	ESPSerial Serial2
 
 #define USE_HWFLOW				1		// Flow Control: 1 = enable hardware flow control to eZ80
+
+#define EPOCH_YEAR				1980	// 1-byte dates are offset from this (for FatFS)
+#define MAX_SPRITES				256		// Maximum number of sprites
+#define MAX_BITMAPS				256		// Maximum number of bitmaps
 
 #define UART_BR					384000
 #define UART_NA					-1
@@ -32,6 +37,7 @@
 #define PACKET_SCRPIXEL			4		// Pixel read from screen
 #define PACKET_AUDIO			5		// Audio acknowledgement
 #define PACKET_MODE				6		// Get screen dimensions
+#define PACKET_RTC				7		// RTC
 
 #define AUDIO_CHANNELS			3		// Number of audio channels
 #define PLAY_SOUND_PRIORITY 	3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest
