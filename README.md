@@ -59,4 +59,4 @@ And for the Port, you will need to determine the Com port that the Agon Light is
 Now the third party libraries will need to be installed from the Library Manager in the Tools menu
 
 * FabGL version 1.0.8
-
+* ESP32Time version 2.0.0
