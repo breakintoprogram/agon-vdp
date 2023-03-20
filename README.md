@@ -24,7 +24,7 @@ The AGON documentation can now be found on the [Agon Light Documentation Wiki](h
 
 ### Building
 
-The ESP32 is programmed via the USB connector at the top of the board using the standard Arduino IDE. I’m currently using version 1.8.19.
+The ESP32 is programmed via the USB connector at the top of the board using the Arduino IDE. It has been tested on version 1.8.19 and the latest 2.0.4.
 
 #### Arduino IDE settings
 
@@ -60,3 +60,11 @@ Now the third party libraries will need to be installed from the Library Manager
 
 * FabGL version 1.0.8
 * ESP32Time version 2.0.0
+
+NB:
+
+If you are using version 2.0.x of the IDE and get the following message during the upload stage:
+
+`ModuleNotFoundError: No module named 'serial'`
+
+then you will need to install the python3-serial package
