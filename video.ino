@@ -21,7 +21,7 @@
 // 04/03/2023:					+ Added logical screen resolution, sendScreenPixel now sends palette index as well as RGB values
 // 09/03/2023:					+ Keyboard now sends virtual key data, improved VDU 19 to handle COLOUR l,p as well as COLOUR l,r,g,b
 // 15/03/2023:					+ Added terminal support for CP/M, RTC support for MOS
-// 21/03/2023:				*RC2+ Added keyboard repeat delay and rate
+// 21/03/2023:				*RC2+ Added keyboard repeat delay and rate, logical coords now selectable
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -73,8 +73,8 @@ byte 		keycode = 0;						// Last pressed key code
 byte 		modifiers = 0;						// Last pressed key modifiers
 bool		terminalMode = false;				// Terminal mode
 int			videoMode;							// Current video mode
-int			kbRepeatDelay = 500;				
-int			kbRepeatRate = 100;
+int			kbRepeatDelay = 500;				// Keyboard repeat delay ms (250, 500, 750 or 1000)		
+int			kbRepeatRate = 100;					// Keyboard repeat rate ms (between 33 and 500)
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
 
@@ -1008,23 +1008,23 @@ void vdu_sys() {
 void vdu_sys_video() {
   	byte mode = readByte();
   	switch(mode) {
-		case PACKET_KEYCODE: {		// VDU 23, 0, 1, layout
+		case PACKET_KEYCODE: {			// VDU 23, 0, 1, layout
 			vdu_sys_video_kblayout();
 		}	break;
-		case PACKET_CURSOR: {		// VDU 23, 0, 2
-			sendCursorPosition();	// Send cursor position
+		case PACKET_CURSOR: {			// VDU 23, 0, 2
+			sendCursorPosition();		// Send cursor position
 		}	break;
-		case PACKET_SCRCHAR: {		// VDU 23, 0, 3, x; y;
-			word x = readWord();	// Get character at screen position x, y
+		case PACKET_SCRCHAR: {			// VDU 23, 0, 3, x; y;
+			word x = readWord();		// Get character at screen position x, y
 			word y = readWord();
 			sendScreenChar(x, y);
 		}	break;
-		case PACKET_SCRPIXEL: {		// VDU 23, 0, 4, x; y;
-			short x = readWord();	// Get pixel value at screen position x, y
+		case PACKET_SCRPIXEL: {			// VDU 23, 0, 4, x; y;
+			short x = readWord();		// Get pixel value at screen position x, y
 			short y = readWord();
 			sendScreenPixel(x, y);
 		} 	break;		
-		case PACKET_AUDIO: {		// VDU 23, 0, 5, channel, waveform, volume, freq; duration;
+		case PACKET_AUDIO: {			// VDU 23, 0, 5, channel, waveform, volume, freq; duration;
 			byte channel = readByte();
 			byte waveform = readByte();
 			byte volume = readByte();
@@ -1033,14 +1033,14 @@ void vdu_sys_video() {
 			word success = play_note(channel, volume, frequency, duration);
 			sendPlayNote(channel, success);
 		}	break;
-		case PACKET_MODE: {			// VDU 23, 0, 6
-			sendModeInformation();	// Send mode information (screen dimensions, etc)
+		case PACKET_MODE: {				// VDU 23, 0, 6
+			sendModeInformation();		// Send mode information (screen dimensions, etc)
 		}	break;
-		case PACKET_RTC: {			// VDU 23, 0, 7, mode
-			vdu_sys_video_time();	// Send time information
+		case PACKET_RTC: {				// VDU 23, 0, 7, mode
+			vdu_sys_video_time();		// Send time information
 			break;
 		}
-		case PACKET_KEYSTATE: {		// VDU 23, 0, 8, repeatRate; repeatDelay; status
+		case PACKET_KEYSTATE: {			// VDU 23, 0, 8, repeatRate; repeatDelay; status
 			word d = readWord();
 			word r = readWord();
 			byte b = readByte();
@@ -1056,8 +1056,12 @@ void vdu_sys_video() {
 			sendKeyboardState();
 			break;
 		}
-		case 255: {					// VDU 23, 0, 255
-			switchTerminalMode(); 	// Switch to terminal mode
+		case 192: {						// VDU 23, 0, 192, n
+			logicalCoords = readByte();	// Set logical coord mode
+			break;
+		}
+		case 255: {						// VDU 23, 0, 255
+			switchTerminalMode(); 		// Switch to terminal mode
 			break;
 		}
   	}
