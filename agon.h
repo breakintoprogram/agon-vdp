@@ -2,11 +2,12 @@
 // Title:	        Agon Video BIOS - Function prototypes
 // Author:        	Dean Belfield
 // Created:       	05/09/2022
-// Last Updated:    17/03/2023
+// Last Updated:    21/03/2023
 //
 // Modinfo:
 // 04/03/2023:      Added LOGICAL_SCRW and LOGICAL_SCRH
 // 17/03/2023:		Added PACKET_RTC, EPOCH_YEAR, MAX_SPRITES, MAX_BITMAPS
+// 21/03/2023:		Added PACKET_KEYSTATE
 
 #pragma once
 
@@ -38,6 +39,7 @@
 #define PACKET_AUDIO			5		// Audio acknowledgement
 #define PACKET_MODE				6		// Get screen dimensions
 #define PACKET_RTC				7		// RTC
+#define PACKET_KEYSTATE			8		// Keyboard repeat rate and LED status
 
 #define AUDIO_CHANNELS			3		// Number of audio channels
 #define PLAY_SOUND_PRIORITY 	3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest

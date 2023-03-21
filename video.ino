@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	15/03/2023
+// Last Updated:	21/03/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -21,6 +21,7 @@
 // 04/03/2023:					+ Added logical screen resolution, sendScreenPixel now sends palette index as well as RGB values
 // 09/03/2023:					+ Keyboard now sends virtual key data, improved VDU 19 to handle COLOUR l,p as well as COLOUR l,r,g,b
 // 15/03/2023:					+ Added terminal support for CP/M, RTC support for MOS
+// 21/03/2023:				*RC2+ Added keyboard repeat delay and rate
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -28,7 +29,7 @@
 
 #define VERSION			1
 #define REVISION		3
-#define RC				1
+#define RC				2
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
@@ -72,6 +73,8 @@ byte 		keycode = 0;						// Last pressed key code
 byte 		modifiers = 0;						// Last pressed key modifiers
 bool		terminalMode = false;				// Terminal mode
 int			videoMode;							// Current video mode
+int			kbRepeatDelay = 500;				
+int			kbRepeatRate = 100;
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
 
@@ -101,6 +104,7 @@ void setup() {
  	PS2Controller.begin(PS2Preset::KeyboardPort0, KbdMode::CreateVirtualKeysQueue);
 	PS2Controller.keyboard()->setLayout(&fabgl::UKLayout);
 	PS2Controller.keyboard()->setCodePage(fabgl::CodePages::get(1252));
+	PS2Controller.keyboard()->setTypematicRateAndDelay(kbRepeatRate, kbRepeatDelay);
 	init_audio();
 	copy_font();
 	ESPSerial.write(27);										// The MOS will wait for this escape character during initialisation
@@ -278,6 +282,23 @@ void sendTime() {
 		rtc.getSecond(),					// 0 - 59
 	};
 	send_packet(PACKET_RTC, sizeof packet, packet);
+}
+
+// Send the keyboard state
+//
+void sendKeyboardState() {
+	bool numLock;
+	bool capsLock;
+	bool scrollLock;
+	PS2Controller.keyboard()->getLEDs(&numLock, &capsLock, &scrollLock);
+	byte packet[] = {
+		kbRepeatDelay & 0xFF,
+		(kbRepeatDelay >> 8) & 0xFF,
+		kbRepeatRate & 0xFF,
+		(kbRepeatRate >> 8) & 0xFF,
+		scrollLock | (capsLock << 1) | (numLock << 2)
+	};
+	send_packet(PACKET_KEYSTATE, sizeof packet, packet);
 }
 
 // Debug printf to PC
@@ -1019,9 +1040,22 @@ void vdu_sys_video() {
 			vdu_sys_video_time();	// Send time information
 			break;
 		}
-		//
-		// Now any VDU 23, 0 codes that don't have a corresponding return packet
-		//
+		case PACKET_KEYSTATE: {		// VDU 23, 0, 8, repeatRate; repeatDelay; status
+			word d = readWord();
+			word r = readWord();
+			byte b = readByte();
+			
+			if(d >= 250 && d <= 1000) kbRepeatDelay = (d / 250) * 250;	// In steps of 250ms
+			if(r >=  33 && r <=  500) kbRepeatRate  = r;
+
+			if(b != 255) {
+				PS2Controller.keyboard()->setLEDs(b & 4, b & 2, b & 1);
+			}
+			PS2Controller.keyboard()->setTypematicRateAndDelay(kbRepeatRate, kbRepeatDelay);
+			debug_log("vdu_sys_video: keystate: d=%d, r=%d, led=%d\n\r", kbRepeatDelay, kbRepeatRate, b);
+			sendKeyboardState();
+			break;
+		}
 		case 255: {					// VDU 23, 0, 255
 			switchTerminalMode(); 	// Switch to terminal mode
 			break;
