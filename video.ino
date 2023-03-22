@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	21/03/2023
+// Last Updated:	22/03/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -21,7 +21,8 @@
 // 04/03/2023:					+ Added logical screen resolution, sendScreenPixel now sends palette index as well as RGB values
 // 09/03/2023:					+ Keyboard now sends virtual key data, improved VDU 19 to handle COLOUR l,p as well as COLOUR l,r,g,b
 // 15/03/2023:					+ Added terminal support for CP/M, RTC support for MOS
-// 21/03/2023:				*RC2+ Added keyboard repeat delay and rate, logical coords now selectable
+// 21/03/2023:				RC2 + Added keyboard repeat delay and rate, logical coords now selectable
+// 22/03/2023:					+ VDP control codes now indexed from 0x80, added paged mode (VDU 14/VDU 15)
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -73,6 +74,8 @@ byte 		keycode = 0;						// Last pressed key code
 byte 		modifiers = 0;						// Last pressed key modifiers
 bool		terminalMode = false;				// Terminal mode
 int			videoMode;							// Current video mode
+bool 		pagedMode = false;					// Is output paged or not? Set by VDU 14 and 15
+int			pagedModeCount = 0;						// Scroll counter for paged mode
 int			kbRepeatDelay = 500;				// Keyboard repeat delay ms (250, 500, 750 or 1000)		
 int			kbRepeatRate = 100;					// Keyboard repeat rate ms (between 33 and 500)
 
@@ -350,6 +353,7 @@ void cls() {
 	}
 	charX = 0;
 	charY = 0;
+	pagedModeCount = 0;
 }
 
 // Clear the graphics area
@@ -579,6 +583,35 @@ void do_keyboard_terminal() {
 	}
 }
 
+// Wait for shift key to be released, then pressed (for paged mode)
+// 
+void wait_shiftkey() {
+  	fabgl::Keyboard* kb = PS2Controller.keyboard();
+	fabgl::VirtualKeyItem item;
+
+	// Wait for shift to be released
+	//
+	do {
+		kb->getNextVirtualKey(&item, 0);
+	} while(item.SHIFT);
+
+	// And pressed again
+	//
+	do {
+		kb->getNextVirtualKey(&item, 0);
+		if(item.ASCII == 27) {	// Check for ESC
+			byte packet[] = {
+				item.ASCII,
+				0,
+				item.vk,
+				item.down,
+			};
+			send_packet(PACKET_KEYCODE, sizeof packet, packet);
+			return;
+		}
+	} while(!item.SHIFT);
+}
+
 // Handle the keyboard: BBC VDU Mode
 //
 void do_keyboard() {
@@ -633,6 +666,12 @@ void do_keyboard() {
 				item.SCROLLLOCK << 6 |
 				item.GUI		<< 7
 			;
+		}
+		// Handle some control keys
+		//
+		switch(keycode) {
+			case 14: pagedMode = true; break;
+			case 15: pagedMode = false; break;
 		}
 		// Create and send the packet back to MOS
 		//
@@ -743,6 +782,12 @@ void vdu(byte c) {
 			case 0x0D:  // CR
 				cursorHome();
 				break;
+			case 0x0E:	// Paged mode ON
+				pagedMode = true;
+				break;
+			case 0x0F:	// Paged mode OFF
+				pagedMode = false;
+				break;
 			case 0x10:	// CLG
 				clg();
 				break;
@@ -792,18 +837,28 @@ void cursorLeft() {
 void cursorRight() {
   	charX += Canvas->getFontInfo()->width;
   	if(charX >= Canvas->getWidth()) {
-    	cursorDown();
     	cursorHome();
+    	cursorDown();
   	}
 }
 
 void cursorDown() {
-	int h = Canvas->getFontInfo()->height;
-  	charY += h;
-	  if(charY >= Canvas->getHeight()) {
-		charY -= h;
-		Canvas->scroll(0, -h);
-	  }
+	int fh = Canvas->getFontInfo()->height;
+	int ch = Canvas->getHeight();
+	int pl = ch / fh;
+
+	charY += fh;
+	if(pagedMode) {
+		pagedModeCount++;
+		if(pagedModeCount >= pl) {
+			pagedModeCount = 0;
+			wait_shiftkey();
+		}
+	}
+	if(charY >= ch) {
+		charY -= fh;
+		Canvas->scroll(0, -fh);
+	}
 }
 
 void cursorUp() {
@@ -1007,24 +1062,25 @@ void vdu_sys() {
 //
 void vdu_sys_video() {
   	byte mode = readByte();
+	debug_log("VDU 23, 0, %d\n\r", mode);
   	switch(mode) {
-		case PACKET_KEYCODE: {			// VDU 23, 0, 1, layout
+		case VDP_KEYCODE: {				// VDU 23, 0, 1, layout
 			vdu_sys_video_kblayout();
 		}	break;
-		case PACKET_CURSOR: {			// VDU 23, 0, 2
+		case VDP_CURSOR: {				// VDU 23, 0, 2
 			sendCursorPosition();		// Send cursor position
 		}	break;
-		case PACKET_SCRCHAR: {			// VDU 23, 0, 3, x; y;
+		case VDP_SCRCHAR: {				// VDU 23, 0, 3, x; y;
 			word x = readWord();		// Get character at screen position x, y
 			word y = readWord();
 			sendScreenChar(x, y);
 		}	break;
-		case PACKET_SCRPIXEL: {			// VDU 23, 0, 4, x; y;
+		case VDP_SCRPIXEL: {			// VDU 23, 0, 4, x; y;
 			short x = readWord();		// Get pixel value at screen position x, y
 			short y = readWord();
 			sendScreenPixel(x, y);
 		} 	break;		
-		case PACKET_AUDIO: {			// VDU 23, 0, 5, channel, waveform, volume, freq; duration;
+		case VDP_AUDIO: {				// VDU 23, 0, 5, channel, waveform, volume, freq; duration;
 			byte channel = readByte();
 			byte waveform = readByte();
 			byte volume = readByte();
@@ -1033,14 +1089,14 @@ void vdu_sys_video() {
 			word success = play_note(channel, volume, frequency, duration);
 			sendPlayNote(channel, success);
 		}	break;
-		case PACKET_MODE: {				// VDU 23, 0, 6
+		case VDP_MODE: {				// VDU 23, 0, 6
 			sendModeInformation();		// Send mode information (screen dimensions, etc)
 		}	break;
-		case PACKET_RTC: {				// VDU 23, 0, 7, mode
+		case VDP_RTC: {					// VDU 23, 0, 7, mode
 			vdu_sys_video_time();		// Send time information
 			break;
 		}
-		case PACKET_KEYSTATE: {			// VDU 23, 0, 8, repeatRate; repeatDelay; status
+		case VDP_KEYSTATE: {			// VDU 23, 0, 8, repeatRate; repeatDelay; status
 			word d = readWord();
 			word r = readWord();
 			byte b = readByte();
@@ -1056,11 +1112,11 @@ void vdu_sys_video() {
 			sendKeyboardState();
 			break;
 		}
-		case 192: {						// VDU 23, 0, 192, n
+		case VDP_LOGICALCOORDS: {		// VDU 23, 0, 192, n
 			logicalCoords = readByte();	// Set logical coord mode
 			break;
 		}
-		case 255: {						// VDU 23, 0, 255
+		case VDP_TERMINALMODE: {		// VDU 23, 0, 255
 			switchTerminalMode(); 		// Switch to terminal mode
 			break;
 		}
