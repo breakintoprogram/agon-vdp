@@ -2,13 +2,14 @@
 // Title:	        Agon Video BIOS - Function prototypes
 // Author:        	Dean Belfield
 // Created:       	05/09/2022
-// Last Updated:    22/03/2023
+// Last Updated:    23/03/2023
 //
 // Modinfo:
 // 04/03/2023:      Added LOGICAL_SCRW and LOGICAL_SCRH
 // 17/03/2023:		Added PACKET_RTC, EPOCH_YEAR, MAX_SPRITES, MAX_BITMAPS
 // 21/03/2023:		Added PACKET_KEYSTATE
 // 22/03/2023:		Added VDP codes
+// 23/03/2023:		Increased baud rate to 1152000
 
 #pragma once
 
@@ -20,7 +21,7 @@
 #define MAX_SPRITES				256		// Maximum number of sprites
 #define MAX_BITMAPS				256		// Maximum number of bitmaps
 
-#define UART_BR					384000
+#define UART_BR					1152000	// Max baud rate; previous stable value was 384000
 #define UART_NA					-1
 #define UART_TX					2
 #define UART_RX					34
