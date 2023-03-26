@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	23/03/2023
+// Last Updated:	26/03/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -24,6 +24,7 @@
 // 21/03/2023:				RC2 + Added keyboard repeat delay and rate, logical coords now selectable
 // 22/03/2023:					+ VDP control codes now indexed from 0x80, added paged mode (VDU 14/VDU 15)
 // 23/03/2023:					+ Added VDP_GP
+// 26/03/2023:				RC3 + Potential fixes for FabGL being overwhelmed by faster comms
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -31,7 +32,7 @@
 
 #define VERSION			1
 #define REVISION		3
-#define RC				2
+#define RC				3
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
@@ -496,6 +497,8 @@ int change_resolution(int colours, char * modeLine) {
 	if(modeLine) {									// If modeLine is not a null pointer then
 		VGAController->setResolution(modeLine);		// Set the resolution
 	}
+	VGAController->enableBackgroundPrimitiveExecution(true);
+	VGAController->enableBackgroundPrimitiveTimeout(false);
 
   	Canvas = new fabgl::Canvas(VGAController);		// Create the new canvas
 
@@ -1034,6 +1037,7 @@ void vdu_plot_triangle(byte mode) {
   	Canvas->setBrushColor(gfg);
   	Canvas->fillPath(p, 3);
   	Canvas->setBrushColor(tbg);
+	Canvas->waitCompletion(false);
 }
 
 void vdu_plot_circle(byte mode) {
@@ -1042,12 +1046,14 @@ void vdu_plot_circle(byte mode) {
     	case 0x90 ... 0x93: // Circle
       		r = 2 * (p1.X + p1.Y);
       		Canvas->drawEllipse(p2.X, p2.Y, r, r);
+			Canvas->waitCompletion(false);
       		break;
     	case 0x94 ... 0x97: // Circle
       		a = p2.X - p1.X;
       		b = p2.Y - p1.Y;
       		r = 2 * sqrt(a * a + b * b);
       		Canvas->drawEllipse(p2.X, p2.Y, r, r);
+			Canvas->waitCompletion(false);
       		break;
   	}
 }
