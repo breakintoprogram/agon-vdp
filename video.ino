@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	22/03/2023
+// Last Updated:	23/03/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -23,6 +23,7 @@
 // 15/03/2023:					+ Added terminal support for CP/M, RTC support for MOS
 // 21/03/2023:				RC2 + Added keyboard repeat delay and rate, logical coords now selectable
 // 22/03/2023:					+ VDP control codes now indexed from 0x80, added paged mode (VDU 14/VDU 15)
+// 23/03/2023:					+ Added VDP_GP
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -75,9 +76,10 @@ byte 		modifiers = 0;						// Last pressed key modifiers
 bool		terminalMode = false;				// Terminal mode
 int			videoMode;							// Current video mode
 bool 		pagedMode = false;					// Is output paged or not? Set by VDU 14 and 15
-int			pagedModeCount = 0;						// Scroll counter for paged mode
+int			pagedModeCount = 0;					// Scroll counter for paged mode
 int			kbRepeatDelay = 500;				// Keyboard repeat delay ms (250, 500, 750 or 1000)		
 int			kbRepeatRate = 100;					// Keyboard repeat rate ms (between 33 and 500)
+bool 		initialised = false;				// Is the system initialised yet?
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
 
@@ -110,9 +112,9 @@ void setup() {
 	PS2Controller.keyboard()->setTypematicRateAndDelay(kbRepeatRate, kbRepeatDelay);
 	init_audio();
 	copy_font();
-	ESPSerial.write(27);										// The MOS will wait for this escape character during initialisation
   	set_mode(1);
 	boot_screen();
+	wait_eZ80();
 }
 
 // Copy the AGON font data from Flash to RAM
@@ -153,6 +155,24 @@ void audio_driver(void * parameters) {
 	while(true) {
 		audio_channels[channel]->loop();
 		vTaskDelay(1);
+	}
+}
+
+// Wait for eZ80 to initialise
+//
+void wait_eZ80() {
+	while(!initialised) {
+    	if(ESPSerial.available() > 0) {
+			#if USE_HWFLOW == 0
+			if(ESPSerial.available() > UART_RX_THRESH) {
+				setRTSStatus(false);		
+			}
+			#endif 		
+			byte c = ESPSerial.read();	// Only handle VDU 23 packets
+			if(c == 23) {
+				vdu_sys();
+			}
+		}
 	}
 }
 
@@ -302,6 +322,17 @@ void sendKeyboardState() {
 		scrollLock | (capsLock << 1) | (numLock << 2)
 	};
 	send_packet(PACKET_KEYSTATE, sizeof packet, packet);
+}
+
+// Send a general poll
+//
+void sendGeneralPoll() {
+	byte b = readByte();
+	byte packet[] = {
+		b,
+	};
+	send_packet(PACKET_GP, sizeof packet, packet);
+	initialised = true;	
 }
 
 // Debug printf to PC
@@ -682,6 +713,7 @@ void do_keyboard() {
 			item.down,
 		};
 		send_packet(PACKET_KEYCODE, sizeof packet, packet);
+		debug_log("%d\n\r", item.vk);
 	}
 }
 
@@ -1062,25 +1094,28 @@ void vdu_sys() {
 //
 void vdu_sys_video() {
   	byte mode = readByte();
-	debug_log("VDU 23, 0, %d\n\r", mode);
   	switch(mode) {
-		case VDP_KEYCODE: {				// VDU 23, 0, 1, layout
+		case VDP_GP: {					// VDU 23, 0, &80
+			sendGeneralPoll();			// Send a general poll packet
+			break;
+		}
+		case VDP_KEYCODE: {				// VDU 23, 0, &81, layout
 			vdu_sys_video_kblayout();
 		}	break;
-		case VDP_CURSOR: {				// VDU 23, 0, 2
+		case VDP_CURSOR: {				// VDU 23, 0, &82
 			sendCursorPosition();		// Send cursor position
 		}	break;
-		case VDP_SCRCHAR: {				// VDU 23, 0, 3, x; y;
+		case VDP_SCRCHAR: {				// VDU 23, 0, &83, x; y;
 			word x = readWord();		// Get character at screen position x, y
 			word y = readWord();
 			sendScreenChar(x, y);
 		}	break;
-		case VDP_SCRPIXEL: {			// VDU 23, 0, 4, x; y;
+		case VDP_SCRPIXEL: {			// VDU 23, 0, &84, x; y;
 			short x = readWord();		// Get pixel value at screen position x, y
 			short y = readWord();
 			sendScreenPixel(x, y);
 		} 	break;		
-		case VDP_AUDIO: {				// VDU 23, 0, 5, channel, waveform, volume, freq; duration;
+		case VDP_AUDIO: {				// VDU 23, 0, &85, channel, waveform, volume, freq; duration;
 			byte channel = readByte();
 			byte waveform = readByte();
 			byte volume = readByte();
@@ -1089,14 +1124,14 @@ void vdu_sys_video() {
 			word success = play_note(channel, volume, frequency, duration);
 			sendPlayNote(channel, success);
 		}	break;
-		case VDP_MODE: {				// VDU 23, 0, 6
+		case VDP_MODE: {				// VDU 23, 0, &86
 			sendModeInformation();		// Send mode information (screen dimensions, etc)
 		}	break;
-		case VDP_RTC: {					// VDU 23, 0, 7, mode
+		case VDP_RTC: {					// VDU 23, 0, &87, mode
 			vdu_sys_video_time();		// Send time information
 			break;
 		}
-		case VDP_KEYSTATE: {			// VDU 23, 0, 8, repeatRate; repeatDelay; status
+		case VDP_KEYSTATE: {			// VDU 23, 0, &88, repeatRate; repeatDelay; status
 			word d = readWord();
 			word r = readWord();
 			byte b = readByte();
@@ -1112,11 +1147,11 @@ void vdu_sys_video() {
 			sendKeyboardState();
 			break;
 		}
-		case VDP_LOGICALCOORDS: {		// VDU 23, 0, 192, n
+		case VDP_LOGICALCOORDS: {		// VDU 23, 0, &C0, n
 			logicalCoords = readByte();	// Set logical coord mode
 			break;
 		}
-		case VDP_TERMINALMODE: {		// VDU 23, 0, 255
+		case VDP_TERMINALMODE: {		// VDU 23, 0, &FF
 			switchTerminalMode(); 		// Switch to terminal mode
 			break;
 		}
