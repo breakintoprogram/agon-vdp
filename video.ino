@@ -25,6 +25,7 @@
 // 22/03/2023:					+ VDP control codes now indexed from 0x80, added paged mode (VDU 14/VDU 15)
 // 23/03/2023:					+ Added VDP_GP
 // 26/03/2023:				RC3 + Potential fixes for FabGL being overwhelmed by faster comms
+// 27/03/2023:					+ Fix for sprite system crash
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -858,6 +859,7 @@ void vdu(byte c) {
 				break;
 		}
 	}
+	Canvas->waitCompletion(false);
 }
 
 // Handle the cursor
@@ -1037,7 +1039,6 @@ void vdu_plot_triangle(byte mode) {
   	Canvas->setBrushColor(gfg);
   	Canvas->fillPath(p, 3);
   	Canvas->setBrushColor(tbg);
-	Canvas->waitCompletion(false);
 }
 
 void vdu_plot_circle(byte mode) {
@@ -1046,14 +1047,12 @@ void vdu_plot_circle(byte mode) {
     	case 0x90 ... 0x93: // Circle
       		r = 2 * (p1.X + p1.Y);
       		Canvas->drawEllipse(p2.X, p2.Y, r, r);
-			Canvas->waitCompletion(false);
       		break;
     	case 0x94 ... 0x97: // Circle
       		a = p2.X - p1.X;
       		b = p2.Y - p1.Y;
       		r = 2 * sqrt(a * a + b * b);
       		Canvas->drawEllipse(p2.X, p2.Y, r, r);
-			Canvas->waitCompletion(false);
       		break;
   	}
 }
@@ -1317,14 +1316,16 @@ void vdu_sys_sprites(void) {
 			break;
 
       	case 5: 	// Clear frames
+			sprites[current_sprite].visible = false;
+			sprites[current_sprite].setFrame(0);
 			sprites[current_sprite].clearBitmaps();
 			debug_log("vdu_sys_sprites: sprite %d - all frames cleared\n\r", current_sprite);
 			break;
         
       	case 6:		// Add frame to sprite
 			n = readByte();
+//			sprites[current_sprite].visible = false;
 			sprites[current_sprite].addBitmap(&bitmaps[n]);
-			sprites[current_sprite].visible = false;
 			debug_log("vdu_sys_sprites: sprite %d - bitmap %d added as frame %d\n\r", current_sprite, n, sprites[current_sprite].framesCount-1);
 			break;
 
@@ -1395,8 +1396,9 @@ void vdu_sys_sprites(void) {
 		case 16:	// Reset
 			cls();
 			for(n = 0; n < MAX_SPRITES; n++) {
-				sprites[n].clearBitmaps();
 				sprites[n].visible = false;
+				sprites[current_sprite].setFrame(0);
+				sprites[n].clearBitmaps();
 			}
 			for(n = 0; n < MAX_BITMAPS; n++) {
 	        	free(bitmaps[n].data);
