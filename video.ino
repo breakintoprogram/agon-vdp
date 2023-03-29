@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	26/03/2023
+// Last Updated:	29/03/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -26,6 +26,7 @@
 // 23/03/2023:					+ Added VDP_GP
 // 26/03/2023:				RC3 + Potential fixes for FabGL being overwhelmed by faster comms
 // 27/03/2023:					+ Fix for sprite system crash
+// 29/03/2023:					+ Typo in boot screen fixed	
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -358,7 +359,7 @@ void debug_log(const char *format, ...) {
 // The boot screen
 //
 void boot_screen() {
-  	printFmt("Agon Quark VPD Version %d.%02d", VERSION, REVISION);
+  	printFmt("Agon Quark VDP Version %d.%02d", VERSION, REVISION);
 	#if RC > 0
 	  	printFmt(" RC%d", RC);
 	#endif
