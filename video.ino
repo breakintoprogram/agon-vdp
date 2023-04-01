@@ -1095,6 +1095,23 @@ void vdu_sys() {
 	}
 }
 
+// Play a note
+//
+word channel_play_note(byte channel, byte volume, word frequency, word duration, byte complexity = 0, byte wavetype = 3, word attack = 0, byte sustain = 0, word decay = 0, word release = 0, word frequency_end = 0, byte end_style = 0) { //Fallback default to wavetype = 3, SawTooth
+	if(channel >=0 && channel < AUDIO_CHANNELS) {
+		if (complexity == 0) return audio_channels[channel]->play_note(volume, frequency, duration);
+    else if (complexity == 1) {
+      debug_log("\n\rChannel %d, Complexity %d, Wavetype %d\n\r", channel, complexity, wavetype);
+      return audio_channels[channel]->play_note(volume, frequency, duration, wavetype);
+    }
+    else if (complexity == 2) {
+      debug_log("\n\rCh %d, Com %d, Wv %d, TD %d, PVol %d, F %d, A %d, D %d, S %d, R %d\n\r", channel, complexity, wavetype, duration, volume, frequency, attack, decay, sustain, release);
+      return audio_channels[channel]->play_note(volume, frequency, duration, wavetype, attack, decay, sustain, release, frequency_end, end_style);
+    } 
+	}
+	return 0;
+}
+
 // VDU 23,0: VDP control
 // These can send responses back; the response contains a packet # that matches the VDU command mode byte
 //
@@ -1122,13 +1139,61 @@ void vdu_sys_video() {
 			sendScreenPixel(x, y);
 		} 	break;		
 		case VDP_AUDIO: {				// VDU 23, 0, &85, channel, waveform, volume, freq; duration;
+    //Basic sawtooth:                 VDU 23 0 &85 0 COMPLEXITY=0 10 0 33 0 12
+    //Basic custom wavetype:          VDU 23 0 &85 0 COMPLEXITY=1 WAVEFORM=X 10 0 33 0 12
+    //Full ASDR with custom wavetype: VDU 23 0 &85 0 2 2 [127] [&B0 &04] [154 00] [05 00] [127] [00 00] [39 00] [&B8 01] [01] PEW!
 			byte channel = readByte();
-			byte waveform = readByte();
-			byte volume = readByte();
-			word frequency = readWord();
-			word duration = readWord();
-			word success = play_note(channel, volume, frequency, duration);
-			sendPlayNote(channel, success);
+			byte complexity = readByte();
+
+      switch (complexity)
+      {
+        case 0:
+          {
+          byte volume = readByte();
+			    word frequency = readWord();
+  			  word duration = readWord();
+			    word success = channel_play_note(channel, volume, frequency, duration);
+			    sendPlayNote(channel, success);
+          break;
+          }
+        
+        case 1: //Custom wave, no ASDR (6 chars)
+          {
+          byte wavetype = readByte();
+          byte volume = readByte();
+			    word frequency = readWord();
+  			  word duration = readWord();
+			    word success = channel_play_note(channel, volume, frequency, duration, 1, wavetype);
+          debug_log("\n\rAttempted custom wave type %d\n\r", wavetype);
+			    sendPlayNote(channel, success);
+          break;
+          }
+
+        case 2: //Custom wave, with ASDR envelope (13 chars)
+          {
+          byte wavetype = readByte();
+          byte volume = readByte();
+			    word frequency = readWord();
+  			  word duration = readWord();
+
+          word attack = readWord();
+          byte sustain = readByte();
+          word decay = readWord();
+          word release = readWord();
+          word frequency_end = readWord();
+          word end_style = readByte();
+          
+          debug_log("\n\rCh %d, Com %d, Wv %d, TD %d, PVol %d, F %d, A %d, D %d, S %d, R %d\n\r", channel, complexity, wavetype, duration, volume, frequency, attack, decay, sustain, release);
+			    word success = channel_play_note(channel, volume, frequency, duration, 2, wavetype, attack, sustain, decay, release, frequency_end, end_style);
+          debug_log("\n\rAttempted full envelope\n\r", wavetype);
+			    sendPlayNote(channel, success);
+          break;
+          }          
+        
+        default:
+          break;
+      }
+      
 		}	break;
 		case VDP_MODE: {				// VDU 23, 0, &86
 			sendModeInformation();		// Send mode information (screen dimensions, etc)
@@ -1223,15 +1288,6 @@ void vdu_sys_scroll() {
 			Canvas->scroll(0, -movement);
 			break;
 	}
-}
-
-// Play a note
-//
-word play_note(byte channel, byte volume, word frequency, word duration) {
-	if(channel >=0 && channel < AUDIO_CHANNELS) {
-		return audio_channels[channel]->play_note(volume, frequency, duration);
-	}
-	return 0;
 }
 
 // Sprite Engine
