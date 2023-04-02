@@ -85,6 +85,7 @@ int			kbRepeatRate = 100;					// Keyboard repeat rate ms (between 33 and 500)
 bool 		initialised = false;				// Is the system initialised yet?
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
+byte channel_status = 0x00;
 
 ESP32Time	rtc(0);								// The RTC
 
@@ -269,10 +270,22 @@ void sendScreenPixel(int x, int y) {
 
 // Send an audio acknowledgement
 //
-void sendPlayNote(int channel, int success) {
-	byte packet[] = {
+// void sendPlayNote(int channel, int success) {
+// 	byte packet[] = {
+// 		channel,
+// 		success,
+// 	};
+// 	send_packet(PACKET_AUDIO, sizeof packet, packet);	
+// }
+
+void sendChannelStatus(int channel, int status) {
+	
+  if (status == 1) channel_status |= 1UL << channel;
+  if (status == 0) channel_status &= ~(1UL << channel);;
+  
+  byte packet[] = {
 		channel,
-		success,
+		channel_status,
 	};
 	send_packet(PACKET_AUDIO, sizeof packet, packet);	
 }
@@ -1152,8 +1165,7 @@ void vdu_sys_video() {
           byte volume = readByte();
 			    word frequency = readWord();
   			  word duration = readWord();
-			    word success = channel_play_note(channel, volume, frequency, duration);
-			    sendPlayNote(channel, success);
+			    if (channel_play_note(channel, volume, frequency, duration)) sendChannelStatus(channel, 1);
           break;
           }
         
@@ -1163,9 +1175,8 @@ void vdu_sys_video() {
           byte volume = readByte();
 			    word frequency = readWord();
   			  word duration = readWord();
-			    word success = channel_play_note(channel, volume, frequency, duration, 1, wavetype);
           debug_log("\n\rAttempted custom wave type %d\n\r", wavetype);
-			    sendPlayNote(channel, success);
+			    if (channel_play_note(channel, volume, frequency, duration, 1, wavetype)) sendChannelStatus(channel, 1);
           break;
           }
 
@@ -1184,9 +1195,8 @@ void vdu_sys_video() {
           word end_style = readByte();
           
           debug_log("\n\rCh %d, Com %d, Wv %d, TD %d, PVol %d, F %d, A %d, D %d, S %d, R %d\n\r", channel, complexity, wavetype, duration, volume, frequency, attack, decay, sustain, release);
-			    word success = channel_play_note(channel, volume, frequency, duration, 2, wavetype, attack, sustain, decay, release, frequency_end, end_style);
           debug_log("\n\rAttempted full envelope\n\r", wavetype);
-			    sendPlayNote(channel, success);
+			    if (channel_play_note(channel, volume, frequency, duration, 2, wavetype, attack, sustain, decay, release, frequency_end, end_style)) sendChannelStatus(channel, 1);
           break;
           }          
         
