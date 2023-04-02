@@ -8,6 +8,8 @@
 
 #pragma once
 
+extern void sendChannelStatus(int channel, int status);
+
 // The audio channel class
 //
 class audio_channel {	
@@ -175,6 +177,7 @@ void audio_channel::loop() {
     }
 		
     this->_waveform->enable(false);
+    sendChannelStatus(this->_channel, 0);
     debug_log("audio_driver: end\n\r");			
 		this->_flag = 0; 
 
