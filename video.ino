@@ -117,6 +117,14 @@ void setup() {
 	init_audio();
 	copy_font();
   	set_mode(1);
+  samples[0] = (audio_sample *)ps_malloc(sizeof(audio_sample));
+  samples[0]->written = false;
+  samples[1] = (audio_sample *)ps_malloc(sizeof(audio_sample));
+  samples[1]->written = false;
+  samples[2] = (audio_sample *)ps_malloc(sizeof(audio_sample));
+  samples[2]->written = false;
+  samples[3] = (audio_sample *)ps_malloc(sizeof(audio_sample));
+  samples[3]->written = false;
 	boot_screen();
 	wait_eZ80();
 }
@@ -373,6 +381,7 @@ void debug_log(const char *format, ...) {
 //
 void boot_screen() {
   	printFmt("Agon Quark VDP Version %d.%02d", VERSION, REVISION);
+
 	#if RC > 0
 	  	printFmt(" RC%d", RC);
 	#endif
@@ -1112,15 +1121,29 @@ void vdu_sys() {
 //
 word channel_play_note(byte channel, byte volume, word frequency, word duration, byte complexity = 0, byte wavetype = 3, word attack = 0, byte sustain = 0, word decay = 0, word release = 0, word frequency_end = 0, byte end_style = 0) { //Fallback default to wavetype = 3, SawTooth
 	if(channel >=0 && channel < AUDIO_CHANNELS) {
-		if (complexity == 0) return audio_channels[channel]->play_note(volume, frequency, duration);
+		if (complexity == 0) return audio_channels[channel]->play_note_simple(volume, frequency, duration, 0);
+    else if (complexity == 3) return audio_channels[channel]->play_note_simple(volume, frequency, duration, 1); //Complexity 0 interruptable
+    
     else if (complexity == 1) {
       debug_log("\n\rChannel %d, Complexity %d, Wavetype %d\n\r", channel, complexity, wavetype);
-      return audio_channels[channel]->play_note(volume, frequency, duration, wavetype);
+      return audio_channels[channel]->play_note_cwave(volume, frequency, duration, wavetype, 0);
     }
+    else if (complexity == 4) {                                                                                 //Complexity 1 interuptable
+      debug_log("\n\rChannel %d, Complexity %d, Wavetype %d\n\r", channel, complexity, wavetype);
+      return audio_channels[channel]->play_note_cwave(volume, frequency, duration, wavetype, 1);
+    }
+    
     else if (complexity == 2) {
-      debug_log("\n\rCh %d, Com %d, Wv %d, TD %d, PVol %d, F %d, A %d, D %d, S %d, R %d\n\r", channel, complexity, wavetype, duration, volume, frequency, attack, decay, sustain, release);
-      return audio_channels[channel]->play_note(volume, frequency, duration, wavetype, attack, decay, sustain, release, frequency_end, end_style);
+      debug_log("\n\rCh %d, Com %d, Wv %d, TD %d, PVol %d, F %d, A %d, D %d, S %d, R %d\n\r", channel, complexity, wavetype, duration, volume, frequency, attack, decay, sustain, release, 0);
+      return audio_channels[channel]->play_note_env(volume, frequency, duration, wavetype, attack, decay, sustain, release, frequency_end, end_style, 0);
+    }
+
+    else if (complexity == 5) {
+
+      return audio_channels[channel]->play_wave(wavetype, volume);
+
     } 
+ 
 	}
 	return 0;
 }
@@ -1129,6 +1152,7 @@ word channel_play_note(byte channel, byte volume, word frequency, word duration,
 // These can send responses back; the response contains a packet # that matches the VDU command mode byte
 //
 void vdu_sys_video() {
+    void * dataptr;
   	byte mode = readByte();
   	switch(mode) {
 		case VDP_GP: {					// VDU 23, 0, &80
@@ -1200,6 +1224,55 @@ void vdu_sys_video() {
           break;
           }          
         
+        case 3:
+          {
+          byte volume = readByte();
+			    word frequency = readWord();
+  			  word duration = readWord();
+			    if (channel_play_note(channel, volume, frequency, duration, 3)) sendChannelStatus(channel, 1);
+          break;
+          }
+        
+        case 4: //Custom wave, no ASDR (6 chars)
+          {
+          byte wavetype = readByte();
+          byte volume = readByte();
+			    word frequency = readWord();
+  			  word duration = readWord();
+          debug_log("\n\rAttempted custom wave type %d\n\r", wavetype);
+			    if (channel_play_note(channel, volume, frequency, duration, 4, wavetype)) sendChannelStatus(channel, 1);
+          break;
+          }
+
+        case 5: //PCM
+          {
+          byte sample_id = readByte();
+          byte playback = readByte();
+          if (sample_id <= SAMPLE_SLOTS) {
+              if (playback == 0) {
+                debug_log("\r\nRecord mode\r\n");
+                samples[sample_id]->length = readLong();
+                samples[sample_id]->rate = readWord();
+                debug_log("\r\nSaving sample %u\r\n", sample_id);
+                for(int n = 0; n < samples[sample_id]->length; n++) {
+                  samples[sample_id]->sample_buffer[n] = (int8_t)readByte();
+                }
+                samples[sample_id]->written = true;
+                debug_log("\r\nDone, %d copied across!\r\n", samples[sample_id]->length);
+              } else if (playback == 1) {
+                  byte volume = readByte();
+                  if (samples[sample_id]->written == true) {
+                    debug_log("\r\nPlaying back sample %u\r\n", sample_id);
+                    debug_log("\r\nLooking for %u samples\r\n", samples[sample_id]->length);
+                    debug_log("\r\nSample rate is %uHz\r\n", samples[sample_id]->rate);
+                    if (channel_play_note(channel, volume, samples[sample_id]->rate, samples[sample_id]->length, 5, sample_id)) sendChannelStatus(channel, 1);
+                  } else debug_log("No sample in that slot.");
+              }
+          } else debug_log("Not a valid sample slot.");
+
+          break;
+          }        
+
         default:
           break;
       }
