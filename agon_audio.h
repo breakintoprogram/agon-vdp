@@ -10,17 +10,35 @@
 
 extern void sendChannelStatus(int channel, int status);
 
+#define SAMPLE_SLOTS 6
+
+struct audio_sample
+{
+    
+    bool written = false;         // has this sample been written yet? If note, ignore efforts to play.
+    uint16_t length;              // sample length
+    uint16_t rate;                // sample rate
+    int8_t sample_buffer[262144]; // Max 256KB of raw PCM
+
+};
+
+struct audio_sample* samples[SAMPLE_SLOTS]; //6 Samples = ~1.5MB of PSRAM
+
 // The audio channel class
 //
 class audio_channel {	
 	public:
 		audio_channel(int channel);		
-		word	play_note(byte volume, word frequency, word duration);
-    word  play_note(byte volume, word frequency, word duration, byte wave);
-    word  play_note(byte volume, word frequency, word duration, byte wave, word attack, word decay, byte sustain, word release, word frequency_end, byte end_style);
+		word	play_note_simple(byte volume, word frequency, word duration, byte override);
+    word  play_note_cwave(byte volume, word frequency, word duration, byte wave, byte override);
+    word  play_wave(byte sample_id, byte volume);
+    word  play_note_env(byte volume, word frequency, word duration, byte wave, word attack, word decay, byte sustain, word release, word frequency_end, byte end_style, byte override);
 		void	loop();
 	private:
-		fabgl::WaveformGenerator *	_waveform;			
+		fabgl::WaveformGenerator *	_waveform;
+    
+    float _s_duration_ms = 0;
+
 	 	byte _flag;
     byte _wavetype;
     
@@ -29,6 +47,7 @@ class audio_channel {
 		byte _channel;
 		byte _volume; //Peak volume
     word _duration;
+    word _sample_rate;
     
     word _attack;
     word _decay;
@@ -37,6 +56,8 @@ class audio_channel {
 		word _frequency;
     word _frequency_end;
     byte _end_style;
+
+    byte _override = 0;
 
 };
 
@@ -49,7 +70,7 @@ audio_channel::audio_channel(int channel) {
 	debug_log("audio_driver: init %d\n\r", this->_channel);			
 }
 
-word audio_channel::play_note(byte volume, word frequency, word duration, byte wave, word attack, word decay, byte sustain, word release, word frequency_end, byte end_style) { //Custom wave type *and* ASDR envelope
+word audio_channel::play_note_env(byte volume, word frequency, word duration, byte wave, word attack, word decay, byte sustain, word release, word frequency_end, byte end_style, byte b_override = 0) { //Custom wave type *and* ASDR envelope
 	if(this->_flag == 0) {
 
     this->_complexity = 2;
@@ -75,6 +96,8 @@ word audio_channel::play_note(byte volume, word frequency, word duration, byte w
     this->_frequency_end = frequency_end;
     this->_end_style = end_style;
 
+    this->_override = b_override;
+
 		this->_flag++;
 		debug_log("audio_driver: play_note %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);		
 		return 1;	
@@ -82,10 +105,11 @@ word audio_channel::play_note(byte volume, word frequency, word duration, byte w
 	return 0;
 }
 
-word audio_channel::play_note(byte volume, word frequency, word duration, byte wave) { //Simple but with custom wave type
+word audio_channel::play_note_cwave(byte volume, word frequency, word duration, byte wave, byte b_override = 0) { //Simple but with custom wave type
 	if(this->_flag == 0) {
     
-    this->_complexity = 1;
+    if (b_override == 0) this->_complexity = 1;
+    else if (b_override > 0) this->_complexity = 4;
     
     SoundGenerator.detach(_waveform);
     debug_log("Detached old waveform\n\r");
@@ -99,25 +123,53 @@ word audio_channel::play_note(byte volume, word frequency, word duration, byte w
     this->_volume = volume;
 		this->_frequency = frequency;
 		this->_duration = duration;
-		this->_flag++;
-		debug_log("audio_driver: play_note %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);		
+		
+    this->_override = b_override;
+    this->_flag++;
+		
+    debug_log("audio_driver: play_note %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);		
 		return 1;	
 	}
 	return 0;
 }
 
-word audio_channel::play_note(byte volume, word frequency, word duration) { //Simple (default saw wave)
+word audio_channel::play_wave(byte sample_id, byte volume) { //Simple PCM
 	if(this->_flag == 0) {
-		
-    this->_complexity = 0;
+    
+    this->_complexity = 5;
+    this->_volume = volume;
+    this->_duration = samples[sample_id]->length;
+    this->_sample_rate = samples[sample_id]->rate;
 
-    SoundGenerator.detach(_waveform);
+    SoundGenerator.detach(this->_waveform);
+    free(this->_waveform);
+    this->_waveform = new SamplesGenerator(samples[sample_id]->sample_buffer, sizeof(samples[sample_id]->sample_buffer));
+    this->_s_duration_ms = ((float)this->_duration / (float)this->_sample_rate) * 1000;
+    SoundGenerator.attach(this->_waveform);
+    this->_override = 0;
+    this->_flag++;
+
+		return 1;	
+	}
+	return 0;
+}
+
+word audio_channel::play_note_simple(byte volume, word frequency, word duration, byte override = 0) { //Simple (default saw wave)
+	if(this->_flag == 0 || override > 0) {
+		
+    if (override == 0) this->_complexity = 0;
+    else if (override == 1) this->_complexity = 3;
+
+    SoundGenerator.detach(this->_waveform);
     this->_waveform = new SawtoothWaveformGenerator();
-    SoundGenerator.attach(_waveform);
+    SoundGenerator.attach(this->_waveform);
     this->_volume = volume;
 		this->_frequency = frequency;
 		this->_duration = duration;
-		this->_flag++;
+
+		this->_override = override;
+    this->_flag++;
+
 		debug_log("audio_driver: play_note %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);		
 		return 1;	
 	}
@@ -127,9 +179,8 @@ word audio_channel::play_note(byte volume, word frequency, word duration) { //Si
 void audio_channel::loop() {
 	if(this->_flag > 0) {
 		debug_log("audio_driver: play %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);			
-
     if (this->_complexity == 2) {
-
+        
       int sustainVolume = this->_sustain * this->_volume / 127;
       this->_waveform->setVolume( ((this->_attack == 0) ? ( (this->_decay != 0) ? this->_volume : sustainVolume) : 0) );
       this->_waveform->setFrequency(this->_frequency);
@@ -165,21 +216,36 @@ void audio_channel::loop() {
       vTaskDelay(1);
 
       }
+    } else if (this->_complexity == 5) { //PCM Audio
 
-    } else { // No envelope
+      this->_waveform->setVolume(this->_volume);
+      this->_waveform->setDuration(this->_duration);
+      //this->_waveform->setSampleRate(8000);
+      this->_waveform->enable(true);
+      // this->_waveform->setAutoDetach(true);
+      // this->_waveform->setAutoDestroy(true);
+      vTaskDelay(pdMS_TO_TICKS((int)this->_s_duration_ms));
+
+    }
+    else { // No envelope
 
       this->_waveform->setVolume(this->_volume);
       this->_waveform->setFrequency(this->_frequency);
       this->_waveform->enable(true);
       if (this->_complexity == 0) vTaskDelay(this->_duration);
-      else vTaskDelay(pdMS_TO_TICKS(this->_duration));
+      else if (this->_complexity == 1) vTaskDelay(pdMS_TO_TICKS(this->_duration));
     
     }
 		
-    this->_waveform->enable(false);
-    sendChannelStatus(this->_channel, 0);
-    debug_log("audio_driver: end\n\r");			
-		this->_flag = 0; 
+
+    if (this->_override == 0) { //Complexity 3 and 4 are complexity 0 and 1 with infinite duration until overriden.
+      this->_waveform->enable(false);
+      SoundGenerator.detach(this->_waveform);
+      sendChannelStatus(this->_channel, 0);
+      debug_log("audio_driver: end\n\r");			
+    }
+    
+    this->_flag = 0;
 
 	}
 }
