@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <stdint.h>
 
 #include "mos-interface.h"
 #include "vdp.h"
@@ -26,28 +27,6 @@ extern void write32bit(UINT32 w);
 
 #include <stdio.h>
 #include <stdint.h>
-
-UINT16 fread(void *ptr, UINT16 size, UINT16 count, UINT8 stream) {
-    UINT16 total_bytes_read = 0;
-    UINT16 i, j;
-    
-    for (i = 0; i < count; i++) {
-        for (j = 0; j < size; j++) {
-            int ch = mos_fgetc(stream);
-            
-            if (ch == EOF) {
-                return total_bytes_read / size;
-            }
-            
-            *((char *)ptr + total_bytes_read + j) = ch;
-        }
-        
-        total_bytes_read += size;
-    }
-    
-    return count;
-}
-
 
 void delay_ticks(UINT16 ticks_end) { //16.7ms ticks
 	
@@ -91,30 +70,59 @@ void delay_secs(UINT16 ticks_end) { //1 sec ticks
 	
 }
 
-int load_bmp(const char* filename, UINT8 slot, UINT8 alpha_g, UINT8 alpha_r, UINT8 alpha_b) {
+void fread(byte *buffer, uint32_t num_bytes, UINT8 file) {
+    int byte_value, i;
+	for (i = 0; i < num_bytes; i++) {
+        byte_value = mos_fgetc(file);
+        if (mos_feof(file)) {
+            printf("Error: end of file reached unexpectedly\r\n");
+            return;
+        }
+        buffer[i] = (byte) byte_value;
+    }
+}
 
-    int width, height, bit_depth, row_padding, color_table_size, y, x, i, n, index;
-    uint8_t header[54], pixel[4], color_table[1024], file, r, g, b;
-	uint32_t pixel_value;
+int load_bmp(const char* filename, UINT8 slot) {
+
+    int32_t width, height, bit_depth, row_padding, y, x, i, n;
+    uint8_t header[54], pixel[4], color_table[1024], file, r, g, b, index;
+	uint32_t pixel_value, color_table_size;
+	uint32_t biSize;	
 	
     file = mos_fopen(filename, fa_read);
     if (!file) {
         printf("Error: could not open file.\n");
-        return -1;
+        return 0;
     }
+	
+	fread(header, 54, file);
 
-    for (i = 0; i < 54; i++) {
-        header[i] = mos_fgetc(file);
+    biSize = *(UINT32*)&header[14];
+	width = *(INT32*)&header[18];
+    height = *(INT32*)&header[22];
+    bit_depth = *(UINT16*)&header[28];
+	color_table_size = *(UINT32*)&header[46];
+	
+	if (color_table_size == 0 && bit_depth == 8) {
+        color_table_size = 256;
     }
+	
+	if (color_table_size > 0) fread(color_table, color_table_size * 4, file);
+	
+	else if (biSize > 40) { //If for any reason there's yet more data in the header
+		
+		i = biSize - 40;
+		while (i-- > 0) {
+            mos_fgetc(file);
+        }
+		
+	}
 
-    width = *(int*)&header[18];
-    height = *(int*)&header[22];
-    bit_depth = *(int*)&header[28];
 
-    if (bit_depth != 24) {
-        printf("Error: unsupported bit depth.\n");
+	if ((bit_depth != 32) && (bit_depth != 24) && (bit_depth != 8)) {
+        printf("Error: unsupported bit depth (not 8, 24 or 32-bit).\n");
         mos_fclose(file);
-        return -1;
+        return 0;
     }
 
     row_padding = (4 - (width * (bit_depth / 8)) % 4) % 4;
@@ -122,48 +130,199 @@ int load_bmp(const char* filename, UINT8 slot, UINT8 alpha_g, UINT8 alpha_r, UIN
 	vdp_bitmapSelect(slot);
 	putch(23); // vdu_sys
 	putch(27); // sprite command
-	putch(101);  // send data to selected bitmap
-	
-	putch(alpha_r);
-	putch(alpha_g);
-	putch(alpha_b);
+	putch(100);  // send data to selected bitmap
 	
 	write16bit(width);
 	write16bit(height);
 	
-    if (bit_depth == 24) {
+	if (bit_depth == 32) putch(1);
+	if (bit_depth == 24 || bit_depth == 8) putch(0);
+	
+	if (bit_depth == 8) {
+		
         for (y = height - 1; y >= 0; y--) {
             for (x = 0; x < width; x++) {
-                for (i = 0; i < bit_depth / 8; i++) {
-                    //pixel[i] = mos_fgetc(file); //0 = B, 1 = G, 2 = R
-					putch(mos_fgetc(file));
-                }
-
-                // if (bit_depth == 24) {
-                    // 
-					// pixel_value = 0x000000FF | (pixel[2] << 24) | (pixel[0] << 16) | pixel[1] << 8;
-                // } else {
-                    // pixel_value = (pixel[3] << 24) | (pixel[0] << 16) | (pixel[1] << 8) | pixel[2];
-                // }
-                //putch(0xFF); 		//AA
-				//putch(pixel[0]);	//BB
-				//putch(pixel[1]);	//GG
-				//putch(pixel[2]);	//RR
 				
-				//write32bit(pixel_value);
-				//output++ = pixel_value;
-				//printf("0x%08X ", pixel_value);
+					index = (UINT8)mos_fgetc(file);
+					b = color_table[index * 4];
+					g = color_table[index * 4 + 1];
+					r = color_table[index * 4 + 2];
+					putch(b);
+					putch(g);
+					putch(r);
+				
+
             }
 
             for (i = 0; i < row_padding; i++) {
                 mos_fgetc(file);
             }
+			
         }
-		printf("Width: %u, Height: %u, BPP: %u", width, height, bit_depth);    
+		
+	}
+	
+    else if (bit_depth == 32 || bit_depth == 24) {
+        for (y = height - 1; y >= 0; y--) {
+            for (x = 0; x < width; x++) {
+					
+					for (i = 0; i < bit_depth / 8; i++) {
+						
+						putch(mos_fgetc(file));
+						
+					}
+				
+
+            }
+
+            for (i = 0; i < row_padding; i++) {
+                mos_fgetc(file);
+            }
+			
+        }
+		//printf("Width: %u, Height: %u, BPP: %u", width, height, bit_depth);    
 	}
 
     mos_fclose(file);
 	return width * height;
+	
+	
+}
+
+int load_bmp_crop(const char* filename, UINT8 slot, UINT16 start_x, UINT16 start_y, UINT16 crop_width, UINT16 crop_height) {
+
+    int32_t width, height, bit_depth, row_padding, y, x, i, n;
+    uint8_t header[54], pixel[4], color_table[1024], file, r, g, b, v, index;
+	uint32_t pixel_value, color_table_size;
+	uint32_t biSize;
+	uint32_t pix_limit, pix_count = 0;
+	
+    file = mos_fopen(filename, fa_read);
+    if (!file) {
+        printf("Error: could not open file.\n");
+        return 0;
+    }
+	
+	fread(header, 54, file);
+
+    biSize = *(UINT32*)&header[14];
+	width = *(INT32*)&header[18];
+    height = *(INT32*)&header[22];
+    bit_depth = *(UINT16*)&header[28];
+	color_table_size = *(UINT32*)&header[46];
+	
+	if (color_table_size == 0 && bit_depth == 8) {
+        color_table_size = 256;
+    }
+	
+	if (color_table_size > 0) fread(color_table, color_table_size * 4, file);
+	
+	else if (biSize > 40) { //If for any reason there's yet more data in the header
+		
+		i = biSize - 40;
+		while (i-- > 0) {
+            mos_fgetc(file);
+        }
+		
+	}
+
+
+	if ((bit_depth != 32) && (bit_depth != 24) && (bit_depth != 8)) {
+        printf("Error: unsupported bit depth (not 8, 24 or 32-bit).\n");
+        mos_fclose(file);
+        return 0;
+    }
+
+    row_padding = (4 - (width * (bit_depth / 8)) % 4) % 4;
+
+	vdp_bitmapSelect(slot);
+	putch(23); // vdu_sys
+	putch(27); // sprite command
+	putch(100);  // send data to selected bitmap
+	
+	write16bit(crop_width);
+	write16bit(crop_height);
+	pix_limit = crop_width * crop_height;
+	
+	if (bit_depth == 32) putch(1);
+	if (bit_depth == 24 || bit_depth == 8) putch(0);
+	
+	if (bit_depth == 8) {
+		
+        //for (y = height - 1; y >= 0; y--) {
+		for (y = height - 1 - start_y; y >= height - start_y - crop_height; y--) {
+		
+            //for (x = 0; x < width; x++) {
+			for (x = 0; x < width; x++) {
+				
+				index = (UINT8)mos_fgetc(file);
+				if (x >= start_x && x < start_x + crop_width && y >= start_y && y < start_y + crop_height) {
+				
+					b = color_table[index * 4];
+					g = color_table[index * 4 + 1];
+					r = color_table[index * 4 + 2];
+					putch(b);
+					putch(g);
+					putch(r);
+					if (++pix_count == pix_limit) return pix_count;
+				
+				}				
+
+            }
+
+            for (i = 0; i < row_padding; i++) {
+                mos_fgetc(file);
+            }
+			
+			// if (y >= height - start_y - crop_height && y < height - start_y) {
+				// output_rows++;
+				// if (output_rows == crop_height) {
+					// break;
+				// }
+			// }
+			
+        }
+		
+	}
+	
+    else if (bit_depth == 32 || bit_depth == 24) {
+        for (y = height - 1; y >= 0; y--) {
+		
+            for (x = 0; x < width; x++) {
+					
+				for (i = 0; i < bit_depth / 8; i++) {
+						
+					pixel[i] = mos_fgetc(file);//v = mos_fgetc(file);
+					
+					if (x >= start_x && x < start_x + crop_width && y >= start_y && y < start_y + crop_height) {
+						
+						for (i = 0; i < bit_depth / 8; i++) {
+							putch(pixel[i]);
+						}
+						if (++pix_count == pix_limit) return pix_count;
+						
+					}
+				}
+
+            }
+
+            for (i = 0; i < row_padding; i++) {
+                mos_fgetc(file);
+            }
+			
+			// if (y >= height - start_y - crop_height && y < height - start_y) {
+				// output_rows++;
+				// if (output_rows == crop_height) {
+					// break; // Break out of the outer loop when all necessary rows have been outputted
+				// }
+			// }			
+			
+        }
+		//printf("Width: %u, Height: %u, BPP: %u", width, height, bit_depth);    
+	}
+
+    mos_fclose(file);
+	return crop_width * crop_height;
 	
 	
 }
@@ -305,12 +464,97 @@ void load_sample(const char* filename, UINT8 sample_id) {
 	
 }
 
+void load_wav(const char* filename, uint8_t sample_id) {
+    
+	int i, header_size, bit_rate;
+	int8_t sample8;
+	int16_t sample16;
+	uint32_t data_size, sample_rate;
+    unsigned char header[300];
+    UINT8 fp;
+	
+    fp = mos_fopen(filename, fa_read);
+    if (!fp) {
+        printf("Error: could not open file %s\n", filename);
+        return;
+    }
+
+    for (i = 0; i < 300 && !mos_feof(fp); i++) {
+        header[i] = mos_fgetc(fp);
+        if (i >= 3 && header[i - 7] == 'd' && header[i - 6] == 'a' && header[i - 5] == 't' && header[i - 4] == 'a') {
+			break; // found the start of the data
+        }
+    }
+
+    if (i >= 300 || !(header[0] == 'R' && header[1] == 'I' && header[2] == 'F' && header[3] == 'F') ||
+        !(header[8] == 'W' && header[9] == 'A' && header[10] == 'V' && header[11] == 'E' &&
+          header[12] == 'f' && header[13] == 'm' && header[14] == 't' && header[15] == ' ') ||
+        !(header[16] == 0x10 && header[17] == 0x00 && header[18] == 0x00 && header[19] == 0x00 &&
+          header[20] == 0x01 && header[21] == 0x00 && header[22] == 0x01 && header[23] == 0x00)) {
+        printf("Error: invalid WAV file\n");
+        mos_fclose(fp);
+        return;
+    }
+	
+    sample_rate = header[24] | (header[25] << 8) | (header[26] << 16) | (header[27] << 24);
+	data_size = header[i - 3] | (header[i - 2] << 8) | (header[i - 1] << 16) | (header[i] << 24);
+
+    if (header[34] == 8 && header[35] == 0) {
+        bit_rate = 8;
+    } else {
+        printf("Error: unsupported PCM format\n");
+        mos_fclose(fp);
+        return;
+    }
+	
+		putch(23);
+		putch(0);
+		putch(133);
+		putch(0);
+		putch(5); //Sample mode
+
+		putch(sample_id); //Sample ID
+		putch(0); //Record mode
+		
+		if (bit_rate == 8) write32bit(data_size);
+		else if (bit_rate == 16) write32bit(data_size / 2);
+		
+		write16bit(sample_rate);
+	
+    for (i = 0; i < data_size && !mos_feof(fp); i++) {
+        
+		if (bit_rate == 8) {
+			
+			sample8 = mos_fgetc(fp) - 128;
+			putch(sample8);
+			
+		}
+    }
+
+    mos_fclose(fp);
+}
+
 int main(int argc, char * argv[]) {
 	
 	int bmp_return;
-	//vdp_mode(0);
-	bmp_return = load_bmp("snail2.bmp", 0);
-	vdp_bitmapDraw(0, 0, 0);
+	//read_file("assets.txt");
+	//vdp_mode(2);
+	//vdp_cursorDisable();
+	
+	//load_wav("sega.wav", 0);
+	//if(!load_bmp("lena_colormap_im.bmp", 0)) printf("Error loading BMP");
+	//if(!load_bmp("32bit_sprite_colormap_im.bmp", 4)) printf("Error loading BMP");
+	//if(!load_bmp("doom_colormap_im.bmp", 1)) printf("Error loading BMP");
+	if(!load_bmp("tilemap.bmp", 1)) printf("Error loading BMP");
+	//if(!load_bmp_crop("tilemap.bmp", 1, 16, 336, 16, 16)) printf("Error loading BMP");
+	//if(!load_bmp("24bit_gimp.bmp", 2)) printf("Error loading BMP");
+	//if(!load_bmp("32bit_alpha_colomap_im.bmp", 3)) printf("Error loading BMP");
+	
+	vdp_bitmapDraw(1, 0, 0);
+	
+	//bmp_return = load_bmp("snail2.bmp", 0, 255, 0, 255);
+	
+	//play_sample(0,0,120);
 	
   	//load_sample("sega_intro.pcm", 0);
 	//load_sample("c60.pcm", 10);
