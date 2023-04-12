@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	08/04/2023
+// Last Updated:	12/04/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -29,6 +29,7 @@
 // 29/03/2023:					+ Typo in boot screen fixed
 // 01/04/2023:					+ Added resetPalette to MODE, timeouts to VDU commands
 // 08/04/2023:				RC4 + Removed delay in readbyte_t, fixed VDP_SCRCHAR, VDP_SCRPIXEL
+// 12/04/2023:					+ Fixed bug in play_note
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -1339,7 +1340,7 @@ word play_note(byte channel, byte volume, word frequency, word duration) {
 	if(channel >=0 && channel < AUDIO_CHANNELS) {
 		return audio_channels[channel]->play_note(volume, frequency, duration);
 	}
-	return 0;
+	return 1;
 }
 
 // Sprite Engine
