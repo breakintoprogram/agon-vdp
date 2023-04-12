@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	01/04/2023
+// Last Updated:	08/04/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -28,6 +28,7 @@
 // 27/03/2023:					+ Fix for sprite system crash
 // 29/03/2023:					+ Typo in boot screen fixed
 // 01/04/2023:					+ Added resetPalette to MODE, timeouts to VDU commands
+// 08/04/2023:				RC4 + Removed delay in readbyte_t, fixed VDP_SCRCHAR, VDP_SCRPIXEL
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -35,7 +36,7 @@
 
 #define VERSION			1
 #define REVISION		3
-#define RC				3
+#define RC				4
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
@@ -195,12 +196,12 @@ void debug_log(const char *format, ...) {
 //
 int readByte_t() {
 	int	i;
+	unsigned long t = millis();
 
-	for(i = 0; i < 25; i++) {
+	while(millis() - t < 1000) {
 		if(ESPSerial.available() > 0) {
 			return ESPSerial.read();
 		}
-		delay(10);
 	}
 	return -1;
 }
@@ -330,8 +331,8 @@ void sendScreenPixel(int x, int y) {
 	//
 	if(p.X >= 0 && p.Y >= 0 && p.X < Canvas->getWidth() && p.Y < Canvas->getHeight()) {
 		pixel = Canvas->getPixel(p.X, p.Y);
-		for(byte i = 0; i < 80; i++) {
-			if(colourLookup[i]== pixel) {
+		for(byte i = 0; i < VGAColourDepth; i++) {
+			if(colourLookup[palette[i]] == pixel) {
 				pixelIndex = i;
 				break;
 			}
@@ -1204,21 +1205,13 @@ void vdu_sys_video() {
 		}	break;
 		case VDP_SCRCHAR: {				// VDU 23, 0, &83, x; y;
 			int x = readWord_t();		// Get character at screen position x, y
-			if(x > 0) {
-				int y = readWord_t();
-				if(y > 0) {
-					sendScreenChar(x, y);
-				}
-			}
+			int y = readWord_t();
+			sendScreenChar(x, y);
 		}	break;
 		case VDP_SCRPIXEL: {			// VDU 23, 0, &84, x; y;
 			int x = readWord_t();		// Get pixel value at screen position x, y
-			if(x > 0) {
-				int y = readWord_t();
-				if(y > 0) {
-					sendScreenPixel((short)x, (short)y);
-				}
-			}
+			int y = readWord_t();
+			sendScreenPixel((short)x, (short)y);
 		} 	break;		
 		case VDP_AUDIO: {				// VDU 23, 0, &85, channel, waveform, volume, freq; duration;
 			vdu_sys_audio();
