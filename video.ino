@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	12/04/2023
+// Last Updated:	13/04/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -30,6 +30,7 @@
 // 01/04/2023:					+ Added resetPalette to MODE, timeouts to VDU commands
 // 08/04/2023:				RC4 + Removed delay in readbyte_t, fixed VDP_SCRCHAR, VDP_SCRPIXEL
 // 12/04/2023:					+ Fixed bug in play_note
+// 13/04/2023:					+ Fixed bootup fail with no keyboard
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -113,6 +114,7 @@ void setup() {
 	pinMode(UART_CTS, INPUT);	
 	setRTSStatus(true);
 	#endif
+	wait_eZ80();
  	PS2Controller.begin(PS2Preset::KeyboardPort0, KbdMode::CreateVirtualKeysQueue);
 	PS2Controller.keyboard()->setLayout(&fabgl::UKLayout);
 	PS2Controller.keyboard()->setCodePage(fabgl::CodePages::get(1252));
@@ -121,7 +123,6 @@ void setup() {
 	copy_font();
   	set_mode(1);
 	boot_screen();
-	wait_eZ80();
 }
 
 // The main loop
@@ -284,6 +285,7 @@ void audio_driver(void * parameters) {
 // Wait for eZ80 to initialise
 //
 void wait_eZ80() {
+	debug_log("wait_eZ80: Start\n\r");
 	while(!initialised) {
     	if(ESPSerial.available() > 0) {
 			#if USE_HWFLOW == 0
@@ -297,6 +299,7 @@ void wait_eZ80() {
 			}
 		}
 	}
+	debug_log("wait_eZ80: End\n\r");
 }
 	
 // Send the cursor position back to MOS
