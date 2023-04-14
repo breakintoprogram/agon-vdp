@@ -30,6 +30,8 @@ class audio_channel {
 	public:
 		audio_channel(int channel);		
 		word	play_note_simple(byte volume, word frequency, word duration, byte override);
+    void  change_volume(byte volume);
+    void  change_frequency(word frequency);
     word  play_note_cwave(byte volume, word frequency, word duration, byte wave, byte override);
     word  play_wave(byte sample_id, byte volume);
     word  play_note_env(byte volume, word frequency, word duration, byte wave, word attack, word decay, byte sustain, word release, word frequency_end, byte end_style, byte override);
@@ -68,6 +70,22 @@ audio_channel::audio_channel(int channel) {
 	SoundGenerator.attach(_waveform);
 	SoundGenerator.play(true);
 	debug_log("audio_driver: init %d\n\r", this->_channel);			
+}
+
+void audio_channel::change_volume(byte volume) {
+
+  this->_volume = volume;
+  this->_waveform->setVolume(volume);
+  debug_log("A::Changed channel %u to volume %u\r\n", this->_channel, volume);
+
+}
+
+void audio_channel::change_frequency(word frequency) {
+
+  this->_frequency = frequency;
+  this->_waveform->setFrequency(frequency);
+  debug_log("A::Changed channel %u to frequency %u\r\n", this->_channel, frequency);
+
 }
 
 word audio_channel::play_note_env(byte volume, word frequency, word duration, byte wave, word attack, word decay, byte sustain, word release, word frequency_end, byte end_style, byte b_override = 0) { //Custom wave type *and* ASDR envelope
