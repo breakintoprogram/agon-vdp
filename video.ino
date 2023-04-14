@@ -1273,7 +1273,23 @@ void vdu_sys_video() {
           break;
           }        
 
-        default:
+        case 100: //Volume change
+        {  
+	  uint8_t newvol = readByte();
+          audio_channels[channel]->change_volume(newvol);
+          debug_log("C::Changed channel %u to volume %u\r\n", channel, newvol);
+          break;
+        }
+
+        case 101: //Frequency change
+        {
+          uint16_t newfreq = readWord();
+          audio_channels[channel]->change_frequency(newfreq);
+          debug_log("C::Changed channel %u to frequency %u\r\n", channel, newfreq);
+          break;
+        }		      
+        
+	default:
           break;
       }
       
