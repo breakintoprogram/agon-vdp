@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	13/04/2023
+// Last Updated:	17/04/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -31,6 +31,7 @@
 // 08/04/2023:				RC4 + Removed delay in readbyte_t, fixed VDP_SCRCHAR, VDP_SCRPIXEL
 // 12/04/2023:					+ Fixed bug in play_note
 // 13/04/2023:					+ Fixed bootup fail with no keyboard
+// 17/04/2023:				RC5 + Moved wait_completion in vdu so that it only executes after graphical operations
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -38,7 +39,7 @@
 
 #define VERSION			1
 #define REVISION		3
-#define RC				4
+#define RC				5
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
@@ -923,8 +924,8 @@ void vdu(byte c) {
 				Canvas->drawChar(charX, charY, ' ');
 				break;
 		}
+		Canvas->waitCompletion(false);
 	}
-	Canvas->waitCompletion(false);
 }
 
 // Handle the cursor
