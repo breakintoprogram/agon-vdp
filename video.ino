@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (VGA Mode Switching)
 // Created:       	22/03/2022
-// Last Updated:	17/04/2023
+// Last Updated:	18/04/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -32,6 +32,7 @@
 // 12/04/2023:					+ Fixed bug in play_note
 // 13/04/2023:					+ Fixed bootup fail with no keyboard
 // 17/04/2023:				RC5 + Moved wait_completion in vdu so that it only executes after graphical operations
+// 18/04/2023:					+ Minor tweaks to wait completion logic
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -88,6 +89,7 @@ int			pagedModeCount = 0;					// Scroll counter for paged mode
 int			kbRepeatDelay = 500;				// Keyboard repeat delay ms (250, 500, 750 or 1000)		
 int			kbRepeatRate = 100;					// Keyboard repeat rate ms (between 33 and 500)
 bool 		initialised = false;				// Is the system initialised yet?
+bool		doWaitCompletion;					// For vdu function
 uint8_t		palette[64];						// Storage for the palette
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
@@ -865,6 +867,7 @@ void vdu(byte c) {
    		cursorRight();
 	}
 	else {
+		doWaitCompletion = false;
 		switch(c) {
 			case 0x08:  // Cursor Left
 				cursorLeft();
@@ -924,7 +927,9 @@ void vdu(byte c) {
 				Canvas->drawChar(charX, charY, ' ');
 				break;
 		}
-		Canvas->waitCompletion(false);
+		if(doWaitCompletion) {
+			Canvas->waitCompletion(false);
+		}
 	}
 }
 
@@ -1064,6 +1069,7 @@ void vdu_palette() {
 			return;
 		}
 		setPaletteItem(l, col);
+		doWaitCompletion = true;
 		debug_log("vdu_palette: %d,%d,%d,%d,%d\n\r", l, p, r, g, b);
 	}
 	else {
@@ -1101,6 +1107,7 @@ void vdu_plot() {
       		vdu_plot_circle(mode);
       		break;
   	}
+	doWaitCompletion = true;
 }
 
 void vdu_plot_triangle(byte mode) {
@@ -1336,6 +1343,7 @@ void vdu_sys_scroll() {
 			Canvas->scroll(0, -movement);
 			break;
 	}
+	doWaitCompletion = true;
 }
 
 // Play a note
@@ -1415,8 +1423,10 @@ void vdu_sys_sprites(void) {
 			int	rx = readWord_t(); if(rx == -1) return; x = rx;
 			int ry = readWord_t(); if(ry == -1) return; y = ry;
 
-			if(bitmaps[current_bitmap].data) Canvas->drawBitmap(x,y,&bitmaps[current_bitmap]);
-	
+			if(bitmaps[current_bitmap].data) {
+				Canvas->drawBitmap(x,y,&bitmaps[current_bitmap]);
+				doWaitCompletion = true;
+			}
 			debug_log("vdu_sys_sprites: bitmap %d draw command\n\r", current_bitmap);
 		}	break;
 
@@ -1464,6 +1474,7 @@ void vdu_sys_sprites(void) {
 			else {
 				VGAController->removeSprites();
 			}
+			doWaitCompletion = true;
 			debug_log("vdu_sys_sprites: %d sprites activated\n\r", numsprites);
 		}	break;
 
@@ -1529,6 +1540,7 @@ void vdu_sys_sprites(void) {
 	        	free(bitmaps[n].data);
 				bitmaps[n].dataAllocated = false;
 			}
+			doWaitCompletion = true;
 			debug_log("vdu_sys_sprites: reset\n\r");
 		}	break;
     }
