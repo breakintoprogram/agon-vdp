@@ -541,6 +541,76 @@ void load_sample(const char* filename, UINT8 sample_id) {
 	
 }
 
+// void load_wav(const char* filename, uint8_t sample_id) {
+    
+// 	int i, header_size, bit_rate;
+// 	int8_t sample8;
+// 	int16_t sample16;
+// 	uint32_t data_size, sample_rate;
+//     unsigned char header[300];
+//     UINT8 fp;
+	
+//     fp = mos_fopen(filename, fa_read);
+//     if (!fp) {
+//         printf("Error: could not open file %s\n", filename);
+//         return;
+//     }
+
+//     for (i = 0; i < 300 && !mos_feof(fp); i++) {
+//         header[i] = mos_fgetc(fp);
+//         if (i >= 3 && header[i - 7] == 'd' && header[i - 6] == 'a' && header[i - 5] == 't' && header[i - 4] == 'a') {
+// 			break; // found the start of the data
+//         }
+//     }
+
+//     if (i >= 300 || !(header[0] == 'R' && header[1] == 'I' && header[2] == 'F' && header[3] == 'F') ||
+//         !(header[8] == 'W' && header[9] == 'A' && header[10] == 'V' && header[11] == 'E' &&
+//           header[12] == 'f' && header[13] == 'm' && header[14] == 't' && header[15] == ' ') ||
+//         !(header[16] == 0x10 && header[17] == 0x00 && header[18] == 0x00 && header[19] == 0x00 &&
+//           header[20] == 0x01 && header[21] == 0x00 && header[22] == 0x01 && header[23] == 0x00)) {
+//         printf("Error: invalid WAV file\n");
+//         mos_fclose(fp);
+//         return;
+//     }
+	
+//     sample_rate = header[24] | (header[25] << 8) | (header[26] << 16) | (header[27] << 24);
+// 	data_size = header[i - 3] | (header[i - 2] << 8) | (header[i - 1] << 16) | (header[i] << 24);
+
+//     if (header[34] == 8 && header[35] == 0) {
+//         bit_rate = 8;
+//     } else {
+//         printf("Error: unsupported PCM format\n");
+//         mos_fclose(fp);
+//         return;
+//     }
+	
+// 		putch(23);
+// 		putch(0);
+// 		putch(133);
+// 		putch(0);
+// 		putch(5); //Sample mode
+
+// 		putch(sample_id); //Sample ID
+// 		putch(0); //Record mode
+		
+// 		if (bit_rate == 8) write32bit(data_size);
+// 		else if (bit_rate == 16) write32bit(data_size / 2);
+		
+// 		write16bit(sample_rate);
+	
+//     for (i = 0; i < data_size && !mos_feof(fp); i++) {
+        
+// 		if (bit_rate == 8) {
+			
+// 			sample8 = mos_fgetc(fp) - 128;
+// 			putch(sample8);
+			
+// 		}
+//     }
+
+//     mos_fclose(fp);
+// }
+
 void load_wav(const char* filename, uint8_t sample_id) {
     
 	int i, header_size, bit_rate;
@@ -555,6 +625,18 @@ void load_wav(const char* filename, uint8_t sample_id) {
         printf("Error: could not open file %s\n", filename);
         return;
     }
+
+    // while (1) {
+    //     char chunk_id[4];
+    //     uint32_t chunk_size;
+    //     fread(chunk_id, 4, fp);
+    //     fread(&chunk_size, 4, fp);
+    //     if (strncmp(chunk_id, "data", 4) == 0) {
+    //         data_size = chunk_size;
+    //         break;
+    //     }
+    //     fseek(fp, chunk_size, SEEK_CUR);
+    // }
 
     for (i = 0; i < 300 && !mos_feof(fp); i++) {
         header[i] = mos_fgetc(fp);
@@ -594,19 +676,41 @@ void load_wav(const char* filename, uint8_t sample_id) {
 		putch(0); //Record mode
 		
 		if (bit_rate == 8) write32bit(data_size);
-		else if (bit_rate == 16) write32bit(data_size / 2);
 		
 		write16bit(sample_rate);
-	
-    for (i = 0; i < data_size && !mos_feof(fp); i++) {
-        
-		if (bit_rate == 8) {
-			
-			sample8 = mos_fgetc(fp) - 128;
-			putch(sample8);
-			
+
+	remainder = data_size % 5000;
+	uint8_t sample_buffer[5000];
+
+	if (data_size < 5000) {
+
+		mos_fread(sample_buffer, data_size, fp);
+		mos_puts(sample_buffer, data_size, 0);
+
+	}
+
+	else {
+
+		for (i = 0; i < data_size / 5000, i++;) {
+			mos_fread(sample_buffer, 5000, fp);
+			mos_puts(sample_buffer, 5000, 0);
 		}
-    }
+
+		if (remainder) {
+			mos_fread(sample_buffer, remainder, fp);
+			mos_puts(sample_buffer, remainder, 0);
+		}
+	}
+
+	// for (i = 0; i < data_size && !mos_feof(fp); i++) {
+        
+	// 	if (bit_rate == 8) {
+			
+	// 		sample8 = mos_fgetc(fp) - 128;
+	// 		putch(sample8);
+			
+	// 	}
+    // }
 
     mos_fclose(fp);
 }
