@@ -40,7 +40,7 @@
 
 #define VERSION			1
 #define REVISION		3
-#define RC				5
+#define RC				0
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
