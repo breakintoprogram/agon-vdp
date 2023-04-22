@@ -65,8 +65,5 @@ It is important you use these exact versions otherwise I cannot guarantee the co
 
 NB:
 
-If you are using version 2.0.x of the IDE and get the following message during the upload stage:
-
-`ModuleNotFoundError: No module named 'serial'`
-
-then you will need to install the python3-serial package
+- If you are using version 2.0.x of the IDE and get the following message during the upload stage: `ModuleNotFoundError: No module named 'serial'` then you will need to install the python3-serial package.
+- If you are using an Apple Mac with an M chipset and are having difficulties uploading to the Agon, try changing the upload speed from 921600 to 115200 - some users have reported that works.
