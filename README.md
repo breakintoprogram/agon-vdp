@@ -28,7 +28,7 @@ The ESP32 is programmed via the USB connector at the top of the board using the 
 
 #### Arduino IDE settings
 
-In order to add the ESP32 as a supported board in the Arudino IDE, you will need to add in this URL into the board manager:
+In order to add the ESP32 as a supported board in the Arduino IDE, you will need to add in this URL into the board manager:
 
 Select Preferences from the File menu
 
