@@ -599,7 +599,7 @@ void load_wav(const char* filename, uint8_t sample_id) {
     }
 	
 		//remainder = data_size % 5000;	
-		printf("%u total samples.\r\n", data_size);
+		//printf("%u total samples.\r\n", data_size);
 
 		//printf("Done reading.\r\n");
 		putch(23);
@@ -803,6 +803,7 @@ UINT8 vgm_init(UINT8 fp) {
 	if (*(uint32_t*)(vgm_info.data + 0x1C) != 0) { //Loop detected
 		
 		vgm_info.loop_start = *(uint32_t*)(vgm_info.data + 0x1C);
+		vgm_info.loop_enabled = true;
 		
 	} else vgm_info.loop_start = 0;
 	
@@ -1039,13 +1040,11 @@ UINT8 parse_vgm_file(UINT8 fp) {
                     samples_to_wait = 0;
                 }
                 return 0;
-				break;            
 		
 			case READ_COMMAND:
 				byte = mos_fgetc(fp);
 				if (byte != EOF) {
                     switch (byte) {
-                        						
 						case 0x61: // wait n samples
 							firstbyte = mos_fgetc(fp);
 							secondbyte = mos_fgetc(fp);
@@ -1054,17 +1053,14 @@ UINT8 parse_vgm_file(UINT8 fp) {
 							//start_timer0 = timer0;
                             state = WAIT_SAMPLES;
 							return 0;
-                            break;
                         case 0x62: // wait 735 samples (1/60 second)
                             target_timer0 = timer0 + 735;
                             state = WAIT_SAMPLES;
                             return 0;
-							break;
                         case 0x63: // wait 882 samples (1/50 second)
                             target_timer0 = timer0 + 882;
                             state = WAIT_SAMPLES;
                             return 0;
-							break;
                         case 0x70: // delay n+1 samples
                         case 0x71:
                         case 0x72:
@@ -1083,8 +1079,7 @@ UINT8 parse_vgm_file(UINT8 fp) {
                         case 0x7F:
                             target_timer0 = timer0 + (byte & 0x0F) + 1;
                             state = WAIT_SAMPLES;
-                            return 0;
-							break;
+                            return 0;							
                         case 0x50:
 							value = mos_fgetc(fp);
 							process_0x50_command(value);
@@ -1171,12 +1166,13 @@ UINT8 parse_vgm_file(UINT8 fp) {
 							break;
                     }
                 }
-                break;
+                return 0;
             default:
                 // invalid state, exit loop
                 state = END_OF_SOUND_DATA;
                 return 1;
         }
+		return 0;
 }
 
 typedef struct {
@@ -1196,6 +1192,153 @@ typedef struct {
 } sprite_state;
 
 sprite_state player;
+
+#define FRAME_WHOLE	119
+#define FRAME_NW	120
+#define FRAME_N		121
+#define FRAME_NE	122
+#define FRAME_E		123
+#define FRAME_SE	124
+#define FRAME_S		125
+#define FRAME_SW	126
+#define FRAME_W		127
+#define FRAME_MID	128
+
+void load_font_frame() {
+	
+	printf("Loading font...");
+	load_bmp_big("assets/f_blue/nw.bmp", FRAME_NW);		//NW
+	load_bmp_big("assets/f_blue/n.bmp", FRAME_N);		//N
+	load_bmp_big("assets/f_blue/ne.bmp", FRAME_NE);		//NE
+	load_bmp_big("assets/f_blue/e.bmp", FRAME_E);		//E
+	load_bmp_big("assets/f_blue/se.bmp", FRAME_SE);		//SE
+	load_bmp_big("assets/f_blue/s.bmp", FRAME_S);		//S
+	load_bmp_big("assets/f_blue/sw.bmp", FRAME_SW);		//SW
+	load_bmp_big("assets/f_blue/w.bmp", FRAME_W);		//W
+	load_bmp_big("assets/f_blue/mid.bmp", FRAME_MID);	//W
+	
+	load_bmp_big("assets/font/32.bmp", 132); //Space
+	
+	load_bmp_big("assets/font/33.bmp", 133); //!
+	load_bmp_big("assets/font/36.bmp", 136); //$
+	load_bmp_big("assets/font/38.bmp", 138); //&
+	load_bmp_big("assets/font/39.bmp", 139); //'
+	load_bmp_big("assets/font/44.bmp", 144); //,
+	load_bmp_big("assets/font/46.bmp", 146); //.
+	
+	load_bmp_big("assets/font/48.bmp", 148); //0
+	load_bmp_big("assets/font/49.bmp", 149); //1
+	load_bmp_big("assets/font/50.bmp", 150); //2
+	load_bmp_big("assets/font/51.bmp", 151); //3
+	load_bmp_big("assets/font/52.bmp", 152); //4
+	load_bmp_big("assets/font/53.bmp", 153); //5
+	load_bmp_big("assets/font/54.bmp", 154); //6
+	load_bmp_big("assets/font/55.bmp", 155); //7
+	load_bmp_big("assets/font/56.bmp", 156); //8
+	load_bmp_big("assets/font/57.bmp", 157); //9
+	
+	load_bmp_big("assets/font/63.bmp", 163); //?
+	
+	load_bmp_big("assets/font/65.bmp", 165); //A
+	load_bmp_big("assets/font/66.bmp", 166); //B
+	load_bmp_big("assets/font/67.bmp", 167); //C
+	load_bmp_big("assets/font/68.bmp", 168); //D
+	load_bmp_big("assets/font/69.bmp", 169); //E
+	load_bmp_big("assets/font/70.bmp", 170); //F
+	load_bmp_big("assets/font/71.bmp", 171); //G
+	load_bmp_big("assets/font/72.bmp", 172); //H
+	load_bmp_big("assets/font/73.bmp", 173); //I
+	load_bmp_big("assets/font/74.bmp", 174); //J
+	load_bmp_big("assets/font/75.bmp", 175); //K
+	load_bmp_big("assets/font/76.bmp", 176); //L
+	load_bmp_big("assets/font/77.bmp", 177); //M
+	load_bmp_big("assets/font/78.bmp", 178); //N
+	load_bmp_big("assets/font/79.bmp", 179); //O
+	load_bmp_big("assets/font/80.bmp", 180); //P
+	load_bmp_big("assets/font/81.bmp", 181); //Q
+	load_bmp_big("assets/font/82.bmp", 182); //R
+	load_bmp_big("assets/font/83.bmp", 183); //S
+	load_bmp_big("assets/font/84.bmp", 184); //T
+	load_bmp_big("assets/font/85.bmp", 185); //U
+	load_bmp_big("assets/font/86.bmp", 186); //V
+	load_bmp_big("assets/font/87.bmp", 187); //W
+	load_bmp_big("assets/font/88.bmp", 188); //X
+	load_bmp_big("assets/font/89.bmp", 189); //Y
+	load_bmp_big("assets/font/90.bmp", 190); //Z
+	
+	// load_bmp_big("assets/font/97.bmp", 197); //a
+	// load_bmp_big("assets/font/98.bmp", 198); //b
+	// load_bmp_big("assets/font/99.bmp", 199); //c
+	// load_bmp_big("assets/font/100.bmp", 200); //d
+	// load_bmp_big("assets/font/101.bmp", 201); //e
+	// load_bmp_big("assets/font/102.bmp", 202); //f
+	// load_bmp_big("assets/font/103.bmp", 203); //g
+	// load_bmp_big("assets/font/104.bmp", 204); //h
+	// load_bmp_big("assets/font/105.bmp", 205); //i
+	// load_bmp_big("assets/font/106.bmp", 206); //k
+	// load_bmp_big("assets/font/107.bmp", 207); //k
+	// load_bmp_big("assets/font/108.bmp", 208); //l
+	// load_bmp_big("assets/font/109.bmp", 209); //m
+	// load_bmp_big("assets/font/110.bmp", 210); //n
+	// load_bmp_big("assets/font/111.bmp", 211); //o
+	// load_bmp_big("assets/font/112.bmp", 212); //p
+	// load_bmp_big("assets/font/113.bmp", 213); //q
+	// load_bmp_big("assets/font/114.bmp", 214); //r
+	// load_bmp_big("assets/font/115.bmp", 215); //s
+	// load_bmp_big("assets/font/116.bmp", 216); //t
+	// load_bmp_big("assets/font/117.bmp", 217); //u
+	// load_bmp_big("assets/font/118.bmp", 218); //v
+	// load_bmp_big("assets/font/119.bmp", 219); //w
+	// load_bmp_big("assets/font/120.bmp", 220); //x
+	// load_bmp_big("assets/font/121.bmp", 221); //y
+	// load_bmp_big("assets/font/122.bmp", 222); //z	
+	
+}
+
+void raw_text(const char* text, uint16_t x, uint16_t y) {
+	uint8_t i, l;
+	uint16_t w;
+	l = strlen(text);
+	if (l > 30) return;
+	
+	w = (l * 8);
+	
+	vdp_bitmapDraw(FRAME_NW, x, y);
+	vdp_bitmapDraw(FRAME_NE, x + w, y);
+	
+	for (i = 1; i < (w / 8); i++) {
+		vdp_bitmapDraw(FRAME_N, x + (i * 8), y);
+		vdp_bitmapDraw(FRAME_S, x + (i * 8), y + 8);
+	}
+	
+	vdp_bitmapDraw(FRAME_SW, x, y + 8);
+	vdp_bitmapDraw(FRAME_SE, x + w, y + 8);
+	
+	for (i = 0; i < l; i++)	vdp_bitmapDraw(toupper(text[i]) + 100, x + 4 + (8 * i), y + 4);
+}
+
+void raw_text_centre(const char* text, uint16_t y) {
+	uint8_t i, l;
+	uint16_t w, x;
+	l = strlen(text);
+	if (l > 30) return;
+	
+	w = (l * 8);
+	x = (320 - w) / 2;
+	
+	vdp_bitmapDraw(FRAME_NW, x, y);
+	vdp_bitmapDraw(FRAME_NE, x + w, y);
+	
+	for (i = 1; i < (w / 8); i++) {
+		vdp_bitmapDraw(FRAME_N, x + (i * 8), y);
+		vdp_bitmapDraw(FRAME_S, x + (i * 8), y + 8);
+	}
+	
+	vdp_bitmapDraw(FRAME_SW, x, y + 8);
+	vdp_bitmapDraw(FRAME_SE, x + w, y + 8);
+	
+	for (i = 0; i < l; i++)	vdp_bitmapDraw(toupper(text[i]) + 100, x + 4 + (8 * i), y + 4);
+}
 
 uint8_t solidity[20][15];
 
@@ -1268,11 +1411,11 @@ void movesprite_x(sprite_state *sprite, int16_t x) {
 
 	if (sprite->dir == 9 && sprite->rect.x + x + (sprite->rect.width / 2) <= 0) return;
 	else if (sprite->dir == 3 && sprite->rect.x + x + (sprite->rect.width / 2) >= 320) return;
-	else if (solidity[(sprite->rect.x + (sprite->rect.width / 2) + x) / 16][(sprite->rect.y + (sprite->rect.height / 2)) / 16] != 'X') {
+	else if (solidity[(sprite->rect.x + (sprite->rect.width / 2) + x) / 16][(sprite->rect.y + (sprite->rect.height / 2)) / 16] == '0') {
 		
 		sprite->rect.x += x;
 		vdp_spriteMoveBySelected(x, 0);
-	} else play_sample(8, 1, 120);
+	} //else play_sample(8, 1, 120);
 	
 }
 
@@ -1341,10 +1484,17 @@ void movesprite_y(sprite_state *sprite, int16_t y) {
 	vdp_spriteSetFrameSelected(sprite->dir + sprite->seq);
 	
 	if (sprite->dir == 6 && sprite->rect.y + y + (sprite->rect.height / 2) >= 224) return;
-	else if (solidity[(sprite->rect.x + (sprite->rect.width / 2)) / 16][(sprite->rect.y + (sprite->rect.height / 2) + y) / 16] != 'X') {
+	else if (solidity[(sprite->rect.x + (sprite->rect.width / 2)) / 16][(sprite->rect.y + (sprite->rect.height / 2) + y) / 16] == '0') {
 		sprite->rect.y += y;
 		vdp_spriteMoveBySelected(0, y);
-	} else play_sample(8, 1, 120);
+	} else {
+	
+		sprite->rect.y += (y * -1);
+		vdp_spriteMoveBySelected(0, (y * -1));
+		//play_sample(4, 1, 40);
+		
+	}
+	//else play_sample(8, 1, 120);
 	//printf("[%u][%u][%c] ", (sprite->rect.x) / 16, (sprite->rect.y + y) / 16, solidity[(sprite->rect.x) / 16][(sprite->rect.y + y) / 16]);
 	
 }
@@ -1363,19 +1513,30 @@ uint8_t my_atoi(const char *str) {
 #define COLS 20
 #define ROWS 14
 
+void print2d() {
+    uint8_t i, j;
+	for(i=0; i < 14; i++) {
+        for(j=0; j < 20; j++) {
+            printf("%d ", solidity[j][i]);
+        }
+        printf("\r\n");
+    }
+}
+
 void collision_map(const char* col) {
 	
 	
 	//FIL *fo;
 	uint8_t file = mos_fopen(col, fa_read);
 	uint8_t i = 0, j = 0;
+	if (!file) printf("Error reading colission map\r\n");
 	
 	//fo = (FIL *)mos_getfil(file);
 	//file_size = fo->obj.objsize;
 	//n = 0; x = 0, y = 0;
 	
     for (i = 0; i < ROWS; i++) {
-        for (j = 0; j < 20; j++) {
+        for (j = 0; j < COLS; j++) {
             char c = mos_fgetc(file);
             while (!isdigit(c) && !isalpha(c)) {  // Skip non-digit/non-letter characters
                 c = mos_fgetc(file);
@@ -1399,6 +1560,7 @@ void read_background(const char *filename) {
 	uint8_t val;
 	//uint16_t grid[ROWS][COLS];
 	uint8_t fp = mos_fopen(filename, fa_read);
+	if (!fp) printf("Error reading background\r\n");
 	
 	memset(bg_grid, 0, sizeof bg_grid);
 
@@ -1481,6 +1643,7 @@ void read_foreground(const char *filename) {
 	uint8_t val;
 	//uint16_t grid[ROWS][COLS];
 	uint8_t fp = mos_fopen(filename, fa_read);
+	if (!fp) printf("Error reading foreground\r\n");
 	
 	memset(fg_grid, 0, sizeof fg_grid);
 
@@ -1519,6 +1682,7 @@ void process_assets(const char *asset_file) {
     char c = 0;
     uint8_t colon_found = 0;
     uint8_t fp = mos_fopen(asset_file, fa_read);
+	if (!fp) printf("Error reading manifest %s\r\n", asset_file);
 
     c = mos_fgetc(fp);
 	while (!mos_feof(fp)) {
@@ -1532,31 +1696,34 @@ void process_assets(const char *asset_file) {
             if (index > 0 && buffer[0] != ';') {
                 if (strcmp(buffer, "[Player]") == 0) {
 					section = 0;
-					vdp_cls();
-					printf("Loading player sprite");
+					//vdp_cls();
+					//printf("Loading player sprite");
+					raw_text_centre("Loading player sprite", 10);
 					vdp_spriteSelect(0);
 				}
                 else if (strcmp(buffer, "[Background]") == 0) {
 					section = 1;
-					vdp_cls();
-					printf("\rLoading background");
+					//vdp_cls();
+					//printf("\rLoading background");
+					raw_text_centre("Loading background", 30);
 				}
                 else if (strcmp(buffer, "[Foreground]") == 0) {
 					section = 2;
-					vdp_cls();
-					printf("\rLoading foreground");
+					//vdp_cls();
+					raw_text_centre("Loading foreground", 50);
+					//printf("\rLoading foreground");
 				}
 				else if (strcmp(buffer, "[End]") == 0);
                 else {
 					//printf("%s in Section %d!\r\n", buffer, section);
 					if (section == 0) {
-						printf(".");
+						//printf(".");
 						load_bmp_big(buffer, asset_count);
 						vdp_spriteAddFrame(0, asset_count++);
 					}
 					else {
 						//printf("Loading %s as asset %u\r\n", buffer, asset_count);
-						printf(".");
+						//printf(".");
 						load_bmp_big(buffer, asset_count++);					
 					}
 				}
@@ -1619,107 +1786,6 @@ void setup_text_sprites() {
 	vdp_spriteAddFrameSelected(155);	//7
 	vdp_spriteAddFrameSelected(156);	//8
 	vdp_spriteAddFrameSelected(157);	//9
-	
-}
-
-#define FRAME_WHOLE	119
-#define FRAME_NW	120
-#define FRAME_N		121
-#define FRAME_NE	122
-#define FRAME_E		123
-#define FRAME_SE	124
-#define FRAME_S		125
-#define FRAME_SW	126
-#define FRAME_W		127
-#define FRAME_MID	128
-
-void load_font_frame() {
-	
-	printf("Loading font...");
-	load_bmp_big("assets/f_blue/nw.bmp", FRAME_NW);		//NW
-	load_bmp_big("assets/f_blue/n.bmp", FRAME_N);		//N
-	load_bmp_big("assets/f_blue/ne.bmp", FRAME_NE);		//NE
-	load_bmp_big("assets/f_blue/e.bmp", FRAME_E);		//E
-	load_bmp_big("assets/f_blue/se.bmp", FRAME_SE);		//SE
-	load_bmp_big("assets/f_blue/s.bmp", FRAME_S);		//S
-	load_bmp_big("assets/f_blue/sw.bmp", FRAME_SW);		//SW
-	load_bmp_big("assets/f_blue/w.bmp", FRAME_W);		//W
-	load_bmp_big("assets/f_blue/mid.bmp", FRAME_MID);	//W
-	
-	load_bmp_big("assets/font/32.bmp", 132); //Space
-	
-	load_bmp_big("assets/font/33.bmp", 133); //!
-	load_bmp_big("assets/font/36.bmp", 136); //$
-	load_bmp_big("assets/font/38.bmp", 138); //&
-	load_bmp_big("assets/font/44.bmp", 144); //,
-	load_bmp_big("assets/font/46.bmp", 146); //.
-	
-	load_bmp_big("assets/font/48.bmp", 148); //0
-	load_bmp_big("assets/font/49.bmp", 149); //1
-	load_bmp_big("assets/font/50.bmp", 150); //2
-	load_bmp_big("assets/font/51.bmp", 151); //3
-	load_bmp_big("assets/font/52.bmp", 152); //4
-	load_bmp_big("assets/font/53.bmp", 153); //5
-	load_bmp_big("assets/font/54.bmp", 154); //6
-	load_bmp_big("assets/font/55.bmp", 155); //7
-	load_bmp_big("assets/font/56.bmp", 156); //8
-	load_bmp_big("assets/font/57.bmp", 157); //9
-	
-	load_bmp_big("assets/font/63.bmp", 163); //?
-	
-	load_bmp_big("assets/font/65.bmp", 165); //A
-	load_bmp_big("assets/font/66.bmp", 166); //B
-	load_bmp_big("assets/font/67.bmp", 167); //C
-	load_bmp_big("assets/font/68.bmp", 168); //D
-	load_bmp_big("assets/font/69.bmp", 169); //E
-	load_bmp_big("assets/font/70.bmp", 170); //F
-	load_bmp_big("assets/font/71.bmp", 171); //G
-	load_bmp_big("assets/font/72.bmp", 172); //H
-	load_bmp_big("assets/font/73.bmp", 173); //I
-	load_bmp_big("assets/font/74.bmp", 174); //J
-	load_bmp_big("assets/font/75.bmp", 175); //K
-	load_bmp_big("assets/font/76.bmp", 176); //L
-	load_bmp_big("assets/font/77.bmp", 177); //M
-	load_bmp_big("assets/font/78.bmp", 178); //N
-	load_bmp_big("assets/font/79.bmp", 179); //O
-	load_bmp_big("assets/font/80.bmp", 180); //P
-	load_bmp_big("assets/font/81.bmp", 181); //Q
-	load_bmp_big("assets/font/82.bmp", 182); //R
-	load_bmp_big("assets/font/83.bmp", 183); //S
-	load_bmp_big("assets/font/84.bmp", 184); //T
-	load_bmp_big("assets/font/85.bmp", 185); //U
-	load_bmp_big("assets/font/86.bmp", 186); //V
-	load_bmp_big("assets/font/87.bmp", 187); //W
-	load_bmp_big("assets/font/88.bmp", 188); //X
-	load_bmp_big("assets/font/89.bmp", 189); //Y
-	load_bmp_big("assets/font/90.bmp", 190); //Z
-	
-	// load_bmp_big("assets/font/97.bmp", 197); //a
-	// load_bmp_big("assets/font/98.bmp", 198); //b
-	// load_bmp_big("assets/font/99.bmp", 199); //c
-	// load_bmp_big("assets/font/100.bmp", 200); //d
-	// load_bmp_big("assets/font/101.bmp", 201); //e
-	// load_bmp_big("assets/font/102.bmp", 202); //f
-	// load_bmp_big("assets/font/103.bmp", 203); //g
-	// load_bmp_big("assets/font/104.bmp", 204); //h
-	// load_bmp_big("assets/font/105.bmp", 205); //i
-	// load_bmp_big("assets/font/106.bmp", 206); //k
-	// load_bmp_big("assets/font/107.bmp", 207); //k
-	// load_bmp_big("assets/font/108.bmp", 208); //l
-	// load_bmp_big("assets/font/109.bmp", 209); //m
-	// load_bmp_big("assets/font/110.bmp", 210); //n
-	// load_bmp_big("assets/font/111.bmp", 211); //o
-	// load_bmp_big("assets/font/112.bmp", 212); //p
-	// load_bmp_big("assets/font/113.bmp", 213); //q
-	// load_bmp_big("assets/font/114.bmp", 214); //r
-	// load_bmp_big("assets/font/115.bmp", 215); //s
-	// load_bmp_big("assets/font/116.bmp", 216); //t
-	// load_bmp_big("assets/font/117.bmp", 217); //u
-	// load_bmp_big("assets/font/118.bmp", 218); //v
-	// load_bmp_big("assets/font/119.bmp", 219); //w
-	// load_bmp_big("assets/font/120.bmp", 220); //x
-	// load_bmp_big("assets/font/121.bmp", 221); //y
-	// load_bmp_big("assets/font/122.bmp", 222); //z	
 	
 }
 
@@ -1889,6 +1955,27 @@ void text_box(const char *text, uint16_t x, uint16_t y) {
 	
 }
 
+void text_box_centre(const char *text, uint16_t y) {
+	
+	uint16_t x = (320 - (longest_stretch(text) * 8)) / 2;
+	print_text(text, x + 6, y + 6);
+	setup_text_frame(x, y, (text_max_length * 8) + 2, (text_rows * 10) + 2);
+	box_open = true;
+	
+}
+
+void text_box_centre_away(const char *text) {
+	
+	uint16_t x = (320 - (longest_stretch(text) * 8)) / 2;
+	uint8_t y = 24;
+	if (player.rect.y > 120) y = 24;
+	else if (player.rect.y <= 120) y = 160;
+	print_text(text, x + 8, y + 4);
+	setup_text_frame(x, y, (text_max_length * 8) + 1, (text_rows * 10) + 2);
+	box_open = true;
+	
+}
+
 void service_text(uint8_t delay) {
 
 	if (text_pending == true && (timer0 - last_print) > delay) {
@@ -1922,6 +2009,13 @@ void service_text(uint8_t delay) {
 
 uint8_t player_score = 0;
 
+void show_score() {
+	
+	vdp_spriteSetFrame(1, player_score / 10);
+	vdp_spriteSetFrame(2, player_score % 10); 
+	
+}
+
 void change_score(int8_t change) {
 	
 	if (player_score + change > 99) player_score = 99;
@@ -1932,16 +2026,108 @@ void change_score(int8_t change) {
 	
 }
 
+char transition_manifest[100];
+char transition_bg[32];
+char transition_fg[32]; 
+char transition_col[32];
+char transition_bgm[32];
+uint16_t transition_x = 0;
+uint16_t transition_y = 0;
+uint8_t transition_dir = 0;
+bool transition_due = false;
 
-
-void load_room(char* manifest, char* bg, char* fg, char * col) {
+void load_room(const char* manifest, const char* bg, const char* fg, const char * col, const char * bgm, uint16_t player_start_x, uint8_t player_start_y, uint8_t player_dir) {
 	
+	if (vgm_file!= NULL) vgm_cleanup(vgm_file);
+	if (transition_due) transition_due = false;
+	
+	vdp_spriteHide(0);
+	vdp_spriteHide(1);
+	vdp_spriteHide(2);
 	vdp_cls();
+	vdp_clearGraphics();
 	process_assets(manifest);
     read_background(bg);
 	read_foreground(fg);
+	
+	vdp_bitmapCreateSolidColor(254, 16, 16, 0); //Solid black tile
+	
 	collision_map(col);
+	
+	load_wav("assets/sfx/point.wav", 0);
+	load_wav("assets/sfx/thud.wav", 1);
+	
+	vgm_file = mos_fopen(bgm, fa_read);
+	if (!vgm_file) printf("Error reading VGM\r\n");
+	vgm_init(vgm_file);
+	vgm_info.volume_multiplier = 0.2;
+	
 	draw_bottom_frame();
+	
+	vdp_bitmapDraw(100 + '$', 8, 229);
+	vdp_spriteMoveTo(1, 16, 229);
+	//vdp_spriteSetFrameSelected(0);
+	vdp_spriteShowSelected();
+	vdp_spriteMoveTo(2, 24, 229);
+	//vdp_spriteSetFrameSelected(0);
+	vdp_spriteShowSelected();
+	vdp_spriteSetFrame(1, player_score / 10);
+	vdp_spriteSetFrame(2, player_score % 10); 
+	
+	player.rect.x = player_start_x;
+	player.rect.y = player_start_y;
+	player.dir = player_dir;
+	
+	vdp_spriteMoveTo(0, player.rect.x, player.rect.y);
+	vdp_spriteSetFrameSelected(player.dir);
+	
+	vdp_spriteActivateTotal(3);
+	vdp_spriteShow(0);
+	vdp_spriteShow(1);
+	vdp_spriteShow(2);
+	
+	
+}
+
+void do_action() {
+	
+	//printf(" (%u %u:%u=%u)[%u:%u] ",player.dir, (player.rect.x - (player.rect.width / 2)) / 16, (player.rect.y) / 16, solidity[(player.rect.x) / 16][(player.rect.y) / 16], player.rect.x, player.rect.y);
+	switch (player.dir) { //0=North, 3=East, 6=South, 9=West
+		
+		case 0:
+			if (solidity[((player.rect.x + (player.rect.width / 2)) / 16)][(player.rect.y) / 16] == 'C') { //The +1 is to offset the fact that we're comparing the corner of a rect with a grid.
+				text_box_centre_away("You found 1 gold coin!");
+				change_score(1);
+				play_sample(3, 0, 127); //Play coin noise
+				solidity[((player.rect.x + (player.rect.width / 2)) / 16)][(player.rect.y) / 16] = 'X';
+			} else if (solidity[((player.rect.x + (player.rect.width / 2)) / 16)][(player.rect.y) / 16] == 'D') { //Door 
+		
+				if (player_score == 0) text_box_centre_away("Go away, no visitors!");
+				else if (player_score > 0) {
+					text_box_centre_away("A gold coin? Alright...\nBut don't tell anybody!");
+					change_score(-1);
+					play_sample(3, 0, 127);
+					//printf("manifest now: %s\r\n", transition_manifest);
+					strcpy(transition_manifest, "assets/castle_manifest.txt");
+					//printf("manifest now: %s\r\n", transition_manifest);
+					strcpy(transition_bg, "assets/castle_bg.txt");
+					strcpy(transition_fg, "assets/castle_fg.txt");
+					strcpy(transition_col, "assets/castle_col.txt");
+					strcpy(transition_bgm, "start.vgm");
+					transition_x = 30;
+					transition_y = 200;
+					transition_dir = 0;
+					transition_due = true;
+				}
+
+			} else if (solidity[((player.rect.x + (player.rect.width / 2)) / 16)][(player.rect.y) / 16] == 'T') { //Magic stuff
+
+			text_box_centre_away("And this...\nis the limit of my creativity!");
+			
+			}				
+			
+		
+	}
 	
 }
 
@@ -1957,67 +2143,63 @@ int main(int argc, char * argv[]) {
 	player.dir = 6; //Face south
 	player.seq = 0; //Starting pose
 	player.rect.x = 160; //Middle X
-	player.rect.y = 120; //Midsle Y
+	player.rect.y = 120; //Middle Y
 	player.rect.height = 24;
 	player.rect.width = 24;
 	
 	//vgm_file = mos_fopen("town.vgm", fa_read);
 	//printf("%u %s %s %s", argc, argv[0], argv[1], argv[2]);
 	
-	load_wav("sega.wav", 1);
 	//play_sample(8, 0, 120);
 	
- 	if (argc < 2) return 0;
+ 	//if (argc < 2) return 0;
 		
 	//if (argc == 4 && (!strcmp(argv[2], "loop=true"))) vgm_info.loop_enabled = true;
 	//else vgm_info.loop_enabled = false;
-	vgm_info.loop_enabled = true; //Force looping right now.
+	//vgm_info.loop_enabled = true; //Force looping right now.
 	
-	vgm_file = mos_fopen(argv[1], fa_read);
-    if (!vgm_file) { printf("Error: could not open file %s.\n", argv[1]); return 0; }
-	if (vgm_init(vgm_file) == 0) return 0;
-	vgm_info.volume_multiplier = 0.5;
+
+	//fo = (FIL *)mos_getfil(vgm_file);
 	
+	//vdp_clearGraphics();
+	vdp_mode(2);
+	vdp_cursorDisable();
 	vdp_cls();
 	load_font_frame();
 	setup_text_sprites();
-	vdp_mode(2);
-	vdp_cursorDisable();
-	vdp_clearGraphics();
 	
-	load_room("assets/manifest.txt","assets/bg2.txt","assets/fg2.txt","assets/pass.txt");
-    
-	vdp_spriteActivateTotal(3);
+	//vdp_clearGraphics();
 	
-	vdp_bitmapDraw(100 + '$', 8, 229);
-	vdp_spriteMoveTo(1, 16, 229);
-	vdp_spriteSetFrameSelected(0);
-	vdp_spriteShowSelected();
-	vdp_spriteMoveTo(2, 24, 229);
-	vdp_spriteSetFrameSelected(0);
-	vdp_spriteShowSelected();	
-	
-	vdp_spriteMoveTo(0, 160, 120);
-	vdp_spriteSetFrameSelected(player.dir);
-	vdp_spriteShowSelected();
+	// process_assets("assets/manifest.txt");
+    // read_background("assets/bg2.txt");
+	// read_foreground("assets/fg2.txt");
+	// collision_map("assets/pass.txt");
+	// draw_bottom_frame();
+	load_room("assets/garden_manifest.txt","assets/garden_bg.txt","assets/garden_fg.txt","assets/garden_col.txt", "outside.vgm", 160, 80, 6);
 	
 	keycount = getsysvar_vkeycount();
 	while (true) {
  																//Main loop	
-		if (!vgm_info.pause) if (parse_vgm_file(vgm_file) == 1) break;							//Progress BGM
+		if (!vgm_info.pause) if (parse_vgm_file(vgm_file) == 1) break;								//Progress BGM
 		if (!draw_text_frame()) service_text(500);
 		redraw_area();
 		
 		if (getsysvar_vkeycount() != keycount && getsysvar_vkeydown() == 1) { 	//Handle keypresses
 			key = getsysvar_keyascii();
+			
 			if (key == 'q') break;
 			
-			if (key == 'w') movesprite_y(&player, -4);
-			if (key == 'a') movesprite_x(&player, -4);
-			if (key == 's') movesprite_y(&player, 4);
-			if (key == 'd') movesprite_x(&player, 4);
+			if(!box_open) {
+				if (key == 'w') movesprite_y(&player, -4);
+				if (key == 'a') movesprite_x(&player, -4);
+				if (key == 's') movesprite_y(&player, 4);
+				if (key == 'd') movesprite_x(&player, 4);
+			}
 			
-			if (key == ' ') if (box_open) redraw_box();
+			if (box_open && key == ' ') redraw_box();
+			else if (key == ' ') do_action();
+			
+			if (key == 'u') print2d();
 			
 			if (key == '1') change_score(-5);
 			if (key == '2') change_score(5);
@@ -2041,20 +2223,20 @@ int main(int argc, char * argv[]) {
 			if (key == 'k' && vgm_info.volume_multiplier >= 0.1) vgm_info.volume_multiplier -= 0.1;
 			if (key == 'm') vgm_info.pause = !vgm_info.pause;
 			
-			if (key == 'p') text_box("Hello world!", 30, 30);
+			if (key == 'p') text_box_centre_away("Hello world!");
 			if (key == '[') text_box("Hello\nworld!", 30, 30);
-			if (key == ']') raw_text("Testing raw text drawing!", 10, 10);
+			if (key == ']') load_room("assets/castle_manifest.txt","assets/castle_bg.txt","assets/castle_fg.txt","assets/castle_col.txt", "start.vgm", 160, 200, 6);
 			//if (key == 'o') redraw_prep(text_x, text_y, text_length * 8, text_rows * 10); 
 			if (key == 'o') redraw_box();
 				//redraw_prep(30, 30, 110, 16); 
 			 
 			if (key == 'x') printf("[%u][%u] ", player.rect.x / 16, player.rect.y / 16);
 			
-			
 			keycount = getsysvar_vkeycount();
 		}
 		
 		if (timer0 % 735 == 0) vdp_spriteRefresh(); //735 44.1KHz ticks = ~60Hz
+		if (transition_due && !box_open) load_room(transition_manifest, transition_bg, transition_fg, transition_col, transition_bgm, transition_x, transition_y, transition_dir);
 	}
 	
 	vgm_cleanup(vgm_file); 
