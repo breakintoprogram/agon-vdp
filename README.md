@@ -28,7 +28,7 @@ The ESP32 is programmed via the USB connector at the top of the board using the 
 
 #### Arduino IDE settings
 
-In order to add the ESP32 as a supported board in the Arudino IDE, you will need to add in this URL into the board manager:
+In order to add the ESP32 as a supported board in the Arduino IDE, you will need to add in this URL into the board manager:
 
 Select Preferences from the File menu
 
@@ -58,7 +58,7 @@ And for the Port, you will need to determine the Com port that the Agon Light is
 
 Now the third party libraries will need to be installed from the Library Manager in the Tools menu
 
-* FabGL version 1.0.8
+* vdp-gl version 1.0.3 (Official fork of FabGL 1.0.8 for Agon)
 * ESP32Time version 2.0.0
 
 It is important you use these exact versions otherwise I cannot guarantee the code will compile or run correctly.
