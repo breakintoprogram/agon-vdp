@@ -3,9 +3,9 @@
 // Author:        	Dean Belfield
 // Contributors:	Jeroen Venema (Sprite Code, VGA Mode Switching)
 //					Damien Guard (Fonts)
-//					Igor Chaves Cananea (VGA Mode Switching)
+//					Igor Chaves Cananea (vdp-gl maintenance)
 // Created:       	22/03/2022
-// Last Updated:	18/04/2023
+// Last Updated:	12/05/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -33,14 +33,16 @@
 // 13/04/2023:					+ Fixed bootup fail with no keyboard
 // 17/04/2023:				RC5 + Moved wait_completion in vdu so that it only executes after graphical operations
 // 18/04/2023:					+ Minor tweaks to wait completion logic
+// 12/05/2023:		Version 1.04: Now uses vdp-gl instead of FabGL, implemented GCOL mode, sendModeInformation now sends video mode
+// 19/05/2023:					+ Added VDU 4/5 support
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
 #include "ESP32Time.h"
 
 #define VERSION			1
-#define REVISION		3
-#define RC				0
+#define REVISION		4
+#define RC				1
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
@@ -59,38 +61,46 @@ fabgl::VGABaseController *	VGAController;		// Pointer to the current VGA control
 
 fabgl::Terminal				Terminal;			// Used for CP/M mode
 
+fabgl::PaintOptions			gpo;				// Graphics paint options
+fabgl::PaintOptions			tpo;				// Text paint options
+
 #include "agon.h"								// Configuration file
 #include "agon_fonts.h"							// The Acorn BBC Micro Font
 #include "agon_audio.h"							// The Audio class
 #include "agon_palette.h"						// Colour lookup table
 
-int			VGAColourDepth;						// Number of colours per pixel (2, 4,8, 16 or 64)
-int         charX, charY;						// Current character (X, Y) coordinates
-Point		origin;								// Screen origin
-Point       p1, p2, p3;							// Coordinate store for lot
-RGB888      gfg;								// Graphics colour
-RGB888      tfg, tbg;							// Text foreground and background colour
-bool		cursorEnabled = true;				// Cursor visibility
-bool		logicalCoords = true;				// Use BBC BASIC logical coordinates
-double		logicalScaleX;						// Scaling factor for logical coordinates
-double		logicalScaleY;
-int         count = 0;							// Generic counter, incremented every iteration of loop
-uint8_t		numsprites = 0;						// Number of sprites on stage
-uint8_t 	current_sprite = 0; 				// Current sprite number
-uint8_t 	current_bitmap = 0;					// Current bitmap number
-Bitmap		bitmaps[MAX_BITMAPS];				// Bitmap object storage
-Sprite		sprites[MAX_SPRITES];				// Sprite object storage
-byte 		keycode = 0;						// Last pressed key code
-byte 		modifiers = 0;						// Last pressed key modifiers
-bool		terminalMode = false;				// Terminal mode
-int			videoMode;							// Current video mode
-bool 		pagedMode = false;					// Is output paged or not? Set by VDU 14 and 15
-int			pagedModeCount = 0;					// Scroll counter for paged mode
-int			kbRepeatDelay = 500;				// Keyboard repeat delay ms (250, 500, 750 or 1000)		
-int			kbRepeatRate = 100;					// Keyboard repeat rate ms (between 33 and 500)
-bool 		initialised = false;				// Is the system initialised yet?
-bool		doWaitCompletion;					// For vdu function
-uint8_t		palette[64];						// Storage for the palette
+int				VGAColourDepth;					// Number of colours per pixel (2, 4,8, 16 or 64)
+Point			textCursor;						// Text cursor
+Point			origin;							// Screen origin
+Point       	p1, p2, p3;						// Coordinate store for plot
+RGB888    		gfg, gbg;						// Graphics foreground and background colour
+RGB888      	tfg, tbg;						// Text foreground and background colour
+int				fontW;							// Font width
+int				fontH;							// Font height
+int				canvasW;						// Canvas width
+int				canvasH;						// Canvas height
+bool			cursorEnabled = true;			// Cursor visibility
+bool 			useGraphicsCursor = false;		// Print to graphics cursor
+bool			logicalCoords = true;			// Use BBC BASIC logical coordinates
+double			logicalScaleX;					// Scaling factor for logical coordinates
+double			logicalScaleY;
+int         	count = 0;						// Generic counter, incremented every iteration of loop
+uint8_t			numsprites = 0;					// Number of sprites on stage
+uint8_t 		current_sprite = 0; 			// Current sprite number
+uint8_t 		current_bitmap = 0;				// Current bitmap number
+Bitmap			bitmaps[MAX_BITMAPS];			// Bitmap object storage
+Sprite			sprites[MAX_SPRITES];			// Sprite object storage
+byte 			keycode = 0;					// Last pressed key code
+byte 			modifiers = 0;					// Last pressed key modifiers
+bool			terminalMode = false;			// Terminal mode
+int				videoMode;						// Current video mode
+bool 			pagedMode = false;				// Is output paged or not? Set by VDU 14 and 15
+int				pagedModeCount = 0;				// Scroll counter for paged mode
+int				kbRepeatDelay = 500;			// Keyboard repeat delay ms (250, 500, 750 or 1000)		
+int				kbRepeatRate = 100;				// Keyboard repeat rate ms (between 33 and 500)
+bool 			initialised = false;			// Is the system initialised yet?
+bool			doWaitCompletion;				// For vdu function
+uint8_t			palette[64];					// Storage for the palette
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
 
@@ -309,8 +319,8 @@ void wait_eZ80() {
 //
 void sendCursorPosition() {
 	byte packet[] = {
-		charX / Canvas->getFontInfo()->width,
-		charY / Canvas->getFontInfo()->height,
+		textCursor.X / fontW,
+		textCursor.Y / fontH,
 	};
 	send_packet(PACKET_CURSOR, sizeof packet, packet);	
 }
@@ -318,8 +328,8 @@ void sendCursorPosition() {
 // Send a character back to MOS
 //
 void sendScreenChar(int x, int y) {
-	int	px = x * Canvas->getFontInfo()->width;
-	int py = y * Canvas->getFontInfo()->height;
+	int	px = x * fontW;
+	int py = y * fontH;
 	char c = get_screen_char(px, py);
 	byte packet[] = {
 		c,
@@ -336,7 +346,7 @@ void sendScreenPixel(int x, int y) {
 	//
 	// Do some bounds checking first
 	//
-	if(p.X >= 0 && p.Y >= 0 && p.X < Canvas->getWidth() && p.Y < Canvas->getHeight()) {
+	if(p.X >= 0 && p.Y >= 0 && p.X < canvasW && p.Y < canvasH) {
 		pixel = Canvas->getPixel(p.X, p.Y);
 		for(byte i = 0; i < VGAColourDepth; i++) {
 			if(colourLookup[palette[i]] == pixel) {
@@ -367,16 +377,15 @@ void sendPlayNote(int channel, int success) {
 // Send MODE information (screen details)
 //
 void sendModeInformation() {
-	int w = Canvas->getWidth();
-	int h = Canvas->getHeight();
 	byte packet[] = {
-		w & 0xFF,	 						// Width in pixels (L)
-		(w >> 8) & 0xFF,					// Width in pixels (H)
-		h & 0xFF,							// Height in pixels (L)
-		(h >> 8) & 0xFF,					// Height in pixels (H)
-		w / Canvas->getFontInfo()->width ,	// Width in characters (byte)
-		h / Canvas->getFontInfo()->height ,	// Height in characters (byte)
+		canvasW & 0xFF,	 					// Width in pixels (L)
+		(canvasW >> 8) & 0xFF,				// Width in pixels (H)
+		canvasH & 0xFF,						// Height in pixels (L)
+		(canvasH >> 8) & 0xFF,				// Height in pixels (H)
+		canvasW / fontW,					// Width in characters (byte)
+		canvasH / fontH,					// Height in characters (byte)
 		VGAColourDepth,						// Colour depth
+		videoMode,							// The video mode number
 	};
 	send_packet(PACKET_MODE, sizeof packet, packet);
 }
@@ -433,6 +442,7 @@ void cls() {
 	if(Canvas) {
 		Canvas->setPenColor(tfg);
  		Canvas->setBrushColor(tbg);	
+		Canvas->setPaintOptions(tpo);
 		Canvas->clear();
 	}
 	if(numsprites) {
@@ -444,8 +454,7 @@ void cls() {
 		}
 		numsprites = 0;
 	}
-	charX = 0;
-	charY = 0;
+	textCursor = Point();
 	pagedModeCount = 0;
 }
 
@@ -457,6 +466,18 @@ void clg() {
 	}
 }
 
+// Get the paint options for a given GCOL mode
+//
+fabgl::PaintOptions getPaintOptions(int mode, fabgl::PaintOptions priorPaintOptions) {
+	fabgl::PaintOptions p = priorPaintOptions;
+	
+	switch(mode) {
+		case 0: p.NOT = 0; p.swapFGBG = 0; break;
+		case 4: p.NOT = 1; p.swapFGBG = 0; break;
+	}
+	return p;
+}
+
 // Try and match a character
 //
 char get_screen_char(int px, int py) {
@@ -466,7 +487,7 @@ char get_screen_char(int px, int py) {
 
 	// Do some bounds checking first
 	//
-	if(px < 0 || py < 0 || px >= Canvas->getWidth() - 8 || py >= Canvas->getHeight() - 8) {
+	if(px < 0 || py < 0 || px >= canvasW - 8 || py >= canvasH - 8) {
 		return 0;
 	}
 
@@ -546,6 +567,17 @@ void setPaletteItem(int l, RGB888 c) {
 	}
 }
 
+// Update the internal FabGL LUT
+//
+void updateRGB2PaletteLUT() {
+	switch(VGAColourDepth) {
+		case 2: VGAController2.updateRGB2PaletteLUT(); break;
+		case 4: VGAController4.updateRGB2PaletteLUT(); break;
+		case 8: VGAController8.updateRGB2PaletteLUT(); break;
+		case 16: VGAController16.updateRGB2PaletteLUT(); break;
+	}
+}
+
 // Reset the palette and set the foreground and background drawing colours
 // Parameters:
 // - colou: Array of indexes into colourLookup table
@@ -557,6 +589,7 @@ void resetPalette(const uint8_t colours[]) {
 		palette[i] = c;
 		setPaletteItem(i, colourLookup[c]);
 	}
+	updateRGB2PaletteLUT();
 }
 
 // Change video resolution
@@ -639,7 +672,10 @@ int change_mode(int mode) {
 		case 16: resetPalette(defaultPalette10); break;
 		case 64: resetPalette(defaultPalette40); break;
 	}
+	tpo = getPaintOptions(0, tpo);
+	gpo = getPaintOptions(0, gpo);
  	gfg = colourLookup[0x3F];
+	gbg = colourLookup[0x00];
 	tfg = colourLookup[0x3F];
 	tbg = colourLookup[0x00];
   	Canvas->selectFont(&fabgl::FONT_AGON);
@@ -649,11 +685,16 @@ int change_mode(int mode) {
 	p1 = Point(0,0);
 	p2 = Point(0,0);
 	p3 = Point(0,0);
-	logicalScaleX = LOGICAL_SCRW / (double)Canvas->getWidth();
-	logicalScaleY = LOGICAL_SCRH / (double)Canvas->getHeight();
+	canvasW = Canvas->getWidth();
+	canvasH = Canvas->getHeight();
+	fontW = Canvas->getFontInfo()->width;
+	fontH = Canvas->getFontInfo()->height;
+	logicalScaleX = LOGICAL_SCRW / (double)canvasW;
+	logicalScaleY = LOGICAL_SCRH / (double)canvasH;
 	cursorEnabled = true;
+	useGraphicsCursor = false;
 	sendModeInformation();
-	debug_log("do_modeChange: canvas(%d,%d), scale(%f,%f)\n\r", Canvas->getWidth(), Canvas->getHeight(), logicalScaleX, logicalScaleY);
+	debug_log("do_modeChange: canvas(%d,%d), scale(%f,%f)\n\r", canvasW, canvasH, logicalScaleX, logicalScaleY);
 	return 0;
 }
 
@@ -829,11 +870,7 @@ void send_packet(byte code, byte len, byte data[]) {
 //
 void do_cursor() {
 	if(cursorEnabled) {
-  		int w = Canvas->getFontInfo()->width;
-  		int h = Canvas->getFontInfo()->height;
-	  	int x = charX; 
-	  	int y = charY;
-	  	Canvas->swapRectangle(x, y, x + w - 1, y + h - 1);
+	  	Canvas->swapRectangle(textCursor.X, textCursor.Y, textCursor.X + fontW - 1, textCursor.Y + fontH - 1);
 	}
 }
 
@@ -854,38 +891,57 @@ Point translate(Point p) {
 }
 Point translate(int X, int Y) {
 	if(logicalCoords) {
-		return Point(origin.X + X, (Canvas->getHeight() - 1) - (origin.Y + Y));
+		return Point(origin.X + X, (canvasH - 1) - (origin.Y + Y));
 	}
 	return Point(origin.X + X, origin.Y + Y);
 }
 
 void vdu(byte c) {
+	Point * cursor = useGraphicsCursor ? &p1 : &textCursor;
+
 	if(c >= 0x20 && c != 0x7F) {
-		Canvas->setPenColor(tfg);
-		Canvas->setBrushColor(tbg);
- 		Canvas->drawChar(charX, charY, c);
-   		cursorRight();
+		if(useGraphicsCursor) {
+			Canvas->setPenColor(tfg);
+			Canvas->setBrushColor(tbg);
+		}
+		else {
+			Canvas->setPenColor(gfg);
+		}
+		Canvas->setPaintOptions(tpo);
+		Canvas->drawChar(cursor->X, cursor->Y, c);
+		cursorRight(cursor);
 	}
 	else {
 		doWaitCompletion = false;
 		switch(c) {
+			case 0x04:	
+  				Canvas->setGlyphOptions(GlyphOptions().FillBackground(true));
+				useGraphicsCursor = false;
+				break;
+			case 0x05:
+  				Canvas->setGlyphOptions(GlyphOptions().FillBackground(false));
+				useGraphicsCursor = true;
+				break;
+			case 0x07:	// Bell
+				play_note(0, 100, 750, 125);
+				break;
 			case 0x08:  // Cursor Left
-				cursorLeft();
+				cursorLeft(cursor);
 				break;
 			case 0x09:  // Cursor Right
-				cursorRight();
+				cursorRight(cursor);
 				break;
 			case 0x0A:  // Cursor Down
-				cursorDown();
+				cursorDown(cursor);
 				break;
 			case 0x0B:  // Cursor Up
-				cursorUp();
+				cursorUp(cursor);
 				break;
 			case 0x0C:  // CLS
 				cls();
 				break;
 			case 0x0D:  // CR
-				cursorHome();
+				cursorHome(cursor);
 				break;
 			case 0x0E:	// Paged mode ON
 				pagedMode = true;
@@ -917,14 +973,15 @@ void vdu(byte c) {
 			case 0x1D:	// VDU_29
 				vdu_origin();
 			case 0x1E:  // Home
-				cursorHome();
+				cursorHome(cursor);
 				break;
 			case 0x1F:	// TAB(X,Y)
-				cursorTab();
+				cursorTab(cursor);
 				break;
 			case 0x7F:  // Backspace
-				cursorLeft();
-				Canvas->drawChar(charX, charY, ' ');
+				cursorLeft(cursor);
+				Canvas->setBrushColor(useGraphicsCursor ? gbg : tbg);
+				Canvas->fillRectangle(cursor->X, cursor->Y, cursor->X + fontW - 1, cursor->Y + fontH - 1);
 				break;
 		}
 		if(doWaitCompletion) {
@@ -935,58 +992,66 @@ void vdu(byte c) {
 
 // Handle the cursor
 //
-void cursorLeft() {
-	charX -= Canvas->getFontInfo()->width;
-  	if(charX < 0) {
-    	charX = 0;
+void cursorLeft(Point * cursor) {
+	cursor->X -= fontW;
+  	if(cursor->X < 0) {
+    	cursor->X = 0;
   	}
 }
 
-void cursorRight() {
-  	charX += Canvas->getFontInfo()->width;
-  	if(charX >= Canvas->getWidth()) {
-    	cursorHome();
-    	cursorDown();
+void cursorRight(Point * cursor) {
+  	cursor->X += fontW;
+  	if(cursor->X >= canvasW) {
+    	cursorHome(cursor);
+    	cursorDown(cursor);
   	}
 }
 
-void cursorDown() {
-	int fh = Canvas->getFontInfo()->height;
-	int ch = Canvas->getHeight();
-	int pl = ch / fh;
-
-	charY += fh;
+void cursorDown(Point * cursor) {
+	cursor->Y += fontH;
+	//
+	// If in graphics mode, then don't scroll, wrap to top
+	// 
+	if(useGraphicsCursor) {
+		if(cursor->Y >= canvasH) {	
+			cursor->Y = 0;
+		}
+		return;
+	}
+	//
+	// Using the text cursor, so handle paging and scrolling
+	//
 	if(pagedMode) {
 		pagedModeCount++;
-		if(pagedModeCount >= pl) {
+		if(pagedModeCount >= canvasH / fontH) {
 			pagedModeCount = 0;
 			wait_shiftkey();
 		}
 	}
-	if(charY >= ch) {
-		charY -= fh;
-		Canvas->scroll(0, -fh);
+	if(cursor->Y >= canvasH) {
+		cursor->Y -= fontH;
+		Canvas->scroll(0, -fontH);
 	}
 }
 
-void cursorUp() {
-  	charY -= Canvas->getFontInfo()->height;
-  	if(charY < 0) {
-		charY = 0;
+void cursorUp(Point * cursor) {
+  	cursor->Y -= fontH;
+  	if(cursor->Y < 0) {
+		cursor->Y = 0;
   	}
 }
 
-void cursorHome() {
-  	charX = 0;
+void cursorHome(Point * cursor) {
+  	cursor->X = 0;
 }
 
-void cursorTab() {
+void cursorTab(Point * cursor) {
 	int x = readByte_t();
 	if(x >= 0) {
 		int y = readByte_t();
 		if(y >= 0) {
-			charX = x * Canvas->getFontInfo()->width;
-			charY = y * Canvas->getFontInfo()->height;
+			cursor->X = x * fontW;
+			cursor->Y = y * fontH;
 		}
 	}
 }
@@ -1037,12 +1102,13 @@ void vdu_colour() {
 // 
 void vdu_gcol() {
 	int	mode = readByte_t();
-	if(mode >= 0) {
+	if(mode >= 0 && mode <= 6) {
 		int	colour = readByte_t();
 		if(colour >= 0) {
 			gfg = colourLookup[palette[colour%VGAColourDepth]];
-			debug_log("vdu_gcol: gfg %d = %d,%d,%d\n\r", colour, gfg.R, gfg.G, gfg.B);
+			debug_log("vdu_gcol: mode %d, gfg %d = %d,%d,%d\n\r", mode, colour, gfg.R, gfg.G, gfg.B);
 		}
+		gpo = getPaintOptions(mode, gpo);
 	}
 }
 
@@ -1089,6 +1155,7 @@ void vdu_plot() {
   	p2 = p1;
 	p1 = translate(scale(x, y));
 	Canvas->setPenColor(gfg);
+	Canvas->setPaintOptions(gpo);
 	debug_log("vdu_plot: mode %d, (%d,%d) -> (%d,%d)\n\r", mode, x, y, p1.X, p1.Y);
   	switch(mode) {
     	case 0x04: 			// Move 
