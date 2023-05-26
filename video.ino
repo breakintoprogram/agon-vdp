@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (vdp-gl maintenance)
 // Created:       	22/03/2022
-// Last Updated:	12/05/2023
+// Last Updated:	21/05/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -35,6 +35,7 @@
 // 18/04/2023:					+ Minor tweaks to wait completion logic
 // 12/05/2023:		Version 1.04: Now uses vdp-gl instead of FabGL, implemented GCOL mode, sendModeInformation now sends video mode
 // 19/05/2023:					+ Added VDU 4/5 support
+// 25/05/2023:					+ Added VDU 24, VDU 26 and VDU 28, fixed inverted text colour settings
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -71,16 +72,21 @@ fabgl::PaintOptions			tpo;				// Text paint options
 
 int				VGAColourDepth;					// Number of colours per pixel (2, 4,8, 16 or 64)
 Point			textCursor;						// Text cursor
+Point *			activeCursor;					// Pointer to the active text cursor (textCursor or p1)
+Rect *			activeViewport;					// Pointer to the active text viewport (textViewport or graphicsViewport)
 Point			origin;							// Screen origin
 Point       	p1, p2, p3;						// Coordinate store for plot
 RGB888    		gfg, gbg;						// Graphics foreground and background colour
 RGB888      	tfg, tbg;						// Text foreground and background colour
+Rect 			defaultViewport;				// Default viewport
+Rect 			textViewport;					// Text viewport
+Rect 			graphicsViewport;				// Graphics viewport
 int				fontW;							// Font width
 int				fontH;							// Font height
 int				canvasW;						// Canvas width
 int				canvasH;						// Canvas height
 bool			cursorEnabled = true;			// Cursor visibility
-bool 			useGraphicsCursor = false;		// Print to graphics cursor
+bool			useViewports = false;			// Viewports are enabled
 bool			logicalCoords = true;			// Use BBC BASIC logical coordinates
 double			logicalScaleX;					// Scaling factor for logical coordinates
 double			logicalScaleY;
@@ -342,7 +348,7 @@ void sendScreenChar(int x, int y) {
 void sendScreenPixel(int x, int y) {
 	RGB888	pixel;
 	byte 	pixelIndex = 0;
-	Point	p = translate(scale(x, y));
+	Point	p = translateViewport(scale(x, y));
 	//
 	// Do some bounds checking first
 	//
@@ -436,25 +442,26 @@ void sendGeneralPoll() {
 
 // Clear the screen
 // 
-void cls() {
+void cls(bool resetViewports) {
 	int i;
 
+	if(resetViewports) {
+		vdu_resetViewports();
+	}
 	if(Canvas) {
 		Canvas->setPenColor(tfg);
  		Canvas->setBrushColor(tbg);	
 		Canvas->setPaintOptions(tpo);
-		Canvas->clear();
+		clearViewport(&textViewport);
 	}
 	if(numsprites) {
 		if(VGAController) {
 			VGAController->removeSprites();
-			if(Canvas) {
-				Canvas->clear();
-			}
+			clearViewport(&textViewport);
 		}
 		numsprites = 0;
 	}
-	textCursor = Point();
+	textCursor = Point(activeViewport->X1, activeViewport->Y1);
 	pagedModeCount = 0;
 }
 
@@ -462,7 +469,23 @@ void cls() {
 //
 void clg() {
 	if(Canvas) {
-		Canvas->clear();
+		Canvas->setPenColor(gfg);
+ 		Canvas->setBrushColor(gbg);	
+		Canvas->setPaintOptions(gpo);
+		clearViewport(&graphicsViewport);
+	}
+}
+
+// Clear a viewport
+//
+void clearViewport(Rect * viewport) {
+	if(Canvas) {
+		if(useViewports) {
+			Canvas->fillRectangle(*viewport);
+		}
+		else {
+			Canvas->clear();
+		}
 	}
 }
 
@@ -526,7 +549,7 @@ bool cmp_char(uint8_t * c1, uint8_t *c2, int len) {
 // Switch to terminal mode
 //
 void switchTerminalMode() {
-	cls();
+	cls(true);
   	delete Canvas;
 	Terminal.begin(VGAController);	
 	Terminal.connectSerialPort(ESPSerial);
@@ -645,7 +668,7 @@ int change_resolution(int colours, char * modeLine) {
 int change_mode(int mode) {
 	int errVal = -1;
 
-	cls();
+	cls(true);
 	if(mode != videoMode) {
 		switch(mode) {
 			case 0:
@@ -692,7 +715,8 @@ int change_mode(int mode) {
 	logicalScaleX = LOGICAL_SCRW / (double)canvasW;
 	logicalScaleY = LOGICAL_SCRH / (double)canvasH;
 	cursorEnabled = true;
-	useGraphicsCursor = false;
+	activeCursor = &textCursor;
+	vdu_resetViewports();
 	sendModeInformation();
 	debug_log("do_modeChange: canvas(%d,%d), scale(%f,%f)\n\r", canvasW, canvasH, logicalScaleX, logicalScaleY);
 	return 0;
@@ -874,7 +898,7 @@ void do_cursor() {
 	}
 }
 
-// Scale and Translate a point
+// Scale a point
 //
 Point scale(Point p) {
 	return scale(p.X, p.Y);
@@ -886,10 +910,24 @@ Point scale(int X, int Y) {
 	return Point(X, Y);
 }
 
-Point translate(Point p) {
-	return translate(p.X, p.Y);
+// Translate a point relative to the graphics viewport
+//
+Point translateViewport(Point p) {
+	return translateViewport(p.X, p.Y);
 }
-Point translate(int X, int Y) {
+Point translateViewport(int X, int Y) {
+	if(logicalCoords) {
+		return Point(graphicsViewport.X1 + (origin.X + X), graphicsViewport.Y2 - (origin.Y + Y));
+	}
+	return Point(graphicsViewport.X1 + (origin.X + X), graphicsViewport.Y1 + (origin.Y + Y));
+}
+
+// Translate a point relative to the canvas
+//
+Point translateCanvas(Point p) {
+	return translateCanvas(p.X, p.Y);
+}
+Point translateCanvas(int X, int Y) {
 	if(logicalCoords) {
 		return Point(origin.X + X, (canvasH - 1) - (origin.Y + Y));
 	}
@@ -897,51 +935,56 @@ Point translate(int X, int Y) {
 }
 
 void vdu(byte c) {
-	Point * cursor = useGraphicsCursor ? &p1 : &textCursor;
+	bool useTextCursor = (activeCursor == &textCursor);
 
 	if(c >= 0x20 && c != 0x7F) {
-		if(useGraphicsCursor) {
+		if(useTextCursor) {
+			Canvas->setClippingRect(defaultViewport);
 			Canvas->setPenColor(tfg);
 			Canvas->setBrushColor(tbg);
+			Canvas->setPaintOptions(tpo);
 		}
 		else {
+			Canvas->setClippingRect(graphicsViewport);
 			Canvas->setPenColor(gfg);
+			Canvas->setPaintOptions(gpo);
 		}
-		Canvas->setPaintOptions(tpo);
-		Canvas->drawChar(cursor->X, cursor->Y, c);
-		cursorRight(cursor);
+		Canvas->drawChar(activeCursor->X, activeCursor->Y, c);
+		cursorRight();
 	}
 	else {
 		doWaitCompletion = false;
 		switch(c) {
 			case 0x04:	
   				Canvas->setGlyphOptions(GlyphOptions().FillBackground(true));
-				useGraphicsCursor = false;
+				activeCursor = &textCursor;
+				activeViewport = &textViewport;
 				break;
 			case 0x05:
   				Canvas->setGlyphOptions(GlyphOptions().FillBackground(false));
-				useGraphicsCursor = true;
+				activeCursor = &p1;
+				activeViewport = &graphicsViewport;
 				break;
 			case 0x07:	// Bell
 				play_note(0, 100, 750, 125);
 				break;
 			case 0x08:  // Cursor Left
-				cursorLeft(cursor);
+				cursorLeft();
 				break;
 			case 0x09:  // Cursor Right
-				cursorRight(cursor);
+				cursorRight();
 				break;
 			case 0x0A:  // Cursor Down
-				cursorDown(cursor);
+				cursorDown();
 				break;
 			case 0x0B:  // Cursor Up
-				cursorUp(cursor);
+				cursorUp();
 				break;
 			case 0x0C:  // CLS
-				cls();
+				cls(false);
 				break;
 			case 0x0D:  // CR
-				cursorHome(cursor);
+				cursorHome();
 				break;
 			case 0x0E:	// Paged mode ON
 				pagedMode = true;
@@ -967,21 +1010,30 @@ void vdu(byte c) {
 			case 0x17:  // VDU 23
 				vdu_sys();
 				break;
+			case 0x18:	// Define a graphics viewport
+				vdu_graphicsViewport();
+				break;
 			case 0x19:  // PLOT
 				vdu_plot();
+				break;
+			case 0x1A:	// Reset text and graphics viewports
+				vdu_resetViewports();
+				break;
+			case 0x1C:	// Define a text viewport
+				vdu_textViewport();
 				break;
 			case 0x1D:	// VDU_29
 				vdu_origin();
 			case 0x1E:  // Home
-				cursorHome(cursor);
+				cursorHome();
 				break;
 			case 0x1F:	// TAB(X,Y)
-				cursorTab(cursor);
+				cursorTab();
 				break;
 			case 0x7F:  // Backspace
-				cursorLeft(cursor);
-				Canvas->setBrushColor(useGraphicsCursor ? gbg : tbg);
-				Canvas->fillRectangle(cursor->X, cursor->Y, cursor->X + fontW - 1, cursor->Y + fontH - 1);
+				cursorLeft();
+				Canvas->setBrushColor(useTextCursor ? tbg : gbg);
+				Canvas->fillRectangle(activeCursor->X, activeCursor->Y, activeCursor->X + fontW - 1, activeCursor->Y + fontH - 1);
 				break;
 		}
 		if(doWaitCompletion) {
@@ -992,29 +1044,29 @@ void vdu(byte c) {
 
 // Handle the cursor
 //
-void cursorLeft(Point * cursor) {
-	cursor->X -= fontW;
-  	if(cursor->X < 0) {
-    	cursor->X = 0;
+void cursorLeft() {
+	activeCursor->X -= fontW;
+  	if(activeCursor->X < activeViewport->X1) {
+    	activeCursor->X = activeViewport->X1;
   	}
 }
 
-void cursorRight(Point * cursor) {
-  	cursor->X += fontW;
-  	if(cursor->X >= canvasW) {
-    	cursorHome(cursor);
-    	cursorDown(cursor);
+void cursorRight() {
+  	activeCursor->X += fontW;
+  	if(activeCursor->X > activeViewport->X2) {
+    	cursorHome();
+    	cursorDown();
   	}
 }
 
-void cursorDown(Point * cursor) {
-	cursor->Y += fontH;
+void cursorDown() {
+	activeCursor->Y += fontH;
 	//
 	// If in graphics mode, then don't scroll, wrap to top
 	// 
-	if(useGraphicsCursor) {
-		if(cursor->Y >= canvasH) {	
-			cursor->Y = 0;
+	if(activeCursor != &textCursor) {
+		if(activeCursor->Y > activeViewport->Y2) {	
+			activeCursor->Y = activeViewport->Y2;
 		}
 		return;
 	}
@@ -1023,35 +1075,36 @@ void cursorDown(Point * cursor) {
 	//
 	if(pagedMode) {
 		pagedModeCount++;
-		if(pagedModeCount >= canvasH / fontH) {
+		if(pagedModeCount >= (activeViewport->Y2 - activeViewport->Y1 + 1) / fontH) {
 			pagedModeCount = 0;
 			wait_shiftkey();
 		}
 	}
-	if(cursor->Y >= canvasH) {
-		cursor->Y -= fontH;
+	if(activeCursor->Y > activeViewport->Y2) {
+		activeCursor->Y -= fontH;
+		Canvas->setScrollingRegion(activeViewport->X1, activeViewport->Y1, activeViewport->X2, activeViewport->Y2);
 		Canvas->scroll(0, -fontH);
 	}
 }
 
-void cursorUp(Point * cursor) {
-  	cursor->Y -= fontH;
-  	if(cursor->Y < 0) {
-		cursor->Y = 0;
+void cursorUp() {
+  	activeCursor->Y -= fontH;
+  	if(activeCursor->Y < activeViewport->Y1) {
+		activeCursor->Y = activeViewport->Y1;
   	}
 }
 
-void cursorHome(Point * cursor) {
-  	cursor->X = 0;
+void cursorHome() {
+  	activeCursor->X = activeViewport->X1;
 }
 
-void cursorTab(Point * cursor) {
+void cursorTab() {
 	int x = readByte_t();
 	if(x >= 0) {
 		int y = readByte_t();
 		if(y >= 0) {
-			cursor->X = x * fontW;
-			cursor->Y = y * fontH;
+			activeCursor->X = x * fontW;
+			activeCursor->Y = y * fontH;
 		}
 	}
 }
@@ -1063,6 +1116,63 @@ void vdu_mode() {
 	debug_log("vdu_mode: %d\n\r", mode);
 	if(mode >= 0) {
 	  	set_mode(mode);
+	}
+}
+
+// Handle VDU 24
+// Example: VDU 24,640;256;1152;896;
+//
+void vdu_graphicsViewport() {
+	int x1 = readWord_t();			// Left
+	int y2 = readWord_t();			// Bottom
+	int x2 = readWord_t();			// Right
+	int y1 = readWord_t();			// Top
+
+	Point p1 = translateCanvas(scale((short)x1, (short)y1));
+	Point p2 = translateCanvas(scale((short)x2, (short)y2));
+
+	if(p1.X >= 0 && p2.X < canvasW && p1.Y >= 0 && p2.Y < canvasH && p2.X > p1.X && p2.Y > p1.Y) {
+		graphicsViewport = Rect(p1.X, p1.Y, p2.X, p2.Y);
+		useViewports = true;
+		debug_log("vdu_graphicsViewport: OK %d,%d,%d,%d\n\r", p1.X, p1.Y, p2.X, p2.Y);
+	}
+	else {
+		debug_log("vdu_graphicsViewport: Invalid Viewport %d,%d,%d,%d\n\r", p1.X, p1.Y, p2.X, p2.Y);
+	}
+	Canvas->setClippingRect(graphicsViewport);
+}
+
+// Handle VDU 26
+//
+void vdu_resetViewports() {
+	defaultViewport = Rect(0, 0, canvasW - 1, canvasH - 1);
+	textViewport =	Rect(0, 0, canvasW - 1, canvasH - 1);
+	graphicsViewport = Rect(0, 0, canvasW - 1, canvasH - 1);
+	activeViewport = &textViewport;
+	useViewports = false;
+	debug_log("vdu_resetViewport\n\r");
+}
+
+// Handle VDU 28
+// Example: VDU 28,20,23,34,4
+//
+void vdu_textViewport() {
+	int x1 = readByte_t() * fontW;	// Left
+	int y2 = readByte_t() * fontH;	// Bottom
+	int x2 = readByte_t() * fontW;	// Right
+	int y1 = readByte_t() * fontH;	// Top
+
+	if(x1 >= 0 && x2 < canvasW && y1 >= 0 && y2 < canvasH && x2 > x1 && y2 > y1) {
+		textViewport = Rect(x1, y1, x2 - 1, y2 - 1);
+		useViewports = true;
+		if(activeCursor->X < x1 || activeCursor->X > x2 || activeCursor->Y < y1 || activeCursor->Y > y2) {
+			activeCursor->X = x1;
+			activeCursor->Y = y1;
+		}
+		debug_log("vdu_textViewport: OK %d,%d,%d,%d\n\r", x1, y1, x2, y2);
+	}
+	else {
+		debug_log("vdu_textViewport: Invalid Viewport %d,%d,%d,%d\n\r", x1, y1, x2, y2);
 	}
 }
 
@@ -1094,21 +1204,34 @@ void vdu_colour() {
 		debug_log("vdu_colour: tbg %d = %02X : %02X,%02X,%02X\n\r", colour, c, tbg.R, tbg.G, tbg.B);	
 	}
 	else {
-		debug_log("vdu_colour: invalid colour %d\n\r");
+		debug_log("vdu_colour: invalid colour %d\n\r", colour);
 	}
 }
 
 // Handle GCOL
 // 
 void vdu_gcol() {
-	int	mode = readByte_t();
+	int		mode = readByte_t();
+	int		colour = readByte_t();
+	
+	byte	c = palette[colour%VGAColourDepth];
+
 	if(mode >= 0 && mode <= 6) {
-		int	colour = readByte_t();
-		if(colour >= 0) {
-			gfg = colourLookup[palette[colour%VGAColourDepth]];
-			debug_log("vdu_gcol: mode %d, gfg %d = %d,%d,%d\n\r", mode, colour, gfg.R, gfg.G, gfg.B);
+		if(colour >= 0 && colour < 64) {
+			gfg = colourLookup[c];
+			debug_log("vdu_gcol: mode %d, gfg %d = %02X : %02X,%02X,%02X\n\r", mode, colour, c, gfg.R, gfg.G, gfg.B);
+		}
+		else if(colour >= 128 && colour < 192) {
+			gbg = colourLookup[c];
+			debug_log("vdu_gcol: mode %d, gbg %d = %02X : %02X,%02X,%02X\n\r", mode, colour, c, gbg.R, gbg.G, gbg.B);
+		}
+		else {
+			debug_log("vdu_gcol: invalid colour %d\n\r", colour);
 		}
 		gpo = getPaintOptions(mode, gpo);
+	}
+	else {
+		debug_log("vdu_gcol: invalid mode %d\n\r", mode);
 	}
 }
 
@@ -1153,7 +1276,8 @@ void vdu_plot() {
 
   	p3 = p2;
   	p2 = p1;
-	p1 = translate(scale(x, y));
+	p1 = translateViewport(scale(x, y));
+	Canvas->setClippingRect(graphicsViewport);
 	Canvas->setPenColor(gfg);
 	Canvas->setPaintOptions(gpo);
 	debug_log("vdu_plot: mode %d, (%d,%d) -> (%d,%d)\n\r", mode, x, y, p1.X, p1.Y);
@@ -1392,9 +1516,24 @@ void vdu_sys_video_time() {
 // VDU 23,7: Scroll rectangle on screen
 //
 void vdu_sys_scroll() {
-	int extent = readByte_t(); 		if(extent == -1) return;	// Extent (0 = current text window, 1 = entire screen)
+	int extent = readByte_t(); 		if(extent == -1) return;	// Extent (0 = text viewport, 1 = entire screen, 2 = graphics viewport)
 	int direction = readByte_t();	if(direction == -1) return;	// Direction
 	int movement = readByte_t();	if(movement == -1) return;	// Number of pixels to scroll
+
+	Rect * region;
+
+	switch(extent) {
+		case 0:		// Text viewport
+			region = &textViewport;
+			break;
+		case 2: 	// Graphics viewport
+			region = &graphicsViewport;
+			break;
+		default:	// Entire screen
+			region = &defaultViewport;
+			break;
+	}
+	Canvas->setScrollingRegion(region->X1, region->Y1, region->X2, region->Y2);
 
 	switch(direction) {
 		case 0:	// Right
@@ -1597,7 +1736,7 @@ void vdu_sys_sprites(void) {
 			debug_log("vdu_sys_sprites: perform sprite refresh\n\r");
 		}	break;
 		case 16: {	// Reset
-			cls();
+			cls(false);
 			for(n = 0; n < MAX_SPRITES; n++) {
 				sprites[n].visible = false;
 				sprites[current_sprite].setFrame(0);
