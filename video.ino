@@ -1024,8 +1024,8 @@ void vdu(byte c) {
 				break;
 			case 0x1D:	// VDU_29
 				vdu_origin();
-			case 0x1E:  // Home
-				cursorHome();
+			case 0x1E:	// Move cursor to top left of the viewport
+				cursorTopLeft();
 				break;
 			case 0x1F:	// TAB(X,Y)
 				cursorTab();
@@ -1096,6 +1096,11 @@ void cursorUp() {
 
 void cursorHome() {
   	activeCursor->X = activeViewport->X1;
+}
+
+void cursorTopLeft() {
+	activeCursor->X = activeViewport->X1;
+	activeCursor->Y = activeViewport->Y1;
 }
 
 void cursorTab() {
