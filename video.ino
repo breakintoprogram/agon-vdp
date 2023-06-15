@@ -1163,12 +1163,16 @@ void vdu_resetViewports() {
 //
 void vdu_textViewport() {
 	int x1 = readByte_t() * fontW;	// Left
-	int y2 = readByte_t() * fontH;	// Bottom
-	int x2 = readByte_t() * fontW;	// Right
+	int y2 = (readByte_t() + 1) * fontH - 1;	// Bottom
+	int x2 = (readByte_t() + 1) * fontW - 1;	// Right
 	int y1 = readByte_t() * fontH;	// Top
 
-	if(x1 >= 0 && x2 < canvasW && y1 >= 0 && y2 < canvasH && x2 > x1 && y2 > y1) {
-		textViewport = Rect(x1, y1, x2 - 1, y2 - 1);
+	if (x2 >= canvasW)
+		x2 = canvasW - 1;
+	if (y2 >= canvasH)
+		y2 = canvasH - 1;
+	if(x1 >= 0 && y1 >= 0 && x2 > x1 && y2 > y1) {
+		textViewport = Rect(x1, y1, x2, y2);
 		useViewports = true;
 		if(activeCursor->X < x1 || activeCursor->X > x2 || activeCursor->Y < y1 || activeCursor->Y > y2) {
 			activeCursor->X = x1;
