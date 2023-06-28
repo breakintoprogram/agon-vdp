@@ -991,7 +991,7 @@ void vdu(byte c) {
 				cls(false);
 				break;
 			case 0x0D:  // CR
-				cursorHome();
+				cursorCR();
 				break;
 			case 0x0E:	// Paged mode ON
 				pagedMode = true;
@@ -1031,7 +1031,7 @@ void vdu(byte c) {
 				break;
 			case 0x1D:	// VDU_29
 				vdu_origin();
-			case 0x1E:  // Home
+			case 0x1E:	// Move cursor to top left of the viewport
 				cursorHome();
 				break;
 			case 0x1F:	// TAB(X,Y)
@@ -1064,7 +1064,7 @@ void cursorRight() {
   	activeCursor->X += fontW;											
   	if(activeCursor->X > activeViewport->X2) {								// If advanced past right edge of active viewport
 		if(activeCursor == &textCursor || (~cursorBehaviour & 0x40)) {		// If it is a text cursor or VDU 5 CR/LF is enabled then
-    		cursorHome();													// Do carriage return
+    		cursorCR();														// Do carriage return
    			cursorDown();													// and line feed
 		}
   	}
@@ -1110,9 +1110,6 @@ void cursorDown() {
 
 // Move the active cursor up a line
 //
-
-
-
 void cursorUp() {	
   	activeCursor->Y -= fontH;
   	if(activeCursor->Y < activeViewport->Y1) {
@@ -1122,8 +1119,15 @@ void cursorUp() {
 
 // Move the active cursor to the leftmost position in the viewport
 //
-void cursorHome() {
+void cursorCR() {
   	activeCursor->X = activeViewport->X1;
+}
+
+// Move the active cursor to the top-left position in the viewport
+//
+void cursorHome() {
+	activeCursor->X = activeViewport->X1;
+	activeCursor->Y = activeViewport->Y1;
 }
 
 // TAB(x,y)
@@ -1188,12 +1192,16 @@ void vdu_resetViewports() {
 //
 void vdu_textViewport() {
 	int x1 = readByte_t() * fontW;	// Left
-	int y2 = readByte_t() * fontH;	// Bottom
-	int x2 = readByte_t() * fontW;	// Right
+	int y2 = (readByte_t() + 1) * fontH - 1;	// Bottom
+	int x2 = (readByte_t() + 1) * fontW - 1;	// Right
 	int y1 = readByte_t() * fontH;	// Top
 
-	if(x1 >= 0 && x2 < canvasW && y1 >= 0 && y2 < canvasH && x2 > x1 && y2 > y1) {
-		textViewport = Rect(x1, y1, x2 - 1, y2 - 1);
+	if (x2 >= canvasW)
+		x2 = canvasW - 1;
+	if (y2 >= canvasH)
+		y2 = canvasH - 1;
+	if(x1 >= 0 && y1 >= 0 && x2 > x1 && y2 > y1) {
+		textViewport = Rect(x1, y1, x2, y2);
 		useViewports = true;
 		if(activeCursor->X < x1 || activeCursor->X > x2 || activeCursor->Y < y1 || activeCursor->Y > y2) {
 			activeCursor->X = x1;
