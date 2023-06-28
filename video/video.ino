@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (vdp-gl maintenance)
 // Created:       	22/03/2022
-// Last Updated:	30/05/2023
+// Last Updated:	28/06/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -37,6 +37,7 @@
 // 19/05/2023:					+ Added VDU 4/5 support
 // 25/05/2023:					+ Added VDU 24, VDU 26 and VDU 28, fixed inverted text colour settings
 // 30/05/2023:					+ Added VDU 23,16 (cursor movement control)
+// 28/06/2023:					+ Improved get_screen_char
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -509,6 +510,9 @@ char get_screen_char(int px, int py) {
 	RGB888	pixel;
 	uint8_t	charRow;
 	uint8_t	charData[8];
+	uint8_t R = tbg.R;
+	uint8_t G = tbg.G;
+	uint8_t B = tbg.B;
 
 	// Do some bounds checking first
 	//
@@ -522,7 +526,7 @@ char get_screen_char(int px, int py) {
 		charRow = 0;
 		for(int x = 0; x < 8; x++) {
 			pixel = Canvas->getPixel(px + x, py + y);
-			if(pixel == tfg) {
+			if(!(pixel.R == R && pixel.G == G && pixel.B == B)) {
 				charRow |= (0x80 >> x);
 			}
 		}
@@ -531,7 +535,7 @@ char get_screen_char(int px, int py) {
 	//
 	// Finally try and match with the character set array
 	//
-	for(int i = 32; i < 128; i++) {
+	for(int i = 32; i <= 255; i++) {
 		if(cmp_char(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {	
 			return i;		
 		}
