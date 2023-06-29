@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (vdp-gl maintenance)
 // Created:       	22/03/2022
-// Last Updated:	21/05/2023
+// Last Updated:	28/06/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -36,6 +36,8 @@
 // 12/05/2023:		Version 1.04: Now uses vdp-gl instead of FabGL, implemented GCOL mode, sendModeInformation now sends video mode
 // 19/05/2023:					+ Added VDU 4/5 support
 // 25/05/2023:					+ Added VDU 24, VDU 26 and VDU 28, fixed inverted text colour settings
+// 30/05/2023:					+ Added VDU 23,16 (cursor movement control)
+// 28/06/2023:					+ Improved get_screen_char
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -86,6 +88,7 @@ int				fontH;							// Font height
 int				canvasW;						// Canvas width
 int				canvasH;						// Canvas height
 bool			cursorEnabled = true;			// Cursor visibility
+byte			cursorBehaviour = 0;			// Cursor behavior
 bool			useViewports = false;			// Viewports are enabled
 bool			logicalCoords = true;			// Use BBC BASIC logical coordinates
 double			logicalScaleX;					// Scaling factor for logical coordinates
@@ -507,6 +510,9 @@ char get_screen_char(int px, int py) {
 	RGB888	pixel;
 	uint8_t	charRow;
 	uint8_t	charData[8];
+	uint8_t R = tbg.R;
+	uint8_t G = tbg.G;
+	uint8_t B = tbg.B;
 
 	// Do some bounds checking first
 	//
@@ -520,7 +526,7 @@ char get_screen_char(int px, int py) {
 		charRow = 0;
 		for(int x = 0; x < 8; x++) {
 			pixel = Canvas->getPixel(px + x, py + y);
-			if(pixel == tfg) {
+			if(!(pixel.R == R && pixel.G == G && pixel.B == B)) {
 				charRow |= (0x80 >> x);
 			}
 		}
@@ -529,7 +535,7 @@ char get_screen_char(int px, int py) {
 	//
 	// Finally try and match with the character set array
 	//
-	for(int i = 32; i < 128; i++) {
+	for(int i = 32; i <= 255; i++) {
 		if(cmp_char(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {	
 			return i;		
 		}
@@ -715,6 +721,7 @@ int change_mode(int mode) {
 	logicalScaleX = LOGICAL_SCRW / (double)canvasW;
 	logicalScaleY = LOGICAL_SCRH / (double)canvasH;
 	cursorEnabled = true;
+	cursorBehaviour = 0;
 	activeCursor = &textCursor;
 	vdu_resetViewports();
 	sendModeInformation();
@@ -1042,23 +1049,29 @@ void vdu(byte c) {
 	}
 }
 
-// Handle the cursor
+// Move the active cursor back one character
 //
 void cursorLeft() {
-	activeCursor->X -= fontW;
-  	if(activeCursor->X < activeViewport->X1) {
-    	activeCursor->X = activeViewport->X1;
+	activeCursor->X -= fontW;											
+  	if(activeCursor->X < activeViewport->X1) {								// If moved past left edge of active viewport then
+    	activeCursor->X = activeViewport->X1;								// Lock it there
   	}
 }
 
+// Advance the active cursor right one character
+//
 void cursorRight() {
-  	activeCursor->X += fontW;
-  	if(activeCursor->X > activeViewport->X2) {
-    	cursorHome();
-    	cursorDown();
+  	activeCursor->X += fontW;											
+  	if(activeCursor->X > activeViewport->X2) {								// If advanced past right edge of active viewport
+		if(activeCursor == &textCursor || (~cursorBehaviour & 0x40)) {		// If it is a text cursor or VDU 5 CR/LF is enabled then
+    		cursorHome();													// Do carriage return
+   			cursorDown();													// and line feed
+		}
   	}
 }
 
+// Move the active cursor down a line
+//
 void cursorDown() {
 	activeCursor->Y += fontH;
 	//
@@ -1080,20 +1093,35 @@ void cursorDown() {
 			wait_shiftkey();
 		}
 	}
+	//
+	// Check if scroll required
+	//
 	if(activeCursor->Y > activeViewport->Y2) {
 		activeCursor->Y -= fontH;
-		Canvas->setScrollingRegion(activeViewport->X1, activeViewport->Y1, activeViewport->X2, activeViewport->Y2);
-		Canvas->scroll(0, -fontH);
+		if(~cursorBehaviour & 0x01) {
+			Canvas->setScrollingRegion(activeViewport->X1, activeViewport->Y1, activeViewport->X2, activeViewport->Y2);
+			Canvas->scroll(0, -fontH);
+		}
+		else {
+			activeCursor->X = activeViewport->X2 + 1;
+		}
 	}
 }
 
-void cursorUp() {
+// Move the active cursor up a line
+//
+
+
+
+void cursorUp() {	
   	activeCursor->Y -= fontH;
   	if(activeCursor->Y < activeViewport->Y1) {
 		activeCursor->Y = activeViewport->Y1;
   	}
 }
 
+// Move the active cursor to the leftmost position in the viewport
+//
 void cursorHome() {
   	activeCursor->X = activeViewport->X1;
 }
@@ -1103,6 +1131,8 @@ void cursorTopLeft() {
 	activeCursor->Y = activeViewport->Y1;
 }
 
+// TAB(x,y)
+//
 void cursorTab() {
 	int x = readByte_t();
 	if(x >= 0) {
@@ -1366,6 +1396,10 @@ void vdu_sys() {
 			case 0x07: {					// VDU 23, 7
 				vdu_sys_scroll();			// Scroll 
 			}	break;
+			case 0x10: {					// VDU 23, 16
+				vdu_sys_cursorBehaviour();	// Set cursor behaviour
+				break;
+			}
 			case 0x1B: {					// VDU 23, 27
 				vdu_sys_sprites();			// Sprite system control
 			}	break;
@@ -1559,6 +1593,15 @@ void vdu_sys_scroll() {
 			break;
 	}
 	doWaitCompletion = true;
+}
+
+// VDU 23,16: Set cursor behaviour
+// 
+void vdu_sys_cursorBehaviour() {
+	int setting = readByte_t();	if(setting == -1) return;
+	int mask = readByte_t();	if(mask == -1) return;
+
+	cursorBehaviour = (cursorBehaviour & mask) ^ setting;
 }
 
 // Play a note
