@@ -37,7 +37,7 @@
 // 19/05/2023:					+ Added VDU 4/5 support
 // 25/05/2023:					+ Added VDU 24, VDU 26 and VDU 28, fixed inverted text colour settings
 // 30/05/2023:					+ Added VDU 23,16 (cursor movement control)
-// 28/06/2023:					+ Improved get_screen_char, fixed vdu_textViewport
+// 28/06/2023:					+ Improved get_screen_char, fixed vdu_textViewport, cursorHome, changed modeline for Mode 2
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
