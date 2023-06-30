@@ -684,7 +684,7 @@ int change_mode(int mode) {
 				errVal = change_resolution(16, VGA_512x384_60Hz);
 				break;
 			case 2:
-				errVal = change_resolution(64, VGA_320x200_75Hz);
+				errVal = change_resolution(64, QVGA_320x240_60Hz);
 				break;
 			case 3:
 				errVal = change_resolution(16, VGA_640x480_60Hz);
