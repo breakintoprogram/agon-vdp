@@ -1669,10 +1669,15 @@ void vdu_sys_sprites(void) {
 				bitmaps[current_bitmap] = Bitmap(width,height,dataptr,PixelFormat::RGBA8888);
 				bitmaps[current_bitmap].dataAllocated = false;
 			}
-	        else {
-    	    	for(n = 0; n < width*height; n++) readLong_b(); // discard incoming data
-        		debug_log("vdu_sys_sprites: bitmap %d - data discarded, no memory available - width %d, height %d\n\r", current_bitmap, width, height);
-        	}
+	        else { // discard incoming data if failed to allocate memory
+			if (cmd == 1) {
+				for(n = 0; n < width*height; n++) readLong_b();
+			}
+			if (cmd == 2) {
+				readLong_b();	
+			}
+			debug_log("vdu_sys_sprites: bitmap %d - data discarded, no memory available - width %d, height %d\n\r", current_bitmap, width, height);
+		}
 		}	break;
       	
 		case 3: {	// Draw bitmap to screen (x,y)
