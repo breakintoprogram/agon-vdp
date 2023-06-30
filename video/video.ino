@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (vdp-gl maintenance)
 // Created:       	22/03/2022
-// Last Updated:	28/06/2023
+// Last Updated:	30/06/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -38,6 +38,7 @@
 // 25/05/2023:					+ Added VDU 24, VDU 26 and VDU 28, fixed inverted text colour settings
 // 30/05/2023:					+ Added VDU 23,16 (cursor movement control)
 // 28/06/2023:					+ Improved get_screen_char, fixed vdu_textViewport, cursorHome, changed modeline for Mode 2
+// 30/06/2023:					+ Fixed vdu_sys_sprites to correctly discard serial input if bitmap allocation fails
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -1669,15 +1670,18 @@ void vdu_sys_sprites(void) {
 				bitmaps[current_bitmap] = Bitmap(width,height,dataptr,PixelFormat::RGBA8888);
 				bitmaps[current_bitmap].dataAllocated = false;
 			}
-	        else { // discard incoming data if failed to allocate memory
-			if (cmd == 1) {
-				for(n = 0; n < width*height; n++) readLong_b();
+	        else { 
+				//
+				// Discard incoming serial data if failed to allocate memory
+				//
+				if (cmd == 1) {
+					for(n = 0; n < width*height; n++) readLong_b();
+				}
+				if (cmd == 2) {
+					readLong_b();	
+				}
+				debug_log("vdu_sys_sprites: bitmap %d - data discarded, no memory available - width %d, height %d\n\r", current_bitmap, width, height);
 			}
-			if (cmd == 2) {
-				readLong_b();	
-			}
-			debug_log("vdu_sys_sprites: bitmap %d - data discarded, no memory available - width %d, height %d\n\r", current_bitmap, width, height);
-		}
 		}	break;
       	
 		case 3: {	// Draw bitmap to screen (x,y)
