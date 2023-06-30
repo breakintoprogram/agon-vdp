@@ -37,7 +37,7 @@
 // 19/05/2023:					+ Added VDU 4/5 support
 // 25/05/2023:					+ Added VDU 24, VDU 26 and VDU 28, fixed inverted text colour settings
 // 30/05/2023:					+ Added VDU 23,16 (cursor movement control)
-// 28/06/2023:					+ Improved get_screen_char
+// 28/06/2023:					+ Improved get_screen_char, fixed vdu_textViewport, cursorHome, changed modeline for Mode 2
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -684,7 +684,7 @@ int change_mode(int mode) {
 				errVal = change_resolution(16, VGA_512x384_60Hz);
 				break;
 			case 2:
-				errVal = change_resolution(64, VGA_320x200_75Hz);
+				errVal = change_resolution(64, QVGA_320x240_60Hz);
 				break;
 			case 3:
 				errVal = change_resolution(16, VGA_640x480_60Hz);
@@ -991,7 +991,7 @@ void vdu(byte c) {
 				cls(false);
 				break;
 			case 0x0D:  // CR
-				cursorHome();
+				cursorCR();
 				break;
 			case 0x0E:	// Paged mode ON
 				pagedMode = true;
@@ -1032,7 +1032,7 @@ void vdu(byte c) {
 			case 0x1D:	// VDU_29
 				vdu_origin();
 			case 0x1E:	// Move cursor to top left of the viewport
-				cursorTopLeft();
+				cursorHome();
 				break;
 			case 0x1F:	// TAB(X,Y)
 				cursorTab();
@@ -1064,7 +1064,7 @@ void cursorRight() {
   	activeCursor->X += fontW;											
   	if(activeCursor->X > activeViewport->X2) {								// If advanced past right edge of active viewport
 		if(activeCursor == &textCursor || (~cursorBehaviour & 0x40)) {		// If it is a text cursor or VDU 5 CR/LF is enabled then
-    		cursorHome();													// Do carriage return
+    		cursorCR();														// Do carriage return
    			cursorDown();													// and line feed
 		}
   	}
@@ -1110,9 +1110,6 @@ void cursorDown() {
 
 // Move the active cursor up a line
 //
-
-
-
 void cursorUp() {	
   	activeCursor->Y -= fontH;
   	if(activeCursor->Y < activeViewport->Y1) {
@@ -1122,11 +1119,13 @@ void cursorUp() {
 
 // Move the active cursor to the leftmost position in the viewport
 //
-void cursorHome() {
+void cursorCR() {
   	activeCursor->X = activeViewport->X1;
 }
 
-void cursorTopLeft() {
+// Move the active cursor to the top-left position in the viewport
+//
+void cursorHome() {
 	activeCursor->X = activeViewport->X1;
 	activeCursor->Y = activeViewport->Y1;
 }
@@ -1192,15 +1191,14 @@ void vdu_resetViewports() {
 // Example: VDU 28,20,23,34,4
 //
 void vdu_textViewport() {
-	int x1 = readByte_t() * fontW;	// Left
+	int x1 = readByte_t() * fontW;				// Left
 	int y2 = (readByte_t() + 1) * fontH - 1;	// Bottom
 	int x2 = (readByte_t() + 1) * fontW - 1;	// Right
-	int y1 = readByte_t() * fontH;	// Top
+	int y1 = readByte_t() * fontH;				// Top
 
-	if (x2 >= canvasW)
-		x2 = canvasW - 1;
-	if (y2 >= canvasH)
-		y2 = canvasH - 1;
+	if(x2 >= canvasW) x2 = canvasW - 1;
+	if(y2 >= canvasH) y2 = canvasH - 1;
+
 	if(x1 >= 0 && y1 >= 0 && x2 > x1 && y2 > y1) {
 		textViewport = Rect(x1, y1, x2, y2);
 		useViewports = true;
