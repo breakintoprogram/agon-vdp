@@ -37,7 +37,7 @@
 // 19/05/2023:					+ Added VDU 4/5 support
 // 25/05/2023:					+ Added VDU 24, VDU 26 and VDU 28, fixed inverted text colour settings
 // 30/05/2023:					+ Added VDU 23,16 (cursor movement control)
-// 28/06/2023:					+ Improved get_screen_char
+// 28/06/2023:					+ Improved get_screen_char, fixed vdu_textViewport
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -1191,15 +1191,14 @@ void vdu_resetViewports() {
 // Example: VDU 28,20,23,34,4
 //
 void vdu_textViewport() {
-	int x1 = readByte_t() * fontW;	// Left
+	int x1 = readByte_t() * fontW;				// Left
 	int y2 = (readByte_t() + 1) * fontH - 1;	// Bottom
 	int x2 = (readByte_t() + 1) * fontW - 1;	// Right
-	int y1 = readByte_t() * fontH;	// Top
+	int y1 = readByte_t() * fontH;				// Top
 
-	if (x2 >= canvasW)
-		x2 = canvasW - 1;
-	if (y2 >= canvasH)
-		y2 = canvasH - 1;
+	if(x2 >= canvasW) x2 = canvasW - 1;
+	if(y2 >= canvasH) y2 = canvasH - 1;
+
 	if(x1 >= 0 && y1 >= 0 && x2 > x1 && y2 > y1) {
 		textViewport = Rect(x1, y1, x2, y2);
 		useViewports = true;
