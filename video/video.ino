@@ -111,6 +111,12 @@ int				kbRepeatRate = 100;				// Keyboard repeat rate ms (between 33 and 500)
 bool 			initialised = false;			// Is the system initialised yet?
 bool			doWaitCompletion;				// For vdu function
 uint8_t			palette[64];					// Storage for the palette
+bool			legacyModes = false;			// Default legacy modes being false
+bool			doubleBuffered = false;			// Disable double buffering by default
+
+// The following definition is (not yet) in vdp-gl but is required for new modes 3-6
+
+#define VGA_640x240_60Hz  "\"640x240@60Hz\" 25.175 640 656 752 800 240 245 247 262 -HSync -VSync DoubleScan"
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
 
@@ -648,7 +654,11 @@ int change_resolution(int colours, char * modeLine) {
 		VGAController->begin();						// And spin it up
 	}
 	if(modeLine) {									// If modeLine is not a null pointer then
-		VGAController->setResolution(modeLine);		// Set the resolution
+		if (doubleBuffered == true) {
+			VGAController->setResolution(modeLine, -1, -1, 1);
+		} else {
+			VGAController->setResolution(modeLine);		// Set the resolution
+		}
 	}
 	VGAController->enableBackgroundPrimitiveExecution(true);
 	VGAController->enableBackgroundPrimitiveTimeout(false);
@@ -675,21 +685,137 @@ int change_resolution(int colours, char * modeLine) {
 int change_mode(int mode) {
 	int errVal = -1;
 
+	doubleBuffered = false;			// Default is to not double buffer the display
+
 	cls(true);
 	if(mode != videoMode) {
 		switch(mode) {
-			case 0:
-				errVal = change_resolution(2, SVGA_1024x768_60Hz);
+			case 0:{
+					if (legacyModes == true) {
+						errVal = change_resolution(2, SVGA_1024x768_60Hz);
+					} else {
+						errVal = change_resolution(16, VGA_640x480_60Hz);	// VDP 1.03 Mode 3, VGA Mode 12h
+					}
+				}
 				break;
-			case 1:
-				errVal = change_resolution(16, VGA_512x384_60Hz);
+			case 1:{
+					if (legacyModes == true) {
+						errVal = change_resolution(16, VGA_512x384_60Hz);
+					} else {
+						errVal = change_resolution(4, VGA_640x480_60Hz);
+					}
+				}
 				break;
-			case 2:
-				errVal = change_resolution(64, QVGA_320x240_60Hz);
+			case 2:{
+					if (legacyModes == true) {
+						errVal = change_resolution(64, VGA_320x200_75Hz);
+					} else {
+						errVal = change_resolution(2, VGA_640x480_60Hz);
+					}
+				}
 				break;
-			case 3:
-				errVal = change_resolution(16, VGA_640x480_60Hz);
+			case 3: {
+					if (legacyModes == true) {
+						errVal = change_resolution(16, VGA_640x480_60Hz);
+					} else {
+						errVal = change_resolution(64, VGA_640x240_60Hz);
+					}
+				}
 				break;
+			case 4:
+				errVal = change_resolution(16, VGA_640x240_60Hz);
+				break;
+			case 5:
+				errVal = change_resolution(4, VGA_640x240_60Hz);
+				break;
+			case 6:
+				errVal = change_resolution(2, VGA_640x240_60Hz);
+				break;
+			case 8:
+				errVal = change_resolution(64, QVGA_320x240_60Hz);		// VGA "Mode X"
+				break;
+			case 9:
+				errVal = change_resolution(16, QVGA_320x240_60Hz);
+				break;
+			case 10:
+				errVal = change_resolution(4, QVGA_320x240_60Hz);
+				break;
+			case 11:
+				errVal = change_resolution(2, QVGA_320x240_60Hz);
+				break;
+			case 12:
+				errVal = change_resolution(64, VGA_320x200_70Hz);		// VGA Mode 13h
+				break;
+			case 13:
+				errVal = change_resolution(16, VGA_320x200_70Hz);
+				break;
+			case 14:
+				errVal = change_resolution(4, VGA_320x200_70Hz);
+				break;
+			case 15:
+				errVal = change_resolution(2, VGA_320x200_70Hz);
+				break;
+			case 16:
+				errVal = change_resolution(4, SVGA_800x600_60Hz);
+				break;
+			case 17:
+				errVal = change_resolution(2, SVGA_800x600_60Hz);
+				break;
+			case 18:
+				errVal = change_resolution(2, SVGA_1024x768_60Hz);		// VDP 1.03 Mode 0
+				break;
+			case 129:
+				doubleBuffered = true;
+				errVal = change_resolution(4, VGA_640x480_60Hz);
+				break;
+			case 130:
+				doubleBuffered = true;
+				errVal = change_resolution(2, VGA_640x480_60Hz);
+				break;
+			case 132:
+				doubleBuffered = true;
+				errVal = change_resolution(16, VGA_640x240_60Hz);
+				break;
+			case 133:
+				doubleBuffered = true;
+				errVal = change_resolution(4, VGA_640x240_60Hz);
+				break;
+			case 134:
+				doubleBuffered = true;
+				errVal = change_resolution(2, VGA_640x240_60Hz);
+				break;
+			case 136:
+				doubleBuffered = true;
+				errVal = change_resolution(64, QVGA_320x240_60Hz);		// VGA "Mode X"
+				break;
+			case 137:
+				doubleBuffered = true;
+				errVal = change_resolution(16, QVGA_320x240_60Hz);
+				break;
+			case 138:
+				doubleBuffered = true;
+				errVal = change_resolution(4, QVGA_320x240_60Hz);
+				break;	
+			case 139:
+				doubleBuffered = true;
+				errVal = change_resolution(2, QVGA_320x240_60Hz);
+				break;
+			case 140:
+				doubleBuffered = true;
+				errVal = change_resolution(64, VGA_320x200_70Hz);		// VGA Mode 13h
+				break;
+			case 141:
+				doubleBuffered = true;
+				errVal = change_resolution(16, VGA_320x200_70Hz);
+				break;
+			case 142:
+				doubleBuffered = true;
+				errVal = change_resolution(4, VGA_320x200_70Hz);
+				break;
+			case 143:
+				doubleBuffered = true;
+				errVal = change_resolution(2, VGA_320x200_70Hz);
+				break;									
 		}
 		if(errVal != 0) {
 			return errVal;
@@ -1474,6 +1600,19 @@ void vdu_sys_video() {
 			int b = readByte_t();		// Set logical coord mode
 			if(b >= 0) {
 				logicalCoords = b;	
+			}
+		}	break;
+		case VDP_LEGACYMODES: {			// VDU 23, 0, &C1, n
+			int b = readByte_t();		// Switch legacy modes on or off
+			if(b == 0) {
+				legacyModes = false;
+			} else {
+				legacyModes = true;
+			}
+		}	break;
+		case VDP_SWITCHBUFFER: {		// VDU 23, 0, &C3
+			if (doubleBuffered == true) {
+				Canvas->swapBuffers();
 			}
 		}	break;
 		case VDP_TERMINALMODE: {		// VDU 23, 0, &FF
