@@ -42,7 +42,7 @@
 #define VDP_CURSOR				0x82	// Cursor positions
 #define VDP_SCRCHAR				0x83	// Character read from screen
 #define VDP_SCRPIXEL			0x84	// Pixel read from screen
-#define VDP_AUDIO				0x85	// Audio acknowledgement
+#define VDP_AUDIO				0x85	// Audio commands
 #define VDP_MODE				0x86	// Get screen dimensions
 #define VDP_RTC					0x87	// RTC
 #define VDP_KEYSTATE			0x88	// Keyboard repeat rate and LED status
@@ -66,6 +66,27 @@
 
 #define AUDIO_CHANNELS			3		// Number of audio channels
 #define PLAY_SOUND_PRIORITY 	3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest
+
+// Audio command definitions
+//
+#define AUDIO_CMD_PLAY          0		// Play a sound
+#define AUDIO_CMD_PLAYQUEUED    1		// Enhanced play with queue/synchronisation support
+#define AUDIO_CMD_WAVEFORM      2		// Set the waveform type for a channel
+#define AUDIO_CMD_SAMPLE        3		// Sample management
+#define AUDIO_CMD_ENV_VOLUME    4		// Define/set a volume envelope
+#define AUDIO_CMD_ENV_FREQUENCY 5		// Define/set a frequency envelope
+#define AUDIO_CMD_RESET         7		// Reset audio channel/system
+#define AUDIO_WAVE_SAWTOOTH     0		// Sawtooth wave
+#define AUDIO_WAVE_SQUARE       1		// Square wave
+#define AUDIO_WAVE_SINE         2		// Sine wave
+#define AUDIO_WAVE_TRIANGLE     3		// Triangle wave
+#define AUDIO_WAVE_NOISE        4		// Noise (simple, no frequency support)
+#define AUDIO_WAVE_VICNOISE     5		// VIC-style noise (supports frequency)
+#define AUDIO_WAVE_SILENCE      6		// Silence
+#define AUDIO_WAVE_SAMPLE       7		// Sample
+#define AUDIO_SAMPLE_LOAD       0		// Send a sample to the VDP
+#define AUDIO_SAMPLE_DUPLICATE  1		// Duplicate a sample
+#define AUDIO_SAMPLE_CLEAR      2		// Clear/delete a sample
 
 #define LOGICAL_SCRW            1280    // As per the BBC Micro standard
 #define LOGICAL_SCRH            1024
