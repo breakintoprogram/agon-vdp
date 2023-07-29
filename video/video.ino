@@ -54,7 +54,6 @@
 
 fabgl::PS2Controller		PS2Controller;		// The keyboard class
 fabgl::Canvas *				Canvas;				// The canvas class
-fabgl::SoundGenerator		SoundGenerator;		// The audio class
 
 fabgl::VGA2Controller		VGAController2;		// VGA class - 2 colours
 fabgl::VGA4Controller		VGAController4;		// VGA class - 4 colours
@@ -71,8 +70,8 @@ fabgl::PaintOptions			tpo;				// Text paint options
 
 #include "agon.h"								// Configuration file
 #include "agon_fonts.h"							// The Acorn BBC Micro Font
-#include "agon_audio.h"							// The Audio class
 #include "agon_palette.h"						// Colour lookup table
+#include "vdu_audio.h"							// Audio support
 
 int				VGAColourDepth;					// Number of colours per pixel (2, 4,8, 16 or 64)
 Point			textCursor;						// Text cursor
@@ -114,8 +113,6 @@ bool			doWaitCompletion;				// For vdu function
 uint8_t			palette[64];					// Storage for the palette
 bool			legacyModes = false;			// Default legacy modes being false
 bool			doubleBuffered = false;			// Disable double buffering by default
-
-audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
 
 ESP32Time	rtc(0);								// The RTC
 
@@ -279,35 +276,6 @@ void setRTSStatus(bool value) {
 	digitalWrite(UART_RTS, value ? LOW : HIGH);		// Asserts when LOW
 }
 
-// Initialise the sound driver
-//
-void init_audio() {
-	for(int i = 0; i < AUDIO_CHANNELS; i++) {
-		init_audio_channel(i);
-	}
-}
-void init_audio_channel(int channel) {
-  	xTaskCreatePinnedToCore(audio_driver,  "audio_driver",
-    	4096,					// This stack size can be checked & adjusted by reading the Stack Highwater
-        &channel,				// Parameters
-        PLAY_SOUND_PRIORITY,	// Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
-        NULL,
-    	ARDUINO_RUNNING_CORE
-	);
-}
-
-// The music driver task
-//
-void audio_driver(void * parameters) {
-	int channel = *(int *)parameters;
-
-	audio_channels[channel] = new audio_channel(channel);
-	while(true) {
-		audio_channels[channel]->loop();
-		vTaskDelay(1);
-	}
-}
-
 // Wait for eZ80 to initialise
 //
 void wait_eZ80() {
@@ -375,16 +343,6 @@ void sendScreenPixel(int x, int y) {
 		pixelIndex,	// And the pixel index in the palette
 	};
 	send_packet(PACKET_SCRPIXEL, sizeof packet, packet);	
-}
-
-// Send an audio acknowledgement
-//
-void sendPlayNote(int channel, int success) {
-	byte packet[] = {
-		channel,
-		success,
-	};
-	send_packet(PACKET_AUDIO, sizeof packet, packet);	
 }
 
 // Send MODE information (screen details)
@@ -1582,7 +1540,7 @@ void vdu_sys_video() {
 			int y = readWord_t();
 			sendScreenPixel((short)x, (short)y);
 		} 	break;		
-		case VDP_AUDIO: {				// VDU 23, 0, &85, channel, waveform, volume, freq; duration;
+		case VDP_AUDIO: {				// VDU 23, 0, &85, channel, command, <args>
 			vdu_sys_audio();
 		}	break;
 		case VDP_MODE: {				// VDU 23, 0, &86
@@ -1617,18 +1575,6 @@ void vdu_sys_video() {
 			switchTerminalMode(); 		// Switch to terminal mode
 		}	break;
   	}
-}
-
-// Do some audio
-//
-void vdu_sys_audio() {
-	int channel = readByte_t();		if(channel == -1) return;
-	int waveform = readByte_t();	if(waveform == -1) return;
-	int volume = readByte_t();		if(volume == -1) return;
-	int frequency = readWord_t();	if(frequency == -1) return;
-	int duration = readWord_t();	if(duration == -1) return;
-
-	sendPlayNote(channel, play_note(channel, volume, frequency, duration));
 }
 
 // Handle the keystate
@@ -1738,15 +1684,6 @@ void vdu_sys_cursorBehaviour() {
 	int mask = readByte_t();	if(mask == -1) return;
 
 	cursorBehaviour = (cursorBehaviour & mask) ^ setting;
-}
-
-// Play a note
-//
-word play_note(byte channel, byte volume, word frequency, word duration) {
-	if(channel >=0 && channel < AUDIO_CHANNELS) {
-		return audio_channels[channel]->play_note(volume, frequency, duration);
-	}
-	return 1;
 }
 
 // Sprite Engine
