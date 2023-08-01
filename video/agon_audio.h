@@ -6,7 +6,7 @@
 //
 // Modinfo:
 
-#pragma once
+#include <fabgl.h>
 
 // The audio channel class
 //
@@ -14,9 +14,11 @@ class audio_channel {
 	public:
 		audio_channel(int channel);		
 		word	play_note(byte volume, word frequency, word duration);
+		void	setWaveform(byte waveformType);
 		void	loop();
 	private:
-		fabgl::WaveformGenerator *	_waveform;			
+		fabgl::WaveformGenerator *	_waveform;
+		byte _waveformType;
 	 	byte _flag;
 		byte _channel;
 		byte _volume;
@@ -27,9 +29,7 @@ class audio_channel {
 audio_channel::audio_channel(int channel) {
 	this->_channel = channel;
 	this->_flag = 0;
-	this->_waveform = new SawtoothWaveformGenerator();
-	SoundGenerator.attach(_waveform);
-	SoundGenerator.play(true);
+	setWaveform(AUDIO_WAVE_DEFAULT);
 	debug_log("audio_driver: init %d\n\r", this->_channel);			
 }
 
@@ -43,6 +43,44 @@ word audio_channel::play_note(byte volume, word frequency, word duration) {
 		return 1;	
 	}
 	return 0;
+}
+
+void audio_channel::setWaveform(byte waveformType) {
+	fabgl::WaveformGenerator * newWaveform = NULL;
+
+	switch (waveformType) {
+		case AUDIO_WAVE_SAWTOOTH:
+			newWaveform = new SawtoothWaveformGenerator();
+			break;
+		case AUDIO_WAVE_SQUARE:
+			newWaveform = new SquareWaveformGenerator();
+			break;
+		case AUDIO_WAVE_SINE:
+			newWaveform = new SineWaveformGenerator();
+			break;
+		case AUDIO_WAVE_TRIANGLE:
+			newWaveform = new TriangleWaveformGenerator();
+			break;
+		case AUDIO_WAVE_NOISE:
+			newWaveform = new NoiseWaveformGenerator();
+			break;
+		case AUDIO_WAVE_VICNOISE:
+			newWaveform = new VICNoiseGenerator();
+			break;
+		case AUDIO_WAVE_SAMPLE:
+			debug_log("audio_driver: sample waveform not yet supported\n\r");
+			break;
+	}
+
+	if (newWaveform != NULL) {
+		// TODO: abort any current playback in progress
+		// this will be needed when we support more sophsticated features like envelopes
+		SoundGenerator.detach(_waveform);
+		delete _waveform;
+		_waveform = newWaveform;
+		_waveformType = waveformType;
+		SoundGenerator.attach(_waveform);
+	}
 }
 
 void audio_channel::loop() {

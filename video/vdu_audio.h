@@ -4,9 +4,7 @@
 // Created:       	29/07/2023
 // Last Updated:	29/07/2023
 
-#pragma once
-
-#include "fabgl.h"
+#include <fabgl.h>
 
 fabgl::SoundGenerator		SoundGenerator;		// The audio class
 
@@ -47,6 +45,7 @@ void init_audio() {
 	for(int i = 0; i < AUDIO_CHANNELS; i++) {
 		init_audio_channel(i);
 	}
+    SoundGenerator.play(true);
 }
 
 // Send an audio acknowledgement
@@ -68,6 +67,13 @@ word play_note(byte channel, byte volume, word frequency, word duration) {
 	return 1;
 }
 
+// Set channel waveform
+void setWaveform(byte channel, byte waveformType) {
+    if(channel >=0 && channel < AUDIO_CHANNELS) {
+        audio_channels[channel]->setWaveform(waveformType);
+    }
+}
+
 // Audio VDU command support (VDU 23, 0, &85, <args>)
 //
 void vdu_sys_audio() {
@@ -84,27 +90,29 @@ void vdu_sys_audio() {
 		}	break;
 	
 		case AUDIO_CMD_PLAYQUEUED: {
-			debug_log("vdu_sys_audio: playqueued - not implemented yet\n");
+			debug_log("vdu_sys_audio: playqueued - not implemented yet\n\r");
 		} 	break;
 
 		case AUDIO_CMD_WAVEFORM: {
-			debug_log("vdu_sys_audio: waveform - not implemented yet\n");
+            int waveform = readByte_t();	if(waveform == -1) return;
+
+            setWaveform(channel, waveform);
 		}	break;
 
 		case AUDIO_CMD_SAMPLE: {
-			debug_log("vdu_sys_audio: sample - not implemented yet\n");
+			debug_log("vdu_sys_audio: sample - not implemented yet\n\r");
 		}	break;
 
 		case AUDIO_CMD_ENV_VOLUME: {
-			debug_log("vdu_sys_audio: env_volume - not implemented yet\n");
+			debug_log("vdu_sys_audio: env_volume - not implemented yet\n\r");
 		}	break;
 
 		case AUDIO_CMD_ENV_FREQUENCY: {
-			debug_log("vdu_sys_audio: env_frequency - not implemented yet\n");
+			debug_log("vdu_sys_audio: env_frequency - not implemented yet\n\r");
 		}	break;
 
 		case AUDIO_CMD_RESET: {
-			debug_log("vdu_sys_audio: reset - not implemented yet\n");
+			debug_log("vdu_sys_audio: reset - not implemented yet\n\r");
 		}	break;
 	}
 }
