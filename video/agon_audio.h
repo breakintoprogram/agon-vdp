@@ -31,6 +31,7 @@ class audio_channel {
 audio_channel::audio_channel(int channel) {
 	this->_channel = channel;
 	this->_flag = 0;
+	this->_waveform = NULL;
 	setWaveform(AUDIO_WAVE_DEFAULT);
 	debug_log("audio_driver: init %d\n\r", this->_channel);			
 }
@@ -79,13 +80,18 @@ void audio_channel::setWaveform(byte waveformType) {
 		// TODO: abort any current playback in progress
 		// this will be needed when we support more sophsticated features like envelopes
 		if (this->_flag > 0) {
+			debug_log("audio_driver: aborting current playback\n\r");
 			// playback is happening, so abort any current task delay to allow playback to end
 			audioTaskAbortDelay(this->_channel);
 		}
-		SoundGenerator.detach(_waveform);
-		delete _waveform;
+		if(_waveform != NULL) {
+			debug_log("audio_driver: detaching old waveform\n\r");
+			SoundGenerator.detach(_waveform);
+			delete _waveform;
+		}
 		_waveform = newWaveform;
 		_waveformType = waveformType;
+		debug_log("audio_driver: attaching new waveform\n\r");
 		SoundGenerator.attach(_waveform);
 		debug_log("audio_driver: setWaveform %d done\n\r", waveformType);
 	}
