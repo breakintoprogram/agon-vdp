@@ -87,6 +87,10 @@
 #define AUDIO_SAMPLE_LOAD       0		// Send a sample to the VDP
 #define AUDIO_SAMPLE_DUPLICATE  1		// Duplicate a sample
 #define AUDIO_SAMPLE_CLEAR      2		// Clear/delete a sample
+#define AUDIO_CHANNEL_ENABLE    0		// Enable a channel
+#define AUDIO_CHANNEL_DISABLE   1		// Disable a channel
+#define AUDIO_CHANNEL_VOLUME    2		// Set the volume of a channel
+#define AUDIO_CHANNEL_FREQUENCY 3		// Set the frequency of a channel
 
 #define LOGICAL_SCRW            1280    // As per the BBC Micro standard
 #define LOGICAL_SCRH            1024

@@ -17,6 +17,8 @@ extern int readWord_t();
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
 
+TaskHandle_t audioHandlers[AUDIO_CHANNELS];     // Storage for audio handler task handlers
+
 // Audio channel driver task
 //
 void audio_driver(void * parameters) {
@@ -34,9 +36,15 @@ void init_audio_channel(int channel) {
     	4096,					// This stack size can be checked & adjusted by reading the Stack Highwater
         &channel,				// Parameters
         PLAY_SOUND_PRIORITY,	// Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
-        NULL,
+        &audioHandlers[channel],	// Task handle
     	ARDUINO_RUNNING_CORE
 	);
+}
+
+void audioTaskAbortDelay(int channel) {
+    if(audioHandlers[channel] != NULL) {
+        xTaskAbortDelay(audioHandlers[channel]);
+    }
 }
 
 // Initialise the sound driver

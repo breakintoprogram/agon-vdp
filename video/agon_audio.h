@@ -8,6 +8,8 @@
 
 #include <fabgl.h>
 
+extern void audioTaskAbortDelay(int channel);
+
 // The audio channel class
 //
 class audio_channel {	
@@ -19,7 +21,7 @@ class audio_channel {
 	private:
 		fabgl::WaveformGenerator *	_waveform;
 		byte _waveformType;
-	 	byte _flag;
+	 	byte _flag;	// needs replacing with state
 		byte _channel;
 		byte _volume;
 		word _frequency;
@@ -73,13 +75,19 @@ void audio_channel::setWaveform(byte waveformType) {
 	}
 
 	if (newWaveform != NULL) {
+		debug_log("audio_driver: setWaveform %d\n\r", waveformType);
 		// TODO: abort any current playback in progress
 		// this will be needed when we support more sophsticated features like envelopes
+		if (this->_flag > 0) {
+			// playback is happening, so abort any current task delay to allow playback to end
+			audioTaskAbortDelay(this->_channel);
+		}
 		SoundGenerator.detach(_waveform);
 		delete _waveform;
 		_waveform = newWaveform;
 		_waveformType = waveformType;
 		SoundGenerator.attach(_waveform);
+		debug_log("audio_driver: setWaveform %d done\n\r", waveformType);
 	}
 }
 
@@ -89,7 +97,7 @@ void audio_channel::loop() {
 		this->_waveform->setVolume(this->_volume);
 		this->_waveform->setFrequency(this->_frequency);
 		this->_waveform->enable(true);
-		vTaskDelay(this->_duration);
+		vTaskDelay(pdMS_TO_TICKS(this->_duration));
 		this->_waveform->enable(false);
 		debug_log("audio_driver: end\n\r");			
 		this->_flag = 0; 
