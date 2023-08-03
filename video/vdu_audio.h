@@ -17,7 +17,7 @@ extern int readWord_t();
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
 
-TaskHandle_t audioHandlers[AUDIO_CHANNELS];     // Storage for audio handler task handlers
+TaskHandle_t audioHandlers[AUDIO_CHANNELS];		// Storage for audio handler task handlers
 
 // Audio channel driver task
 //
@@ -33,18 +33,18 @@ void audio_driver(void * parameters) {
 
 void init_audio_channel(int channel) {
   	xTaskCreatePinnedToCore(audio_driver,  "audio_driver",
-    	4096,					// This stack size can be checked & adjusted by reading the Stack Highwater
-        &channel,				// Parameters
-        PLAY_SOUND_PRIORITY,	// Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
-        &audioHandlers[channel],	// Task handle
-    	ARDUINO_RUNNING_CORE
+		4096,						// This stack size can be checked & adjusted by reading the Stack Highwater
+		&channel,					// Parameters
+		PLAY_SOUND_PRIORITY,		// Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
+		&audioHandlers[channel],	// Task handle
+		ARDUINO_RUNNING_CORE
 	);
 }
 
 void audioTaskAbortDelay(int channel) {
-    if(audioHandlers[channel] != NULL) {
-        xTaskAbortDelay(audioHandlers[channel]);
-    }
+	if(audioHandlers[channel] != NULL) {
+		xTaskAbortDelay(audioHandlers[channel]);
+	}
 }
 
 // Initialise the sound driver
@@ -53,7 +53,7 @@ void init_audio() {
 	for(int i = 0; i < AUDIO_CHANNELS; i++) {
 		init_audio_channel(i);
 	}
-    SoundGenerator.play(true);
+	SoundGenerator.play(true);
 }
 
 // Send an audio acknowledgement
@@ -63,7 +63,7 @@ void sendPlayNote(int channel, int success) {
 		channel,
 		success,
 	};
-	send_packet(PACKET_AUDIO, sizeof packet, packet);	
+	send_packet(PACKET_AUDIO, sizeof packet, packet);
 }
 
 // Play a note
@@ -76,10 +76,11 @@ word play_note(byte channel, byte volume, word frequency, word duration) {
 }
 
 // Set channel waveform
+//
 void setWaveform(byte channel, byte waveformType) {
-    if(channel >=0 && channel < AUDIO_CHANNELS) {
-        audio_channels[channel]->setWaveform(waveformType);
-    }
+	if(channel >=0 && channel < AUDIO_CHANNELS) {
+		audio_channels[channel]->setWaveform(waveformType);
+	}
 }
 
 // Audio VDU command support (VDU 23, 0, &85, <args>)
@@ -102,9 +103,9 @@ void vdu_sys_audio() {
 		} 	break;
 
 		case AUDIO_CMD_WAVEFORM: {
-            int waveform = readByte_t();	if(waveform == -1) return;
+			int waveform = readByte_t();	if(waveform == -1) return;
 
-            setWaveform(channel, waveform);
+			setWaveform(channel, waveform);
 		}	break;
 
 		case AUDIO_CMD_SAMPLE: {
@@ -124,5 +125,3 @@ void vdu_sys_audio() {
 		}	break;
 	}
 }
-
-
