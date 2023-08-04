@@ -27,8 +27,8 @@
 #define UART_NA					-1
 #define UART_TX					2
 #define UART_RX					34
-#define UART_RTS  	 		 	13 		// The ESP32 RTS pin (eZ80 CTS)
-#define UART_CTS  	  			14		// The ESP32 CTS pin (eZ80 RTS)
+#define UART_RTS				13		// The ESP32 RTS pin (eZ80 CTS)
+#define UART_CTS	 			14		// The ESP32 CTS pin (eZ80 RTS)
 
 #define UART_RX_SIZE			256		// The RX buffer size
 #define UART_RX_THRESH			128		// Point at which RTS is toggled
@@ -65,32 +65,35 @@
 #define PACKET_KEYSTATE			0x08	// Keyboard repeat rate and LED status
 
 #define AUDIO_CHANNELS			3		// Number of audio channels
-#define PLAY_SOUND_PRIORITY 	3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest
+#define PLAY_SOUND_PRIORITY		3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest
 
 // Audio command definitions
 //
-#define AUDIO_CMD_PLAY          0		// Play a sound
-#define AUDIO_CMD_PLAYQUEUED    1		// Enhanced play with queue/synchronisation support
-#define AUDIO_CMD_WAVEFORM      2		// Set the waveform type for a channel
-#define AUDIO_CMD_SAMPLE        3		// Sample management
-#define AUDIO_CMD_ENV_VOLUME    4		// Define/set a volume envelope
-#define AUDIO_CMD_ENV_FREQUENCY 5		// Define/set a frequency envelope
-#define AUDIO_CMD_RESET         7		// Reset audio channel/system
-#define AUDIO_WAVE_DEFAULT      0		// Default waveform (Sawtooth)
-#define AUDIO_WAVE_SAWTOOTH     0		// Sawtooth wave
-#define AUDIO_WAVE_SQUARE       1		// Square wave
-#define AUDIO_WAVE_SINE         2		// Sine wave
-#define AUDIO_WAVE_TRIANGLE     3		// Triangle wave
-#define AUDIO_WAVE_NOISE        4		// Noise (simple, no frequency support)
-#define AUDIO_WAVE_VICNOISE     5		// VIC-style noise (supports frequency)
-#define AUDIO_WAVE_SAMPLE       7		// Sample
-#define AUDIO_SAMPLE_LOAD       0		// Send a sample to the VDP
-#define AUDIO_SAMPLE_DUPLICATE  1		// Duplicate a sample
-#define AUDIO_SAMPLE_CLEAR      2		// Clear/delete a sample
-#define AUDIO_CHANNEL_ENABLE    0		// Enable a channel
-#define AUDIO_CHANNEL_DISABLE   1		// Disable a channel
-#define AUDIO_CHANNEL_VOLUME    2		// Set the volume of a channel
-#define AUDIO_CHANNEL_FREQUENCY 3		// Set the frequency of a channel
+#define AUDIO_CMD_PLAY			0		// Play a sound
+#define AUDIO_CMD_PLAYQUEUED	1		// Enhanced play with queue/synchronisation support
+#define AUDIO_CMD_WAVEFORM		2		// Set the waveform type for a channel
+#define AUDIO_CMD_SAMPLE		3		// Sample management
+#define AUDIO_CMD_VOLUME		4		// Set the volume of a channel
+#define AUDIO_CMD_FREQUENCY		5		// Set the frequency of a channel
+#define AUDIO_CMD_ENV_VOLUME	6		// Define/set a volume envelope
+#define AUDIO_CMD_ENV_FREQUENCY	7		// Define/set a frequency envelope
+#define AUDIO_CMD_STATUS		8		// Get the status of a channel
+#define AUDIO_CMD_RESET			9		// Reset audio channel/system
+#define AUDIO_WAVE_DEFAULT		0		// Default waveform (Sawtooth)
+#define AUDIO_WAVE_SAWTOOTH		0		// Sawtooth wave
+#define AUDIO_WAVE_SQUARE		1		// Square wave
+#define AUDIO_WAVE_SINE			2		// Sine wave
+#define AUDIO_WAVE_TRIANGLE		3		// Triangle wave
+#define AUDIO_WAVE_NOISE		4		// Noise (simple, no frequency support)
+#define AUDIO_WAVE_VICNOISE		5		// VIC-style noise (supports frequency)
+#define AUDIO_WAVE_SAMPLE		7		// Sample
+#define AUDIO_SAMPLE_LOAD		0		// Send a sample to the VDP
+#define AUDIO_SAMPLE_DUPLICATE	1		// Duplicate a sample
+#define AUDIO_SAMPLE_CLEAR		2		// Clear/delete a sample
+#define AUDIO_STATUS_PLAYING	0x00	// Channel is busy playing a note
+#define AUDIO_STATUS_SILENT		0x01	// Channel is silent
+#define AUDIO_STATUS_RELEASE	0x02	// Channel is available to play a new note but not completely silent
+#define AUDIO_STATUS_ABORT		0x04	// Channel is aborting a note (temporary state)
 
 #define LOGICAL_SCRW            1280    // As per the BBC Micro standard
 #define LOGICAL_SCRH            1024

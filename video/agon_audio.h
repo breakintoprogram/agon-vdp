@@ -16,12 +16,13 @@ class audio_channel {
 	public:
 		audio_channel(int channel);
 		word	play_note(byte volume, word frequency, word duration);
+		byte	getStatus();
 		void	setWaveform(byte waveformType);
 		void	loop();
 	private:
 		fabgl::WaveformGenerator *	_waveform;
 		byte _waveformType;
-	 	byte _flag;	// TODO replace with state
+		byte _state;
 		byte _channel;
 		byte _volume;
 		word _frequency;
@@ -30,22 +31,27 @@ class audio_channel {
 
 audio_channel::audio_channel(int channel) {
 	this->_channel = channel;
-	this->_flag = 0;
+	this->_state = AUDIO_STATUS_SILENT;
 	this->_waveform = NULL;
 	setWaveform(AUDIO_WAVE_DEFAULT);
 	debug_log("audio_driver: init %d\n\r", this->_channel);
 }
 
 word audio_channel::play_note(byte volume, word frequency, word duration) {
-	if(this->_flag == 0) {
+	if (this->_state != AUDIO_STATUS_PLAYING) {
 		this->_volume = volume;
 		this->_frequency = frequency;
 		this->_duration = duration;
-		this->_flag++;
+		this->_state = AUDIO_STATUS_PLAYING;
 		debug_log("audio_driver: play_note %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);
-		return 1;	
+		return 1;
 	}
 	return 0;
+}
+
+byte audio_channel::getStatus() {
+	debug_log("audio_driver: getStatus %d\n\r", this->_state);
+	return this->_state;
 }
 
 void audio_channel::setWaveform(byte waveformType) {
@@ -77,11 +83,10 @@ void audio_channel::setWaveform(byte waveformType) {
 
 	if (newWaveform != NULL) {
 		debug_log("audio_driver: setWaveform %d\n\r", waveformType);
-		// TODO use state instead of flag
-		if (this->_flag > 0) {
+		if (this->_state != AUDIO_STATUS_SILENT) {
 			debug_log("audio_driver: aborting current playback\n\r");
-			// TODO set state to "aborting"
 			// playback is happening, so abort any current task delay to allow playback to end
+			this->_state = AUDIO_STATUS_ABORT;
 			audioTaskAbortDelay(this->_channel);
 			// delay here to allow loop to abort playback
 			vTaskDelay(1);
@@ -100,7 +105,10 @@ void audio_channel::setWaveform(byte waveformType) {
 }
 
 void audio_channel::loop() {
-	if(this->_flag > 0) {
+	// TODO consider status handling a bit deeper here
+	// once we support envelopes the loop will need to be more complex
+	// and better understand our true state.
+	if (this->_state != AUDIO_STATUS_SILENT) {
 		debug_log("audio_driver: play %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);
 		this->_waveform->setVolume(this->_volume);
 		this->_waveform->setFrequency(this->_frequency);
@@ -108,6 +116,6 @@ void audio_channel::loop() {
 		vTaskDelay(pdMS_TO_TICKS(this->_duration));
 		this->_waveform->enable(false);
 		debug_log("audio_driver: end\n\r");
-		this->_flag = 0;
+		this->_state = AUDIO_STATUS_SILENT;
 	}
 }

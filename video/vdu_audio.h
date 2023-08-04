@@ -58,10 +58,10 @@ void init_audio() {
 
 // Send an audio acknowledgement
 //
-void sendPlayNote(int channel, int success) {
+void sendAudioStatus(int channel, int status) {
 	byte packet[] = {
 		channel,
-		success,
+		status,
 	};
 	send_packet(PACKET_AUDIO, sizeof packet, packet);
 }
@@ -95,7 +95,7 @@ void vdu_sys_audio() {
 			int frequency = readWord_t();	if(frequency == -1) return;
 			int duration = readWord_t();	if(duration == -1) return;
 
-			sendPlayNote(channel, play_note(channel, volume, frequency, duration));
+			sendAudioStatus(channel, play_note(channel, volume, frequency, duration));
 		}	break;
 	
 		case AUDIO_CMD_PLAYQUEUED: {
@@ -112,12 +112,24 @@ void vdu_sys_audio() {
 			debug_log("vdu_sys_audio: sample - not implemented yet\n\r");
 		}	break;
 
+		case AUDIO_CMD_VOLUME: {
+			debug_log("vdu_sys_audio: volume - not implemented yet\n\r");
+		}	break;
+
+		case AUDIO_CMD_FREQUENCY: {
+			debug_log("vdu_sys_audio: frequency - not implemented yet\n\r");
+		}	break;
+
 		case AUDIO_CMD_ENV_VOLUME: {
 			debug_log("vdu_sys_audio: env_volume - not implemented yet\n\r");
 		}	break;
 
 		case AUDIO_CMD_ENV_FREQUENCY: {
 			debug_log("vdu_sys_audio: env_frequency - not implemented yet\n\r");
+		}	break;
+
+		case AUDIO_CMD_STATUS: {
+			sendAudioStatus(channel, audio_channels[channel]->getStatus());
 		}	break;
 
 		case AUDIO_CMD_RESET: {
