@@ -1,8 +1,9 @@
 //
 // Title:	        Agon Video BIOS - Audio class
 // Author:        	Dean Belfield
+// Contributors:	Steve Sims (enhancements for more sophisticated audio support)
 // Created:       	05/09/2022
-// Last Updated:	05/09/2022
+// Last Updated:	04/08/2023
 //
 // Modinfo:
 
@@ -18,6 +19,7 @@ class audio_channel {
 		word	play_note(byte volume, word frequency, word duration);
 		byte	getStatus();
 		void	setWaveform(byte waveformType);
+		void	setVolume(byte volume);
 		void	loop();
 	private:
 		fabgl::WaveformGenerator *	_waveform;
@@ -104,7 +106,45 @@ void audio_channel::setWaveform(byte waveformType) {
 	}
 }
 
+void audio_channel::setVolume(byte volume) {
+	debug_log("audio_driver: setVolume %d\n\r", volume);
+	this->_volume = volume;
+
+	// TODO what to do about duration??
+	// currently a silent channel that had a duration will play a new note of previous duration
+
+	if (_waveform != NULL) {
+		switch(this->_state) {
+			case AUDIO_STATUS_SILENT:
+				if (volume > 0) {
+					this->_state = AUDIO_STATUS_PLAYING;
+					this->_waveform->setVolume(volume);
+					if (!this->_waveform->enabled()) {
+						this->_waveform->enable(true);
+					}
+				}
+				break;
+			case AUDIO_STATUS_RELEASE:
+				// Release handled same as playing
+				// but we need to ensure that we remove duration
+			case AUDIO_STATUS_PLAYING:
+				this->_waveform->setVolume(volume);
+				if (volume == 0) {
+					this->_state = AUDIO_STATUS_ABORT;
+					audioTaskAbortDelay(this->_channel);
+				}
+				break;
+			case AUDIO_STATUS_ABORT:
+				// nothing to do
+				// we are already aborting playback, so don't change the volume
+				break;
+		}	
+	}
+}
+
 void audio_channel::loop() {
+	// TODO handle duration-less audio
+
 	// TODO consider status handling a bit deeper here
 	// once we support envelopes the loop will need to be more complex
 	// and better understand our true state.

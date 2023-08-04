@@ -83,6 +83,14 @@ void setWaveform(byte channel, byte waveformType) {
 	}
 }
 
+// Set channel volume
+//
+void setVolume(byte channel, byte volume) {
+	if(channel >=0 && channel < AUDIO_CHANNELS) {
+		audio_channels[channel]->setVolume(volume);
+	}
+}
+
 // Audio VDU command support (VDU 23, 0, &85, <args>)
 //
 void vdu_sys_audio() {
@@ -113,7 +121,9 @@ void vdu_sys_audio() {
 		}	break;
 
 		case AUDIO_CMD_VOLUME: {
-			debug_log("vdu_sys_audio: volume - not implemented yet\n\r");
+			int volume = readByte_t();		if(volume == -1) return;
+
+			setVolume(channel, volume);
 		}	break;
 
 		case AUDIO_CMD_FREQUENCY: {
