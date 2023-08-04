@@ -20,8 +20,10 @@ class audio_channel {
 		byte	getStatus();
 		void	setWaveform(byte waveformType);
 		void	setVolume(byte volume);
+		void	setFrequency(word frequency);
 		void	loop();
 	private:
+		void	waitForAbort();
 		fabgl::WaveformGenerator *	_waveform;
 		byte _waveformType;
 		byte _state;
@@ -90,8 +92,7 @@ void audio_channel::setWaveform(byte waveformType) {
 			// playback is happening, so abort any current task delay to allow playback to end
 			this->_state = AUDIO_STATUS_ABORT;
 			audioTaskAbortDelay(this->_channel);
-			// delay here to allow loop to abort playback
-			vTaskDelay(1);
+			waitForAbort();
 		}
 		if (_waveform != NULL) {
 			debug_log("audio_driver: detaching old waveform\n\r");
@@ -114,6 +115,8 @@ void audio_channel::setVolume(byte volume) {
 	// currently a silent channel that had a duration will play a new note of previous duration
 
 	if (_waveform != NULL) {
+		waitForAbort();
+
 		switch(this->_state) {
 			case AUDIO_STATUS_SILENT:
 				if (volume > 0) {
@@ -134,11 +137,24 @@ void audio_channel::setVolume(byte volume) {
 					audioTaskAbortDelay(this->_channel);
 				}
 				break;
-			case AUDIO_STATUS_ABORT:
-				// nothing to do
-				// we are already aborting playback, so don't change the volume
-				break;
 		}	
+	}
+}
+
+void audio_channel::setFrequency(word frequency) {
+	debug_log("audio_driver: setFrequency %d\n\r", frequency);
+	this->_frequency = frequency;
+
+	if (_waveform != NULL) {
+		waitForAbort();
+		this->_waveform->setFrequency(frequency);
+	}
+}
+
+void audio_channel::waitForAbort() {
+	while (this->_state == AUDIO_STATUS_ABORT) {
+		// wait for abort to complete
+		vTaskDelay(1);
 	}
 }
 

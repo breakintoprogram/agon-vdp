@@ -91,6 +91,14 @@ void setVolume(byte channel, byte volume) {
 	}
 }
 
+// Set channel frequency
+//
+void setFrequency(byte channel, word frequency) {
+	if(channel >=0 && channel < AUDIO_CHANNELS) {
+		audio_channels[channel]->setFrequency(frequency);
+	}
+}
+
 // Audio VDU command support (VDU 23, 0, &85, <args>)
 //
 void vdu_sys_audio() {
@@ -127,7 +135,9 @@ void vdu_sys_audio() {
 		}	break;
 
 		case AUDIO_CMD_FREQUENCY: {
-			debug_log("vdu_sys_audio: frequency - not implemented yet\n\r");
+			int frequency = readWord_t();	if(frequency == -1) return;
+
+			setFrequency(channel, frequency);
 		}	break;
 
 		case AUDIO_CMD_ENV_VOLUME: {
