@@ -79,7 +79,7 @@
 #define AUDIO_CMD_ENV_FREQUENCY	7		// Define/set a frequency envelope
 #define AUDIO_CMD_STATUS		8		// Get the status of a channel
 #define AUDIO_CMD_RESET			9		// Reset audio channel/system
-#define AUDIO_WAVE_DEFAULT		0		// Default waveform (Sawtooth)
+#define AUDIO_WAVE_DEFAULT		2		// Default waveform (Sawtooth)
 #define AUDIO_WAVE_SAWTOOTH		0		// Sawtooth wave
 #define AUDIO_WAVE_SQUARE		1		// Square wave
 #define AUDIO_WAVE_SINE			2		// Sine wave
@@ -94,6 +94,13 @@
 #define AUDIO_STATUS_SILENT		0x01	// Channel is silent
 #define AUDIO_STATUS_RELEASE	0x02	// Channel is available to play a new note but not completely silent
 #define AUDIO_STATUS_ABORT		0x04	// Channel is aborting a note (temporary state)
+
+#define AUDIO_STATE_IDLE		0		// Channel is idle/silent
+#define AUDIO_STATE_PENDING		1		// Channel is pending (note will be played next loop call)
+#define AUDIO_STATE_PLAYING		2		// Channel is playing a note (passive)
+#define AUDIO_STATE_PLAY_LOOP	3		// Channel is in active note playing loop
+#define AUDIO_STATE_RELEASE		4		// Channel is releasing a note
+#define AUDIO_STATE_ABORT		5		// Channel is aborting a note
 
 #define LOGICAL_SCRW            1280    // As per the BBC Micro standard
 #define LOGICAL_SCRH            1024

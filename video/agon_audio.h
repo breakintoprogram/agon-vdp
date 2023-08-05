@@ -31,30 +31,37 @@ class audio_channel {
 		byte _volume;
 		word _frequency;
 		word _duration;
+		long _startTime;
 };
 
 audio_channel::audio_channel(int channel) {
 	this->_channel = channel;
-	this->_state = AUDIO_STATUS_SILENT;
+	this->_state = AUDIO_STATE_IDLE;
+	this->_volume = 0;
+	this->_frequency = 750;
+	this->_duration = 0;
 	this->_waveform = NULL;
 	setWaveform(AUDIO_WAVE_DEFAULT);
 	debug_log("audio_driver: init %d\n\r", this->_channel);
 }
 
 word audio_channel::play_note(byte volume, word frequency, word duration) {
-	if (this->_state != AUDIO_STATUS_PLAYING) {
-		this->_volume = volume;
-		this->_frequency = frequency;
-		this->_duration = duration;
-		this->_state = AUDIO_STATUS_PLAYING;
-		debug_log("audio_driver: play_note %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);
-		return 1;
+	switch (this->_state) {
+		case AUDIO_STATE_IDLE:
+		case AUDIO_STATE_RELEASE:
+			this->_volume = volume;
+			this->_frequency = frequency;
+			this->_duration = duration;
+			this->_state = AUDIO_STATE_PENDING;
+			debug_log("audio_driver: play_note %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);
+			return 1;
 	}
 	return 0;
 }
 
 byte audio_channel::getStatus() {
 	debug_log("audio_driver: getStatus %d\n\r", this->_state);
+	// TODO replace with bitfield based status
 	return this->_state;
 }
 
@@ -87,10 +94,10 @@ void audio_channel::setWaveform(byte waveformType) {
 
 	if (newWaveform != NULL) {
 		debug_log("audio_driver: setWaveform %d\n\r", waveformType);
-		if (this->_state != AUDIO_STATUS_SILENT) {
+		if (this->_state != AUDIO_STATE_IDLE) {
 			debug_log("audio_driver: aborting current playback\n\r");
-			// playback is happening, so abort any current task delay to allow playback to end
-			this->_state = AUDIO_STATUS_ABORT;
+			// some kind of playback is happening, so abort any current task delay to allow playback to end
+			this->_state = AUDIO_STATE_ABORT;
 			audioTaskAbortDelay(this->_channel);
 			waitForAbort();
 		}
@@ -111,29 +118,27 @@ void audio_channel::setVolume(byte volume) {
 	debug_log("audio_driver: setVolume %d\n\r", volume);
 	this->_volume = volume;
 
-	// TODO what to do about duration??
-	// currently a silent channel that had a duration will play a new note of previous duration
-
 	if (_waveform != NULL) {
 		waitForAbort();
-
-		switch(this->_state) {
-			case AUDIO_STATUS_SILENT:
+		switch (this->_state) {
+			case AUDIO_STATE_IDLE:
 				if (volume > 0) {
-					this->_state = AUDIO_STATUS_PLAYING;
-					this->_waveform->setVolume(volume);
-					if (!this->_waveform->enabled()) {
-						this->_waveform->enable(true);
-					}
+					// new note playback
+					this->_duration = 0;
+					this->_state = AUDIO_STATE_PENDING;
 				}
 				break;
-			case AUDIO_STATUS_RELEASE:
-				// Release handled same as playing
-				// but we need to ensure that we remove duration
-			case AUDIO_STATUS_PLAYING:
+			case AUDIO_STATE_PENDING:
+			case AUDIO_STATE_PLAY_LOOP:
+			case AUDIO_STATE_RELEASE:
+				// Do nothing as next loop will pick up the new volume
+				break;
+			default:
+				// All other states we'll set volume immediately
 				this->_waveform->setVolume(volume);
 				if (volume == 0) {
-					this->_state = AUDIO_STATUS_ABORT;
+					// we're going silent, so abort any current playback
+					this->_state = AUDIO_STATE_ABORT;
 					audioTaskAbortDelay(this->_channel);
 				}
 				break;
@@ -147,31 +152,74 @@ void audio_channel::setFrequency(word frequency) {
 
 	if (_waveform != NULL) {
 		waitForAbort();
-		this->_waveform->setFrequency(frequency);
+		switch (this->_state) {
+			case AUDIO_STATE_PENDING:
+			case AUDIO_STATE_PLAY_LOOP:
+			case AUDIO_STATE_RELEASE:
+				// Do nothing as next loop will pick up the new frequency
+				break;
+			default:
+				this->_waveform->setFrequency(frequency);
+		}
 	}
 }
 
 void audio_channel::waitForAbort() {
-	while (this->_state == AUDIO_STATUS_ABORT) {
+	while (this->_state == AUDIO_STATE_ABORT) {
 		// wait for abort to complete
 		vTaskDelay(1);
 	}
 }
 
 void audio_channel::loop() {
-	// TODO handle duration-less audio
-
-	// TODO consider status handling a bit deeper here
-	// once we support envelopes the loop will need to be more complex
-	// and better understand our true state.
-	if (this->_state != AUDIO_STATUS_SILENT) {
-		debug_log("audio_driver: play %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);
-		this->_waveform->setVolume(this->_volume);
-		this->_waveform->setFrequency(this->_frequency);
-		this->_waveform->enable(true);
-		vTaskDelay(pdMS_TO_TICKS(this->_duration));
-		this->_waveform->enable(false);
-		debug_log("audio_driver: end\n\r");
-		this->_state = AUDIO_STATUS_SILENT;
+	switch (this->_state) {
+		case AUDIO_STATE_PENDING:
+			debug_log("audio_driver: play %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);
+			// we have a new note to play
+			this->_startTime = millis();
+			// set our initial volume and frequency
+			// TODO use getVolume and getFrequency
+			this->_waveform->setVolume(this->_volume);
+			this->_waveform->setFrequency(this->_frequency);
+			this->_waveform->enable(true);
+			// if we have an envelope then we loop, otherwise just delay for duration			
+			this->_state = AUDIO_STATE_PLAYING;
+			// delay for 1ms less than our duration, as each loop costs 1ms
+			// if delay value is -1 then this delays for a super long time
+			vTaskDelay(pdMS_TO_TICKS(this->_duration - 1));
+			break;
+		case AUDIO_STATE_PLAYING:
+			if (this->_duration > 0) {
+				// simple playback - delay until we have reached our duration
+				word elapsed = millis() - this->_startTime;
+				debug_log("audio_driver: elapsed %d\n\r", elapsed);
+				if (elapsed >= this->_duration) {
+					this->_waveform->enable(false);
+					debug_log("audio_driver: end\n\r");
+					this->_state = AUDIO_STATE_IDLE;
+				} else {
+					debug_log("audio_driver: loop (%d)\n\r", this->_duration - elapsed);
+					vTaskDelay(pdMS_TO_TICKS(this->_duration - elapsed));
+				}
+			} else {
+				// our duration is indefinite, so delay for a long time
+				debug_log("audio_driver: loop (indefinite playback)\n\r");
+				vTaskDelay(pdMS_TO_TICKS(-1));
+			}
+			break;
+		// loop and release states used for envelopes
+		// neither of these states can currently be reached
+		case AUDIO_STATE_PLAY_LOOP:
+			// has our elapsed time gone past our duration?
+			// drop thru to release
+		case AUDIO_STATE_RELEASE:
+			// update volume and frequency as appropriate
+			// do we need to change state?
+			break;
+		case AUDIO_STATE_ABORT:
+			this->_waveform->enable(false);
+			debug_log("audio_driver: abort\n\r");
+			this->_state = AUDIO_STATE_IDLE;
+			break;
 	}
 }
