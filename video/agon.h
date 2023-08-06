@@ -79,7 +79,7 @@
 #define AUDIO_CMD_ENV_FREQUENCY	7		// Define/set a frequency envelope
 #define AUDIO_CMD_STATUS		8		// Get the status of a channel
 #define AUDIO_CMD_RESET			9		// Reset audio channel/system
-#define AUDIO_WAVE_DEFAULT		2		// Default waveform (Sawtooth)
+#define AUDIO_WAVE_DEFAULT		1		// Default waveform (Square wave)
 #define AUDIO_WAVE_SAWTOOTH		0		// Sawtooth wave
 #define AUDIO_WAVE_SQUARE		1		// Square wave
 #define AUDIO_WAVE_SINE			2		// Sine wave

@@ -9,6 +9,8 @@
 
 #include <fabgl.h>
 
+#include "envelopes.h"
+
 extern void audioTaskAbortDelay(int channel);
 
 // The audio channel class
@@ -24,14 +26,19 @@ class audio_channel {
 		void	loop();
 	private:
 		void	waitForAbort();
+		byte	getVolume(word elapsed);
+		word	getFrequency(word elapsed);
+		bool	isReleasing(word elapsed);
+		bool	isFinished(word elapsed);
 		fabgl::WaveformGenerator *	_waveform;
 		byte _waveformType;
 		byte _state;
 		byte _channel;
 		byte _volume;
 		word _frequency;
-		word _duration;
+		long _duration;
 		long _startTime;
+		VolumeEnvelope * _volumeEnvelope;
 };
 
 audio_channel::audio_channel(int channel) {
@@ -39,9 +46,11 @@ audio_channel::audio_channel(int channel) {
 	this->_state = AUDIO_STATE_IDLE;
 	this->_volume = 0;
 	this->_frequency = 750;
-	this->_duration = 0;
+	this->_duration = -1;
 	this->_waveform = NULL;
 	setWaveform(AUDIO_WAVE_DEFAULT);
+	this->_volumeEnvelope = NULL;
+	// this->_volumeEnvelope = new ADSRVolumeEnvelope(500, 60, 80, 300);
 	debug_log("audio_driver: init %d\n\r", this->_channel);
 }
 
@@ -51,7 +60,7 @@ word audio_channel::play_note(byte volume, word frequency, word duration) {
 		case AUDIO_STATE_RELEASE:
 			this->_volume = volume;
 			this->_frequency = frequency;
-			this->_duration = duration;
+			this->_duration = duration == 65535 ? -1 : duration;
 			this->_state = AUDIO_STATE_PENDING;
 			debug_log("audio_driver: play_note %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);
 			return 1;
@@ -116,7 +125,6 @@ void audio_channel::setWaveform(byte waveformType) {
 
 void audio_channel::setVolume(byte volume) {
 	debug_log("audio_driver: setVolume %d\n\r", volume);
-	this->_volume = volume;
 
 	if (_waveform != NULL) {
 		waitForAbort();
@@ -124,17 +132,29 @@ void audio_channel::setVolume(byte volume) {
 			case AUDIO_STATE_IDLE:
 				if (volume > 0) {
 					// new note playback
-					this->_duration = 0;
+					this->_volume = volume;
+					this->_duration = -1;	// indefinite duration
 					this->_state = AUDIO_STATE_PENDING;
 				}
 				break;
-			case AUDIO_STATE_PENDING:
 			case AUDIO_STATE_PLAY_LOOP:
+				// we are looping, so an envelope may be active
+				if (this->_volumeEnvelope != NULL && volume == 0 && this->_duration == -1) {
+					// when we have an active envelope with indefinite playback and we're setting our volume to zero
+					// we instead set the duration to the current elapsed time, so the envelope can finish (release)
+					this->_duration = millis() - this->_startTime;
+				} else {
+					this->_volume = volume;
+				}
+				break;
+			case AUDIO_STATE_PENDING:
 			case AUDIO_STATE_RELEASE:
-				// Do nothing as next loop will pick up the new volume
+				// Set level so next loop will pick up the new volume
+				this->_volume = volume;
 				break;
 			default:
 				// All other states we'll set volume immediately
+				this->_volume = volume;
 				this->_waveform->setVolume(volume);
 				if (volume == 0) {
 					// we're going silent, so abort any current playback
@@ -171,6 +191,37 @@ void audio_channel::waitForAbort() {
 	}
 }
 
+byte audio_channel::getVolume(word elapsed) {
+	if (this->_volumeEnvelope != NULL) {
+		return this->_volumeEnvelope->getVolume(this->_volume, elapsed, this->_duration);
+	}
+	return this->_volume;
+}
+
+word audio_channel::getFrequency(word elapsed) {
+	// if (this->_frequencyEnvelope != NULL) {
+	// 	return this->_frequencyEnvelope->getFrequency(this->_frequency, elapsed, this->_duration);
+	// }
+	return this->_frequency;
+}
+
+bool audio_channel::isReleasing(word elapsed) {
+	if (this->_volumeEnvelope != NULL) {
+		return this->_volumeEnvelope->isReleasing(elapsed, this->_duration);
+	}
+	return false;
+}
+
+bool audio_channel::isFinished(word elapsed) {
+	if (this->_volumeEnvelope != NULL) {
+		return this->_volumeEnvelope->isFinished(elapsed, this->_duration);
+	}
+	if (this->_duration == -1) {
+		return false;
+	}
+	return (elapsed >= this->_duration);
+}
+
 void audio_channel::loop() {
 	switch (this->_state) {
 		case AUDIO_STATE_PENDING:
@@ -178,18 +229,20 @@ void audio_channel::loop() {
 			// we have a new note to play
 			this->_startTime = millis();
 			// set our initial volume and frequency
-			// TODO use getVolume and getFrequency
-			this->_waveform->setVolume(this->_volume);
-			this->_waveform->setFrequency(this->_frequency);
+			this->_waveform->setVolume(this->getVolume(0));
+			this->_waveform->setFrequency(this->getFrequency(0));
 			this->_waveform->enable(true);
 			// if we have an envelope then we loop, otherwise just delay for duration			
-			this->_state = AUDIO_STATE_PLAYING;
-			// delay for 1ms less than our duration, as each loop costs 1ms
-			// if delay value is -1 then this delays for a super long time
-			vTaskDelay(pdMS_TO_TICKS(this->_duration - 1));
+			if (this->_volumeEnvelope != NULL) {
+				this->_state = AUDIO_STATE_PLAY_LOOP;
+			} else {
+				this->_state = AUDIO_STATE_PLAYING;
+				// if delay value is negative then this delays for a super long time
+				vTaskDelay(pdMS_TO_TICKS(this->_duration));
+			}
 			break;
 		case AUDIO_STATE_PLAYING:
-			if (this->_duration > 0) {
+			if (this->_duration >= 0) {
 				// simple playback - delay until we have reached our duration
 				word elapsed = millis() - this->_startTime;
 				debug_log("audio_driver: elapsed %d\n\r", elapsed);
@@ -208,14 +261,31 @@ void audio_channel::loop() {
 			}
 			break;
 		// loop and release states used for envelopes
-		// neither of these states can currently be reached
-		case AUDIO_STATE_PLAY_LOOP:
-			// has our elapsed time gone past our duration?
-			// drop thru to release
-		case AUDIO_STATE_RELEASE:
+		case AUDIO_STATE_PLAY_LOOP: {
+			word elapsed = millis() - this->_startTime;
+			if (isReleasing(elapsed)) {
+				debug_log("audio_driver: releasing...\n\r");
+				this->_state = AUDIO_STATE_RELEASE;
+			}
 			// update volume and frequency as appropriate
-			// do we need to change state?
+			this->_waveform->setVolume(this->getVolume(elapsed));
 			break;
+		}
+		case AUDIO_STATE_RELEASE: {
+			word elapsed = millis() - this->_startTime;
+			byte newVolume = this->getVolume(elapsed);
+
+			if (isFinished(elapsed)) {
+				// we've reached zero volume, so stop playback
+				this->_waveform->enable(false);
+				debug_log("audio_driver: end (released)\n\r");
+				this->_state = AUDIO_STATE_IDLE;
+			} else {
+				// update volume
+				this->_waveform->setVolume(newVolume);
+			}
+			break;
+		}
 		case AUDIO_STATE_ABORT:
 			this->_waveform->enable(false);
 			debug_log("audio_driver: abort\n\r");
