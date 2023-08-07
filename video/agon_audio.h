@@ -18,6 +18,7 @@ extern void audioTaskAbortDelay(int channel);
 class audio_channel {	
 	public:
 		audio_channel(int channel);
+		~audio_channel();
 		word	play_note(byte volume, word frequency, word duration);
 		byte	getStatus();
 		void	setWaveform(byte waveformType);
@@ -52,6 +53,18 @@ audio_channel::audio_channel(int channel) {
 	setWaveform(AUDIO_WAVE_DEFAULT);
 	this->_volumeEnvelope = NULL;
 	debug_log("audio_driver: init %d\n\r", this->_channel);
+}
+
+audio_channel::~audio_channel() {
+	if (this->_waveform != NULL) {
+		this->_waveform->enable(false);
+		SoundGenerator.detach(this->_waveform);
+		delete this->_waveform;
+	}
+	if (this->_volumeEnvelope != NULL) {
+		delete this->_volumeEnvelope;
+	}
+	debug_log("audio_driver: deinit %d\n\r", this->_channel);
 }
 
 word audio_channel::play_note(byte volume, word frequency, word duration) {

@@ -47,6 +47,15 @@ void audioTaskAbortDelay(int channel) {
 	}
 }
 
+void audioTaskKill(int channel) {
+	if (audioHandlers[channel] != NULL) {
+		vTaskDelete(audioHandlers[channel]);
+		audioHandlers[channel] = NULL;
+		delete audio_channels[channel];
+		audio_channels[channel] = NULL;
+	}
+}
+
 // Initialise the sound driver
 //
 void init_audio() {
@@ -118,10 +127,10 @@ void setVolumeEnvelope(byte channel, byte type) {
 				audio_channels[channel]->setVolumeEnvelope(NULL);
 				break;
 			case AUDIO_ENVELOPE_ADSR:
-				int attack = readWord_t();		if(attack == -1) return;
-				int decay = readWord_t();		if(decay == -1) return;
-				int sustain = readByte_t();		if(sustain == -1) return;
-				int release = readWord_t();		if(release == -1) return;
+				int attack = readWord_t();		if (attack == -1) return;
+				int decay = readWord_t();		if (decay == -1) return;
+				int sustain = readByte_t();		if (sustain == -1) return;
+				int release = readWord_t();		if (release == -1) return;
 				ADSRVolumeEnvelope *envelope = new ADSRVolumeEnvelope(attack, decay, sustain, release);
 				audio_channels[channel]->setVolumeEnvelope(envelope);
 				break;
@@ -141,14 +150,14 @@ byte getChannelStatus(byte channel) {
 // Audio VDU command support (VDU 23, 0, &85, <args>)
 //
 void vdu_sys_audio() {
-	int channel = readByte_t();		if(channel == -1) return;
-	int command = readByte_t();		if(command == -1) return;
+	int channel = readByte_t();		if (channel == -1) return;
+	int command = readByte_t();		if (command == -1) return;
 
 	switch (command) {
 		case AUDIO_CMD_PLAY: {
-			int volume = readByte_t();		if(volume == -1) return;
-			int frequency = readWord_t();	if(frequency == -1) return;
-			int duration = readWord_t();	if(duration == -1) return;
+			int volume = readByte_t();		if (volume == -1) return;
+			int frequency = readWord_t();	if (frequency == -1) return;
+			int duration = readWord_t();	if (duration == -1) return;
 
 			sendAudioStatus(channel, play_note(channel, volume, frequency, duration));
 		}	break;
@@ -158,7 +167,7 @@ void vdu_sys_audio() {
 		} 	break;
 
 		case AUDIO_CMD_WAVEFORM: {
-			int waveform = readByte_t();	if(waveform == -1) return;
+			int waveform = readByte_t();	if (waveform == -1) return;
 
 			setWaveform(channel, waveform);
 		}	break;
@@ -168,19 +177,19 @@ void vdu_sys_audio() {
 		}	break;
 
 		case AUDIO_CMD_VOLUME: {
-			int volume = readByte_t();		if(volume == -1) return;
+			int volume = readByte_t();		if (volume == -1) return;
 
 			setVolume(channel, volume);
 		}	break;
 
 		case AUDIO_CMD_FREQUENCY: {
-			int frequency = readWord_t();	if(frequency == -1) return;
+			int frequency = readWord_t();	if (frequency == -1) return;
 
 			setFrequency(channel, frequency);
 		}	break;
 
 		case AUDIO_CMD_ENV_VOLUME: {
-			int type = readByte_t();		if(type == -1) return;
+			int type = readByte_t();		if (type == -1) return;
 
 			setVolumeEnvelope(channel, type);
 		}	break;
@@ -193,12 +202,23 @@ void vdu_sys_audio() {
 			sendAudioStatus(channel, getChannelStatus(channel));
 		}	break;
 
-		case AUDIO_CMD_CONFIGURE: {
-			debug_log("vdu_sys_audio: configure - not implemented yet\n\r");
+		case AUDIO_CMD_ENABLE: {
+			if (channel >= 0 && channel < MAX_AUDIO_CHANNELS && audio_channels[channel] == NULL) {
+				init_audio_channel(channel);
+			}
+		}	break;
+
+		case AUDIO_CMD_DISABLE: {
+			if (channelEnabled(channel)) {
+				audioTaskKill(channel);
+			}
 		}	break;
 
 		case AUDIO_CMD_RESET: {
-			debug_log("vdu_sys_audio: reset - not implemented yet\n\r");
+			if (channelEnabled(channel)) {
+				audioTaskKill(channel);
+				init_audio_channel(channel);
+			}
 		}	break;
 	}
 }
