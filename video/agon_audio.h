@@ -205,6 +205,9 @@ void audio_channel::setFrequency(word frequency) {
 }
 
 void audio_channel::setVolumeEnvelope(VolumeEnvelope * envelope) {
+	if (this->_volumeEnvelope != NULL) {
+		delete this->_volumeEnvelope;
+	}
 	this->_volumeEnvelope = envelope;
 	if (envelope != NULL && this->_state == AUDIO_STATE_PLAYING) {
 		// swap to looping
