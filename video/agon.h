@@ -93,10 +93,11 @@
 #define AUDIO_ENVELOPE_NONE		0		// No envelope
 #define AUDIO_ENVELOPE_ADSR		1		// Simple ADSR volume envelope
 
-#define AUDIO_STATUS_PLAYING	0x00	// Channel is busy playing a note
-#define AUDIO_STATUS_SILENT		0x01	// Channel is silent
-#define AUDIO_STATUS_RELEASE	0x02	// Channel is available to play a new note but not completely silent
-#define AUDIO_STATUS_ABORT		0x04	// Channel is aborting a note (temporary state)
+#define AUDIO_STATUS_ACTIVE		0x01	// Has an active waveform
+#define AUDIO_STATUS_PLAYING	0x02	// Playing a note (not in release phase)
+#define AUDIO_STATUS_INDEFINITE	0x04	// Indefinite duration sound playing
+#define AUDIO_STATUS_HAS_VOLUME_ENVELOPE	0x08	// Channel has a volume envelope set
+#define AUDIO_STATUS_HAS_FREQUENCY_ENVELOPE	0x10	// Channel has a frequency envelope set
 
 #define AUDIO_STATE_IDLE		0		// Channel is idle/silent
 #define AUDIO_STATE_PENDING		1		// Channel is pending (note will be played next loop call)

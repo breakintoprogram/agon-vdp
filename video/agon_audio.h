@@ -69,9 +69,29 @@ word audio_channel::play_note(byte volume, word frequency, word duration) {
 }
 
 byte audio_channel::getStatus() {
-	debug_log("audio_driver: getStatus %d\n\r", this->_state);
-	// TODO replace with bitfield based status
-	return this->_state;
+	byte status = 0;
+	if (this->_waveform != NULL && this->_waveform->enabled()) {
+		status |= AUDIO_STATUS_ACTIVE;
+		if (this->_duration == -1) {
+			status |= AUDIO_STATUS_INDEFINITE;
+		}
+	}
+	switch (this->_state) {
+		case AUDIO_STATE_PENDING:
+		case AUDIO_STATE_PLAYING:
+		case AUDIO_STATE_PLAY_LOOP:
+			status |= AUDIO_STATUS_PLAYING;
+			break;
+	}
+	if (this->_volumeEnvelope != NULL) {
+		status |= AUDIO_STATUS_HAS_VOLUME_ENVELOPE;
+	}
+	// if (this->_frequencyEnvelope != NULL) {
+	// 	status |= AUDIO_STATUS_HAS_FREQUENCY_ENVELOPE;
+	// }
+
+	debug_log("audio_driver: getStatus %d\n\r", status);
+	return status;
 }
 
 void audio_channel::setWaveform(byte waveformType) {
@@ -186,6 +206,11 @@ void audio_channel::setFrequency(word frequency) {
 
 void audio_channel::setVolumeEnvelope(VolumeEnvelope * envelope) {
 	this->_volumeEnvelope = envelope;
+	if (envelope != NULL && this->_state == AUDIO_STATE_PLAYING) {
+		// swap to looping
+		this->_state = AUDIO_STATE_PLAY_LOOP;
+		audioTaskAbortDelay(this->_channel);
+	}
 }
 
 void audio_channel::waitForAbort() {
