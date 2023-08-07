@@ -23,6 +23,7 @@ class audio_channel {
 		void	setWaveform(byte waveformType);
 		void	setVolume(byte volume);
 		void	setFrequency(word frequency);
+		void	setVolumeEnvelope(VolumeEnvelope * envelope);
 		void	loop();
 	private:
 		void	waitForAbort();
@@ -50,7 +51,6 @@ audio_channel::audio_channel(int channel) {
 	this->_waveform = NULL;
 	setWaveform(AUDIO_WAVE_DEFAULT);
 	this->_volumeEnvelope = NULL;
-	// this->_volumeEnvelope = new ADSRVolumeEnvelope(500, 60, 80, 300);
 	debug_log("audio_driver: init %d\n\r", this->_channel);
 }
 
@@ -182,6 +182,10 @@ void audio_channel::setFrequency(word frequency) {
 				this->_waveform->setFrequency(frequency);
 		}
 	}
+}
+
+void audio_channel::setVolumeEnvelope(VolumeEnvelope * envelope) {
+	this->_volumeEnvelope = envelope;
 }
 
 void audio_channel::waitForAbort() {

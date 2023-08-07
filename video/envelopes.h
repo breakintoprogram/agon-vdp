@@ -4,8 +4,6 @@
 // Created:       	06/08/2023
 // Last Updated:	06/08/2023
 
-#include <Arduino.h>
-
 class VolumeEnvelope {
 	public:
 		virtual byte getVolume(byte baseVolume, word elapsed, long duration);

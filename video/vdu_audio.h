@@ -25,7 +25,7 @@ void audio_driver(void * parameters) {
 	int channel = *(int *)parameters;
 
 	audio_channels[channel] = new audio_channel(channel);
-	while(true) {
+	while (true) {
 		audio_channels[channel]->loop();
 		vTaskDelay(1);
 	}
@@ -42,7 +42,7 @@ void init_audio_channel(int channel) {
 }
 
 void audioTaskAbortDelay(int channel) {
-	if(audioHandlers[channel] != NULL) {
+	if (audioHandlers[channel] != NULL) {
 		xTaskAbortDelay(audioHandlers[channel]);
 	}
 }
@@ -50,7 +50,7 @@ void audioTaskAbortDelay(int channel) {
 // Initialise the sound driver
 //
 void init_audio() {
-	for(int i = 0; i < AUDIO_CHANNELS; i++) {
+	for (int i = 0; i < AUDIO_CHANNELS; i++) {
 		init_audio_channel(i);
 	}
 	SoundGenerator.play(true);
@@ -69,7 +69,7 @@ void sendAudioStatus(int channel, int status) {
 // Play a note
 //
 word play_note(byte channel, byte volume, word frequency, word duration) {
-	if(channel >=0 && channel < AUDIO_CHANNELS) {
+	if (channel >=0 && channel < AUDIO_CHANNELS) {
 		return audio_channels[channel]->play_note(volume, frequency, duration);
 	}
 	return 1;
@@ -78,7 +78,7 @@ word play_note(byte channel, byte volume, word frequency, word duration) {
 // Set channel waveform
 //
 void setWaveform(byte channel, byte waveformType) {
-	if(channel >=0 && channel < AUDIO_CHANNELS) {
+	if (channel >=0 && channel < AUDIO_CHANNELS) {
 		audio_channels[channel]->setWaveform(waveformType);
 	}
 }
@@ -86,7 +86,7 @@ void setWaveform(byte channel, byte waveformType) {
 // Set channel volume
 //
 void setVolume(byte channel, byte volume) {
-	if(channel >=0 && channel < AUDIO_CHANNELS) {
+	if (channel >=0 && channel < AUDIO_CHANNELS) {
 		audio_channels[channel]->setVolume(volume);
 	}
 }
@@ -94,8 +94,28 @@ void setVolume(byte channel, byte volume) {
 // Set channel frequency
 //
 void setFrequency(byte channel, word frequency) {
-	if(channel >=0 && channel < AUDIO_CHANNELS) {
+	if (channel >=0 && channel < AUDIO_CHANNELS) {
 		audio_channels[channel]->setFrequency(frequency);
+	}
+}
+
+// Set channel envelope
+//
+void setVolumeEnvelope(byte channel, byte type) {
+	if (channel >=0 && channel < AUDIO_CHANNELS) {
+		switch (type) {
+			case AUDIO_ENVELOPE_NONE:
+				audio_channels[channel]->setVolumeEnvelope(NULL);
+				break;
+			case AUDIO_ENVELOPE_ADSR:
+				int attack = readWord_t();		if(attack == -1) return;
+				int decay = readWord_t();		if(decay == -1) return;
+				int sustain = readByte_t();		if(sustain == -1) return;
+				int release = readWord_t();		if(release == -1) return;
+				ADSRVolumeEnvelope *envelope = new ADSRVolumeEnvelope(attack, decay, sustain, release);
+				audio_channels[channel]->setVolumeEnvelope(envelope);
+				break;
+		}
 	}
 }
 
@@ -114,8 +134,8 @@ void vdu_sys_audio() {
 			sendAudioStatus(channel, play_note(channel, volume, frequency, duration));
 		}	break;
 	
-		case AUDIO_CMD_PLAYQUEUED: {
-			debug_log("vdu_sys_audio: playqueued - not implemented yet\n\r");
+		case AUDIO_CMD_PLAY_ADVANCED: {
+			debug_log("vdu_sys_audio: play_advanced - not implemented yet\n\r");
 		} 	break;
 
 		case AUDIO_CMD_WAVEFORM: {
@@ -141,7 +161,9 @@ void vdu_sys_audio() {
 		}	break;
 
 		case AUDIO_CMD_ENV_VOLUME: {
-			debug_log("vdu_sys_audio: env_volume - not implemented yet\n\r");
+			int type = readByte_t();		if(type == -1) return;
+
+			setVolumeEnvelope(channel, type);
 		}	break;
 
 		case AUDIO_CMD_ENV_FREQUENCY: {
