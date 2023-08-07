@@ -15,9 +15,9 @@ extern void send_packet(byte code, byte len, byte data[]);
 extern int readByte_t();
 extern int readWord_t();
 
-audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
+audio_channel *	audio_channels[MAX_AUDIO_CHANNELS];	// Storage for the channel data
 
-TaskHandle_t audioHandlers[AUDIO_CHANNELS];		// Storage for audio handler task handlers
+TaskHandle_t audioHandlers[MAX_AUDIO_CHANNELS];		// Storage for audio handler task handlers
 
 // Audio channel driver task
 //
@@ -50,6 +50,10 @@ void audioTaskAbortDelay(int channel) {
 // Initialise the sound driver
 //
 void init_audio() {
+	for (int i = 0; i < MAX_AUDIO_CHANNELS; i++) {
+		audio_channels[i] = NULL;
+		audioHandlers[i] = NULL;
+	}
 	for (int i = 0; i < AUDIO_CHANNELS; i++) {
 		init_audio_channel(i);
 	}
@@ -66,10 +70,16 @@ void sendAudioStatus(int channel, int status) {
 	send_packet(PACKET_AUDIO, sizeof packet, packet);
 }
 
+// Channel enabled?
+//
+bool channelEnabled(byte channel) {
+	return channel >= 0 && channel < MAX_AUDIO_CHANNELS && audio_channels[channel] != NULL;
+}
+
 // Play a note
 //
 word play_note(byte channel, byte volume, word frequency, word duration) {
-	if (channel >=0 && channel < AUDIO_CHANNELS) {
+	if (channelEnabled(channel)) {
 		return audio_channels[channel]->play_note(volume, frequency, duration);
 	}
 	return 1;
@@ -78,7 +88,7 @@ word play_note(byte channel, byte volume, word frequency, word duration) {
 // Set channel waveform
 //
 void setWaveform(byte channel, byte waveformType) {
-	if (channel >=0 && channel < AUDIO_CHANNELS) {
+	if (channelEnabled(channel)) {
 		audio_channels[channel]->setWaveform(waveformType);
 	}
 }
@@ -86,7 +96,7 @@ void setWaveform(byte channel, byte waveformType) {
 // Set channel volume
 //
 void setVolume(byte channel, byte volume) {
-	if (channel >=0 && channel < AUDIO_CHANNELS) {
+	if (channelEnabled(channel)) {
 		audio_channels[channel]->setVolume(volume);
 	}
 }
@@ -94,15 +104,15 @@ void setVolume(byte channel, byte volume) {
 // Set channel frequency
 //
 void setFrequency(byte channel, word frequency) {
-	if (channel >=0 && channel < AUDIO_CHANNELS) {
+	if (channelEnabled(channel)) {
 		audio_channels[channel]->setFrequency(frequency);
 	}
 }
 
-// Set channel envelope
+// Set channel volume envelope
 //
 void setVolumeEnvelope(byte channel, byte type) {
-	if (channel >=0 && channel < AUDIO_CHANNELS) {
+	if (channelEnabled(channel)) {
 		switch (type) {
 			case AUDIO_ENVELOPE_NONE:
 				audio_channels[channel]->setVolumeEnvelope(NULL);
@@ -117,6 +127,15 @@ void setVolumeEnvelope(byte channel, byte type) {
 				break;
 		}
 	}
+}
+
+// Get channel status
+//
+byte getChannelStatus(byte channel) {
+	if (channelEnabled(channel)) {
+		return audio_channels[channel]->getStatus();
+	}
+	return -1;
 }
 
 // Audio VDU command support (VDU 23, 0, &85, <args>)
@@ -171,7 +190,11 @@ void vdu_sys_audio() {
 		}	break;
 
 		case AUDIO_CMD_STATUS: {
-			sendAudioStatus(channel, audio_channels[channel]->getStatus());
+			sendAudioStatus(channel, getChannelStatus(channel));
+		}	break;
+
+		case AUDIO_CMD_CONFIGURE: {
+			debug_log("vdu_sys_audio: configure - not implemented yet\n\r");
 		}	break;
 
 		case AUDIO_CMD_RESET: {

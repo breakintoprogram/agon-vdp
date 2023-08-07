@@ -64,7 +64,8 @@
 #define PACKET_RTC				0x07	// RTC
 #define PACKET_KEYSTATE			0x08	// Keyboard repeat rate and LED status
 
-#define AUDIO_CHANNELS			3		// Number of audio channels
+#define AUDIO_CHANNELS			3		// Default number of audio channels
+#define MAX_AUDIO_CHANNELS		32		// Maximum number of audio channels
 #define PLAY_SOUND_PRIORITY		3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest
 
 // Audio command definitions
@@ -78,7 +79,8 @@
 #define AUDIO_CMD_ENV_VOLUME	6		// Define/set a volume envelope
 #define AUDIO_CMD_ENV_FREQUENCY	7		// Define/set a frequency envelope
 #define AUDIO_CMD_STATUS		8		// Get the status of a channel
-#define AUDIO_CMD_RESET			9		// Reset audio channel/system
+#define AUDIO_CMD_CONFIGURE		9		// Configure the audio system
+#define AUDIO_CMD_RESET			10		// Reset audio channel/system
 #define AUDIO_WAVE_DEFAULT		0		// Default waveform (Square wave)
 #define AUDIO_WAVE_SQUARE		0		// Square wave
 #define AUDIO_WAVE_TRIANGLE		1		// Triangle wave
