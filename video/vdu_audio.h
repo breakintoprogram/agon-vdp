@@ -94,12 +94,13 @@ word play_note(byte channel, byte volume, word frequency, word duration) {
 	return 1;
 }
 
-// Set channel waveform
+// Get channel status
 //
-void setWaveform(byte channel, byte waveformType) {
+byte getChannelStatus(byte channel) {
 	if (channelEnabled(channel)) {
-		audio_channels[channel]->setWaveform(waveformType);
+		return audio_channels[channel]->getStatus();
 	}
+	return -1;
 }
 
 // Set channel volume
@@ -115,6 +116,14 @@ void setVolume(byte channel, byte volume) {
 void setFrequency(byte channel, word frequency) {
 	if (channelEnabled(channel)) {
 		audio_channels[channel]->setFrequency(frequency);
+	}
+}
+
+// Set channel waveform
+//
+void setWaveform(byte channel, byte waveformType) {
+	if (channelEnabled(channel)) {
+		audio_channels[channel]->setWaveform(waveformType);
 	}
 }
 
@@ -138,15 +147,6 @@ void setVolumeEnvelope(byte channel, byte type) {
 	}
 }
 
-// Get channel status
-//
-byte getChannelStatus(byte channel) {
-	if (channelEnabled(channel)) {
-		return audio_channels[channel]->getStatus();
-	}
-	return -1;
-}
-
 // Audio VDU command support (VDU 23, 0, &85, <args>)
 //
 void vdu_sys_audio() {
@@ -161,19 +161,9 @@ void vdu_sys_audio() {
 
 			sendAudioStatus(channel, play_note(channel, volume, frequency, duration));
 		}	break;
-	
-		case AUDIO_CMD_PLAY_ADVANCED: {
-			debug_log("vdu_sys_audio: play_advanced - not implemented yet\n\r");
-		} 	break;
 
-		case AUDIO_CMD_WAVEFORM: {
-			int waveform = readByte_t();	if (waveform == -1) return;
-
-			setWaveform(channel, waveform);
-		}	break;
-
-		case AUDIO_CMD_SAMPLE: {
-			debug_log("vdu_sys_audio: sample - not implemented yet\n\r");
+		case AUDIO_CMD_STATUS: {
+			sendAudioStatus(channel, getChannelStatus(channel));
 		}	break;
 
 		case AUDIO_CMD_VOLUME: {
@@ -188,6 +178,16 @@ void vdu_sys_audio() {
 			setFrequency(channel, frequency);
 		}	break;
 
+		case AUDIO_CMD_WAVEFORM: {
+			int waveform = readByte_t();	if (waveform == -1) return;
+
+			setWaveform(channel, waveform);
+		}	break;
+
+		case AUDIO_CMD_SAMPLE: {
+			debug_log("vdu_sys_audio: sample - not implemented yet\n\r");
+		}	break;
+
 		case AUDIO_CMD_ENV_VOLUME: {
 			int type = readByte_t();		if (type == -1) return;
 
@@ -196,10 +196,6 @@ void vdu_sys_audio() {
 
 		case AUDIO_CMD_ENV_FREQUENCY: {
 			debug_log("vdu_sys_audio: env_frequency - not implemented yet\n\r");
-		}	break;
-
-		case AUDIO_CMD_STATUS: {
-			sendAudioStatus(channel, getChannelStatus(channel));
 		}	break;
 
 		case AUDIO_CMD_ENABLE: {

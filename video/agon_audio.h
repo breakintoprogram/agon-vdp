@@ -150,7 +150,6 @@ void audio_channel::setWaveform(byte waveformType) {
 		}
 		_waveform = newWaveform;
 		_waveformType = waveformType;
-		debug_log("audio_driver: attaching new waveform\n\r");
 		SoundGenerator.attach(_waveform);
 		debug_log("audio_driver: setWaveform %d done\n\r", waveformType);
 	}
