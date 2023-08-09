@@ -45,6 +45,8 @@
 #define VDP_RTC					0x87	// RTC
 #define VDP_KEYSTATE			0x88	// Keyboard repeat rate and LED status
 #define VDP_LOGICALCOORDS		0xC0	// Switch BBC Micro style logical coords on and off
+#define VDP_LEGACYMODES			0xC1	// Switch VDP 1.03 compatible modes on and off
+#define VDP_SWITCHBUFFER		0xC3	// Double buffering control
 #define VDP_TERMINALMODE		0xFF	// Switch to terminal mode
 
 // And the corresponding return packets
