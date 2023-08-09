@@ -2,7 +2,7 @@
 // Title:	        Agon Video BIOS - Function prototypes
 // Author:        	Dean Belfield
 // Created:       	05/09/2022
-// Last Updated:    23/03/2023
+// Last Updated:    09/08/2023
 //
 // Modinfo:
 // 04/03/2023:      Added LOGICAL_SCRW and LOGICAL_SCRH
@@ -10,6 +10,7 @@
 // 21/03/2023:		Added PACKET_KEYSTATE
 // 22/03/2023:		Added VDP codes
 // 23/03/2023:		Increased baud rate to 1152000
+// 09/08/2023:		Added VDP_SWITCHBUFFER
 
 #pragma once
 
