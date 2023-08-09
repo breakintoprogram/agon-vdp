@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (vdp-gl maintenance)
 // Created:       	22/03/2022
-// Last Updated:	30/06/2023
+// Last Updated:	09/08/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -39,6 +39,7 @@
 // 30/05/2023:					+ Added VDU 23,16 (cursor movement control)
 // 28/06/2023:					+ Improved get_screen_char, fixed vdu_textViewport, cursorHome, changed modeline for Mode 2
 // 30/06/2023:					+ Fixed vdu_sys_sprites to correctly discard serial input if bitmap allocation fails
+// 09/08/2023:					+ New video modes
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
