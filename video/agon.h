@@ -66,6 +66,7 @@
 
 #define AUDIO_CHANNELS			3		// Default number of audio channels
 #define MAX_AUDIO_CHANNELS		32		// Maximum number of audio channels
+#define MAX_AUDIO_SAMPLES		128		// Maximum number of audio samples
 #define PLAY_SOUND_PRIORITY		3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest
 
 // Audio command definitions
@@ -89,11 +90,10 @@
 #define AUDIO_WAVE_SINE			3		// Sine wave
 #define AUDIO_WAVE_NOISE		4		// Noise (simple, no frequency support)
 #define AUDIO_WAVE_VICNOISE		5		// VIC-style noise (supports frequency)
-#define AUDIO_WAVE_SAMPLE		7		// Sample
+#define AUDIO_WAVE_SAMPLE		8		// Sample - values 8+ give sample number plus 8
 
 #define AUDIO_SAMPLE_LOAD		0		// Send a sample to the VDP
 #define AUDIO_SAMPLE_CLEAR		1		// Clear/delete a sample
-#define AUDIO_SAMPLE_DUPLICATE	2		// Duplicate a sample
 
 #define AUDIO_ENVELOPE_NONE		0		// No envelope
 #define AUDIO_ENVELOPE_ADSR		1		// Simple ADSR volume envelope

@@ -246,6 +246,24 @@ int	readWord_t() {
 	return -1;
 }
 
+// Read an unsigned 24-bit value from the serial port, with a timeout
+// Returns:
+// - Value (0 to 16777215) if 3 bytes read, otherwise -1
+//
+int	read24_t() {
+	int	l = readByte_t();
+	if (l >= 0) {
+		int m = readByte_t();
+		if (m >= 0) {
+			int h = readByte_t();
+			if (h >= 0) {
+				return (h << 16) | (m << 8) | l;
+			}
+		}
+	}
+	return -1;
+}
+
 // Read an unsigned byte from the serial port (blocking)
 //
 byte readByte_b() {

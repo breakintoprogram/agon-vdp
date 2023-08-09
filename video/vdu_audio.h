@@ -14,10 +14,13 @@ fabgl::SoundGenerator		SoundGenerator;		// The audio class
 extern void send_packet(byte code, byte len, byte data[]);
 extern int readByte_t();
 extern int readWord_t();
+extern int read24_t();
+extern byte readByte_b();
 
 audio_channel *	audio_channels[MAX_AUDIO_CHANNELS];	// Storage for the channel data
-
 TaskHandle_t audioHandlers[MAX_AUDIO_CHANNELS];		// Storage for audio handler task handlers
+
+audio_sample samples[MAX_AUDIO_SAMPLES];	// Storage for the sample data
 
 // Audio channel driver task
 //
@@ -127,6 +130,64 @@ void setWaveform(byte channel, byte waveformType) {
 	}
 }
 
+void discardBytes(int length) {
+	while (length > 0) {
+		readByte_b();
+		length--;
+	}
+}
+
+// Clear a sample
+//
+byte clearSample(byte sample) {
+	if (sample >= 0 && sample < MAX_AUDIO_SAMPLES) {
+		// TODO stop any active playback of this sample
+		free(samples[sample].data);
+		samples[sample].data = NULL;
+		samples[sample].length = 0;
+		samples[sample].written = false;
+		return 1;
+	}
+	return 0;
+}
+
+// Load a sample
+//
+byte loadSample(byte sample, int length) {
+	debug_log("free mem: %d\n\r", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+	if (sample >= 0 && sample < MAX_AUDIO_SAMPLES) {
+		// Clear out existing sample
+		clearSample(sample);
+
+		// Allocate new sample
+		int8_t * data = (int8_t *) heap_caps_malloc(length, MALLOC_CAP_SPIRAM);
+		samples[sample].data = data;
+		if (data != NULL) {
+			// read data into buffer
+			for (int n = 0; n < length; n++) data[n] = readByte_b();
+			samples[sample].length = length;
+			samples[sample].written = true;
+			debug_log("vdu_sys_audio: sample %d - data loaded, length %d\n\r", sample, length);
+
+			// test this sample out - temp
+			// SamplesGenerator * waveform = new SamplesGenerator((const int8_t *)data, length);
+			// SoundGenerator.attach(waveform);
+			// waveform->enable(true);
+			return 1;
+		} else {
+			// Failed to allocate memory
+			// discard incoming serial data
+			discardBytes(length);
+			debug_log("vdu_sys_audio: sample %d - data discarded, no memory available length %d\n\r", sample, length);
+			return 0;
+		}
+	}
+	// Invalid sample number - discard incoming serial data
+	discardBytes(length);
+	debug_log("vdu_sys_audio: sample %d - data discarded, invalid sample number\n\r", sample);
+	return 0;
+}
+
 // Set channel volume envelope
 //
 void setVolumeEnvelope(byte channel, byte type) {
@@ -185,7 +246,27 @@ void vdu_sys_audio() {
 		}	break;
 
 		case AUDIO_CMD_SAMPLE: {
-			debug_log("vdu_sys_audio: sample - not implemented yet\n\r");
+			// channel number param re-purposed as sample number
+			int action = readByte_t();		if (action == -1) return;
+
+			switch (action) {
+				case AUDIO_SAMPLE_LOAD: {
+					// length as a 24-bit value
+					int length = read24_t();		if (length == -1) return;
+
+					sendAudioStatus(channel, loadSample(channel, length));
+				}	break;
+
+				case AUDIO_SAMPLE_CLEAR: {
+					debug_log("vdu_sys_audio: clear sample %d\n\r", channel);
+					sendAudioStatus(channel, clearSample(channel));
+				}	break;
+
+				default: {
+					debug_log("vdu_sys_audio: unknown sample action %d\n\r", action);
+					sendAudioStatus(channel, 0);
+				}
+			}
 		}	break;
 
 		case AUDIO_CMD_ENV_VOLUME: {

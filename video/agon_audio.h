@@ -13,6 +13,12 @@
 
 extern void audioTaskAbortDelay(int channel);
 
+struct audio_sample {
+	bool written = false;			// has sample been written?
+	int length = 0;					// Length of the sample in bytes
+	int8_t * data = NULL;			// Pointer to the sample data
+};
+
 // The audio channel class
 //
 class audio_channel {	
