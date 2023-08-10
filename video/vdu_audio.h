@@ -4,6 +4,9 @@
 // Created:       	29/07/2023
 // Last Updated:	29/07/2023
 
+#include <memory>
+#include <vector>
+#include <atomic>
 #include <fabgl.h>
 
 fabgl::SoundGenerator		SoundGenerator;		// The audio class
@@ -17,17 +20,17 @@ extern int readWord_t();
 extern int read24_t();
 extern byte readByte_b();
 
-audio_channel *	audio_channels[MAX_AUDIO_CHANNELS];	// Storage for the channel data
-TaskHandle_t audioHandlers[MAX_AUDIO_CHANNELS];		// Storage for audio handler task handlers
+std::array<std::shared_ptr<audio_channel>, MAX_AUDIO_CHANNELS> audio_channels;	// Storage for the channel data
+std::vector<TaskHandle_t> audioHandlers;		// Storage for audio handler task handlers
 
-audio_sample samples[MAX_AUDIO_SAMPLES];	// Storage for the sample data
+audio_sample samples[MAX_AUDIO_SAMPLES];		// Storage for the sample data
 
 // Audio channel driver task
 //
 void audio_driver(void * parameters) {
 	int channel = *(int *)parameters;
 
-	audio_channels[channel] = new audio_channel(channel);
+	audio_channels.at(channel) = std::make_shared<audio_channel>(channel);
 	while (true) {
 		audio_channels[channel]->loop();
 		vTaskDelay(1);
@@ -45,27 +48,27 @@ void init_audio_channel(int channel) {
 }
 
 void audioTaskAbortDelay(int channel) {
-	if (audioHandlers[channel] != NULL) {
+	if (audioHandlers[channel]) {
 		xTaskAbortDelay(audioHandlers[channel]);
 	}
 }
 
 void audioTaskKill(int channel) {
-	if (audioHandlers[channel] != NULL) {
+	if (audioHandlers[channel]) {
 		vTaskDelete(audioHandlers[channel]);
-		audioHandlers[channel] = NULL;
-		delete audio_channels[channel];
-		audio_channels[channel] = NULL;
+		audioHandlers[channel] = nullptr;
+		audio_channels[channel] = nullptr;
+		debug_log("audioTaskKill: channel %d killed\n\r", channel);
+	} else {
+		debug_log("audioTaskKill: channel %d not found\n\r", channel);
 	}
 }
 
 // Initialise the sound driver
 //
 void init_audio() {
-	for (int i = 0; i < MAX_AUDIO_CHANNELS; i++) {
-		audio_channels[i] = NULL;
-		audioHandlers[i] = NULL;
-	}
+	audioHandlers.reserve(MAX_AUDIO_CHANNELS);
+	debug_log("init_audio: we have reserved %d channels\n\r", audioHandlers.capacity());
 	for (int i = 0; i < AUDIO_CHANNELS; i++) {
 		init_audio_channel(i);
 	}
@@ -85,7 +88,7 @@ void sendAudioStatus(int channel, int status) {
 // Channel enabled?
 //
 bool channelEnabled(byte channel) {
-	return channel >= 0 && channel < MAX_AUDIO_CHANNELS && audio_channels[channel] != NULL;
+	return channel >= 0 && channel < MAX_AUDIO_CHANNELS && audio_channels[channel];
 }
 
 // Play a note
@@ -139,13 +142,18 @@ void discardBytes(int length) {
 
 // Clear a sample
 //
-byte clearSample(byte sample) {
-	if (sample >= 0 && sample < MAX_AUDIO_SAMPLES) {
-		// TODO stop any active playback of this sample
-		free(samples[sample].data);
-		samples[sample].data = NULL;
-		samples[sample].length = 0;
-		samples[sample].written = false;
+byte clearSample(byte sampleIndex) {
+	if (sampleIndex >= 0 && sampleIndex < MAX_AUDIO_SAMPLES) {
+		auto sample = samples[sampleIndex];
+		while (auto channel = sample.channels.back()) {
+			// Remove sample from channel
+			channel->setWaveform(AUDIO_WAVE_DEFAULT);
+			sample.channels.pop_back();
+		}
+		free(sample.data);
+		sample.data = nullptr;
+		sample.length = 0;
+		sample.written = false;
 		return 1;
 	}
 	return 0;
@@ -162,7 +170,7 @@ byte loadSample(byte sample, int length) {
 		// Allocate new sample
 		int8_t * data = (int8_t *) heap_caps_malloc(length, MALLOC_CAP_SPIRAM);
 		samples[sample].data = data;
-		if (data != NULL) {
+		if (data != nullptr) {
 			// read data into buffer
 			for (int n = 0; n < length; n++) data[n] = readByte_b();
 			samples[sample].length = length;
@@ -194,7 +202,8 @@ void setVolumeEnvelope(byte channel, byte type) {
 	if (channelEnabled(channel)) {
 		switch (type) {
 			case AUDIO_ENVELOPE_NONE:
-				audio_channels[channel]->setVolumeEnvelope(NULL);
+				audio_channels[channel]->setVolumeEnvelope(nullptr);
+				debug_log("vdu_sys_audio: channel %d - volume envelope disabled\n\r", channel);
 				break;
 			case AUDIO_ENVELOPE_ADSR:
 				int attack = readWord_t();		if (attack == -1) return;
@@ -280,7 +289,7 @@ void vdu_sys_audio() {
 		}	break;
 
 		case AUDIO_CMD_ENABLE: {
-			if (channel >= 0 && channel < MAX_AUDIO_CHANNELS && audio_channels[channel] == NULL) {
+			if (channel >= 0 && channel < MAX_AUDIO_CHANNELS && audio_channels[channel] == nullptr) {
 				init_audio_channel(channel);
 			}
 		}	break;

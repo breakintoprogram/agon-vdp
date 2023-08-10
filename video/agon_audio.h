@@ -7,17 +7,13 @@
 //
 // Modinfo:
 
+#include <memory>
+#include <vector>
 #include <fabgl.h>
 
 #include "envelopes.h"
 
 extern void audioTaskAbortDelay(int channel);
-
-struct audio_sample {
-	bool written = false;			// has sample been written?
-	int length = 0;					// Length of the sample in bytes
-	int8_t * data = NULL;			// Pointer to the sample data
-};
 
 // The audio channel class
 //
@@ -38,7 +34,7 @@ class audio_channel {
 		word	getFrequency(word elapsed);
 		bool	isReleasing(word elapsed);
 		bool	isFinished(word elapsed);
-		fabgl::WaveformGenerator *	_waveform;
+		std::unique_ptr<WaveformGenerator> _waveform;
 		byte _waveformType;
 		byte _state;
 		byte _channel;
@@ -46,7 +42,14 @@ class audio_channel {
 		word _frequency;
 		long _duration;
 		long _startTime;
-		VolumeEnvelope * _volumeEnvelope;
+		std::unique_ptr<VolumeEnvelope> _volumeEnvelope;
+};
+
+struct audio_sample {
+	bool written = false;			// has sample been written?
+	int length = 0;					// Length of the sample in bytes
+	int8_t * data = nullptr;		// Pointer to the sample data
+	std::vector<std::shared_ptr<audio_channel>> channels;	// List of channels playing this sample
 };
 
 audio_channel::audio_channel(int channel) {
@@ -55,20 +58,16 @@ audio_channel::audio_channel(int channel) {
 	this->_volume = 0;
 	this->_frequency = 750;
 	this->_duration = -1;
-	this->_waveform = NULL;
 	setWaveform(AUDIO_WAVE_DEFAULT);
-	this->_volumeEnvelope = NULL;
 	debug_log("audio_driver: init %d\n\r", this->_channel);
+	debug_log("free mem: %d\n\r", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 }
 
 audio_channel::~audio_channel() {
-	if (this->_waveform != NULL) {
+	debug_log("audio_driver: deiniting %d\n\r", this->_channel);
+	if (this->_waveform) {
 		this->_waveform->enable(false);
-		SoundGenerator.detach(this->_waveform);
-		delete this->_waveform;
-	}
-	if (this->_volumeEnvelope != NULL) {
-		delete this->_volumeEnvelope;
+		SoundGenerator.detach(this->_waveform.get());
 	}
 	debug_log("audio_driver: deinit %d\n\r", this->_channel);
 }
@@ -89,7 +88,7 @@ word audio_channel::play_note(byte volume, word frequency, word duration) {
 
 byte audio_channel::getStatus() {
 	byte status = 0;
-	if (this->_waveform != NULL && this->_waveform->enabled()) {
+	if (this->_waveform && this->_waveform->enabled()) {
 		status |= AUDIO_STATUS_ACTIVE;
 		if (this->_duration == -1) {
 			status |= AUDIO_STATUS_INDEFINITE;
@@ -102,10 +101,10 @@ byte audio_channel::getStatus() {
 			status |= AUDIO_STATUS_PLAYING;
 			break;
 	}
-	if (this->_volumeEnvelope != NULL) {
+	if (this->_volumeEnvelope) {
 		status |= AUDIO_STATUS_HAS_VOLUME_ENVELOPE;
 	}
-	// if (this->_frequencyEnvelope != NULL) {
+	// if (this->_frequencyEnvelope) {
 	// 	status |= AUDIO_STATUS_HAS_FREQUENCY_ENVELOPE;
 	// }
 
@@ -114,7 +113,8 @@ byte audio_channel::getStatus() {
 }
 
 void audio_channel::setWaveform(byte waveformType) {
-	fabgl::WaveformGenerator * newWaveform = NULL;
+	// std::unique_ptr<WaveformGenerator> newWaveform = nullptr;
+	fabgl::WaveformGenerator * newWaveform = nullptr;
 
 	switch (waveformType) {
 		case AUDIO_WAVE_SAWTOOTH:
@@ -140,7 +140,7 @@ void audio_channel::setWaveform(byte waveformType) {
 			break;
 	}
 
-	if (newWaveform != NULL) {
+	if (newWaveform != nullptr) {
 		debug_log("audio_driver: setWaveform %d\n\r", waveformType);
 		if (this->_state != AUDIO_STATE_IDLE) {
 			debug_log("audio_driver: aborting current playback\n\r");
@@ -149,14 +149,13 @@ void audio_channel::setWaveform(byte waveformType) {
 			audioTaskAbortDelay(this->_channel);
 			waitForAbort();
 		}
-		if (_waveform != NULL) {
+		if (this->_waveform) {
 			debug_log("audio_driver: detaching old waveform\n\r");
-			SoundGenerator.detach(_waveform);
-			delete _waveform;
+			SoundGenerator.detach(this->_waveform.get());
 		}
-		_waveform = newWaveform;
+		this->_waveform.reset(newWaveform);
 		_waveformType = waveformType;
-		SoundGenerator.attach(_waveform);
+		SoundGenerator.attach(this->_waveform.get());
 		debug_log("audio_driver: setWaveform %d done\n\r", waveformType);
 	}
 }
@@ -164,7 +163,7 @@ void audio_channel::setWaveform(byte waveformType) {
 void audio_channel::setVolume(byte volume) {
 	debug_log("audio_driver: setVolume %d\n\r", volume);
 
-	if (_waveform != NULL) {
+	if (this->_waveform) {
 		waitForAbort();
 		switch (this->_state) {
 			case AUDIO_STATE_IDLE:
@@ -177,7 +176,7 @@ void audio_channel::setVolume(byte volume) {
 				break;
 			case AUDIO_STATE_PLAY_LOOP:
 				// we are looping, so an envelope may be active
-				if (this->_volumeEnvelope != NULL && volume == 0 && this->_duration == -1) {
+				if (this->_volumeEnvelope && volume == 0 && this->_duration == -1) {
 					// when we have an active envelope with indefinite playback and we're setting our volume to zero
 					// we instead set the duration to the current elapsed time, so the envelope can finish (release)
 					this->_duration = millis() - this->_startTime;
@@ -208,7 +207,7 @@ void audio_channel::setFrequency(word frequency) {
 	debug_log("audio_driver: setFrequency %d\n\r", frequency);
 	this->_frequency = frequency;
 
-	if (_waveform != NULL) {
+	if (this->_waveform) {
 		waitForAbort();
 		switch (this->_state) {
 			case AUDIO_STATE_PENDING:
@@ -223,11 +222,8 @@ void audio_channel::setFrequency(word frequency) {
 }
 
 void audio_channel::setVolumeEnvelope(VolumeEnvelope * envelope) {
-	if (this->_volumeEnvelope != NULL) {
-		delete this->_volumeEnvelope;
-	}
-	this->_volumeEnvelope = envelope;
-	if (envelope != NULL && this->_state == AUDIO_STATE_PLAYING) {
+	this->_volumeEnvelope.reset(envelope);
+	if (envelope != nullptr && this->_state == AUDIO_STATE_PLAYING) {
 		// swap to looping
 		this->_state = AUDIO_STATE_PLAY_LOOP;
 		audioTaskAbortDelay(this->_channel);
@@ -242,7 +238,7 @@ void audio_channel::waitForAbort() {
 }
 
 byte audio_channel::getVolume(word elapsed) {
-	if (this->_volumeEnvelope != NULL) {
+	if (this->_volumeEnvelope) {
 		return this->_volumeEnvelope->getVolume(this->_volume, elapsed, this->_duration);
 	}
 	return this->_volume;
@@ -256,14 +252,14 @@ word audio_channel::getFrequency(word elapsed) {
 }
 
 bool audio_channel::isReleasing(word elapsed) {
-	if (this->_volumeEnvelope != NULL) {
+	if (this->_volumeEnvelope) {
 		return this->_volumeEnvelope->isReleasing(elapsed, this->_duration);
 	}
 	return false;
 }
 
 bool audio_channel::isFinished(word elapsed) {
-	if (this->_volumeEnvelope != NULL) {
+	if (this->_volumeEnvelope) {
 		return this->_volumeEnvelope->isFinished(elapsed, this->_duration);
 	}
 	if (this->_duration == -1) {
@@ -272,7 +268,13 @@ bool audio_channel::isFinished(word elapsed) {
 	return (elapsed >= this->_duration);
 }
 
+bool loopy = false;
+
 void audio_channel::loop() {
+	if (!loopy) {
+		loopy = true;
+		debug_log("audio_driver: loop %d\n\r", this->_channel);
+	}
 	switch (this->_state) {
 		case AUDIO_STATE_PENDING:
 			debug_log("audio_driver: play %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);
@@ -283,7 +285,7 @@ void audio_channel::loop() {
 			this->_waveform->setFrequency(this->getFrequency(0));
 			this->_waveform->enable(true);
 			// if we have an envelope then we loop, otherwise just delay for duration			
-			if (this->_volumeEnvelope != NULL) {
+			if (this->_volumeEnvelope) {
 				this->_state = AUDIO_STATE_PLAY_LOOP;
 			} else {
 				this->_state = AUDIO_STATE_PLAYING;
