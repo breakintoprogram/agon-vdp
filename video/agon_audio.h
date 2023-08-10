@@ -28,6 +28,7 @@ class audio_channel {
 		void	setFrequency(word frequency);
 		void	setVolumeEnvelope(VolumeEnvelope * envelope);
 		void	loop();
+		byte	channel() { return _channel; }
 	private:
 		void	waitForAbort();
 		byte	getVolume(word elapsed);
@@ -46,11 +47,26 @@ class audio_channel {
 };
 
 struct audio_sample {
-	bool written = false;			// has sample been written?
+	~audio_sample();
 	int length = 0;					// Length of the sample in bytes
 	int8_t * data = nullptr;		// Pointer to the sample data
 	std::vector<std::shared_ptr<audio_channel>> channels;	// List of channels playing this sample
 };
+
+audio_sample::~audio_sample() {
+	// iterate over channels
+	for (auto channel : this->channels) {
+		debug_log("audio_sample: removing sample from channel %d\n\r", channel->channel());
+		// Remove sample from channel
+		channel->setWaveform(AUDIO_WAVE_DEFAULT);
+	}
+
+	if (this->data) {
+		free(this->data);
+	}
+
+	debug_log("audio_sample cleared\n\r");
+}
 
 audio_channel::audio_channel(int channel) {
 	this->_channel = channel;

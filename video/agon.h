@@ -94,6 +94,7 @@
 
 #define AUDIO_SAMPLE_LOAD		0		// Send a sample to the VDP
 #define AUDIO_SAMPLE_CLEAR		1		// Clear/delete a sample
+#define AUDIO_SAMPLE_DEBUG_INFO 2		// Get debug info about a sample
 
 #define AUDIO_ENVELOPE_NONE		0		// No envelope
 #define AUDIO_ENVELOPE_ADSR		1		// Simple ADSR volume envelope

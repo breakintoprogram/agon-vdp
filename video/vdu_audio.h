@@ -20,10 +20,11 @@ extern int readWord_t();
 extern int read24_t();
 extern byte readByte_b();
 
-std::array<std::shared_ptr<audio_channel>, MAX_AUDIO_CHANNELS> audio_channels;	// Storage for the channel data
-std::vector<TaskHandle_t> audioHandlers;		// Storage for audio handler task handlers
+// audio channels and their associated tasks
+std::array<std::shared_ptr<audio_channel>, MAX_AUDIO_CHANNELS> audio_channels;
+std::vector<TaskHandle_t> audioHandlers;
 
-audio_sample samples[MAX_AUDIO_SAMPLES];		// Storage for the sample data
+std::array<std::unique_ptr<audio_sample>, MAX_AUDIO_SAMPLES> samples;	// Storage for the sample data
 
 // Audio channel driver task
 //
@@ -143,17 +144,14 @@ void discardBytes(int length) {
 // Clear a sample
 //
 byte clearSample(byte sampleIndex) {
+	debug_log("clearSample: sample %d\n\r", sampleIndex);
 	if (sampleIndex >= 0 && sampleIndex < MAX_AUDIO_SAMPLES) {
-		auto sample = samples[sampleIndex];
-		while (auto channel = sample.channels.back()) {
-			// Remove sample from channel
-			channel->setWaveform(AUDIO_WAVE_DEFAULT);
-			sample.channels.pop_back();
+		if (!samples[sampleIndex]) {
+			debug_log("clearSample: sample %d not found\n\r", sampleIndex);
+			return 0;
 		}
-		free(sample.data);
-		sample.data = nullptr;
-		sample.length = 0;
-		sample.written = false;
+		samples[sampleIndex].reset();
+		debug_log("reset sample\n\r");
 		return 1;
 	}
 	return 0;
@@ -161,38 +159,37 @@ byte clearSample(byte sampleIndex) {
 
 // Load a sample
 //
-byte loadSample(byte sample, int length) {
+byte loadSample(byte sampleIndex, int length) {
 	debug_log("free mem: %d\n\r", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-	if (sample >= 0 && sample < MAX_AUDIO_SAMPLES) {
+	if (sampleIndex >= 0 && sampleIndex < MAX_AUDIO_SAMPLES) {
+		debug_log("loadSample: sample %d - length %d\n\r", sampleIndex, length);
 		// Clear out existing sample
-		clearSample(sample);
+		clearSample(sampleIndex);
 
-		// Allocate new sample
+		auto sample = new audio_sample();
+
 		int8_t * data = (int8_t *) heap_caps_malloc(length, MALLOC_CAP_SPIRAM);
-		samples[sample].data = data;
-		if (data != nullptr) {
-			// read data into buffer
-			for (int n = 0; n < length; n++) data[n] = readByte_b();
-			samples[sample].length = length;
-			samples[sample].written = true;
-			debug_log("vdu_sys_audio: sample %d - data loaded, length %d\n\r", sample, length);
+		sample->data = data;
 
-			// test this sample out - temp
-			// SamplesGenerator * waveform = new SamplesGenerator((const int8_t *)data, length);
-			// SoundGenerator.attach(waveform);
-			// waveform->enable(true);
+		if (data) {
+			// read data into buffer
+			for (int n = 0; n < length; n++) sample->data[n] = readByte_b();
+			sample->length = length;
+
+			samples[sampleIndex].reset(sample);
+			debug_log("vdu_sys_audio: sample %d - data loaded, length %d\n\r", sampleIndex, sample->length);
 			return 1;
 		} else {
 			// Failed to allocate memory
 			// discard incoming serial data
 			discardBytes(length);
-			debug_log("vdu_sys_audio: sample %d - data discarded, no memory available length %d\n\r", sample, length);
+			debug_log("vdu_sys_audio: sample %d - data discarded, no memory available length %d\n\r", sampleIndex, length);
 			return 0;
 		}
 	}
 	// Invalid sample number - discard incoming serial data
 	discardBytes(length);
-	debug_log("vdu_sys_audio: sample %d - data discarded, invalid sample number\n\r", sample);
+	debug_log("vdu_sys_audio: sample %d - data discarded, invalid sample number\n\r", sampleIndex);
 	return 0;
 }
 
@@ -270,6 +267,20 @@ void vdu_sys_audio() {
 					debug_log("vdu_sys_audio: clear sample %d\n\r", channel);
 					sendAudioStatus(channel, clearSample(channel));
 				}	break;
+
+				case AUDIO_SAMPLE_DEBUG_INFO: {
+					debug_log("Sample info: %d\n\r", channel);
+					debug_log("  samples count: %d\n\r", samples.size());
+					audio_sample* sample = samples[channel].get();
+					if (sample == nullptr) {
+						debug_log("  sample is null\n\r");
+						break;
+					}
+					debug_log("  length: %d\n\r", sample->length);
+					if (sample->length > 0) {
+						debug_log("  data first byte: %d\n\r", sample->data[0]);
+					}
+				} break;
 
 				default: {
 					debug_log("vdu_sys_audio: unknown sample action %d\n\r", action);
