@@ -128,9 +128,10 @@ void setFrequency(byte channel, word frequency) {
 
 // Set channel waveform
 //
-void setWaveform(byte channel, byte waveformType) {
+void setWaveform(byte channel, int8_t waveformType) {
 	if (channelEnabled(channel)) {
-		audio_channels[channel]->setWaveform(waveformType);
+		auto channelRef = audio_channels[channel];
+		channelRef->setWaveform(waveformType, channelRef);
 	}
 }
 
@@ -248,11 +249,14 @@ void vdu_sys_audio() {
 		case AUDIO_CMD_WAVEFORM: {
 			int waveform = readByte_t();	if (waveform == -1) return;
 
-			setWaveform(channel, waveform);
+			// set waveform, interpretting waveform number as a signed 8-bit value
+			// to allow for negative values to be used as sample numbers
+			setWaveform(channel, (int8_t) waveform);
 		}	break;
 
 		case AUDIO_CMD_SAMPLE: {
-			// channel number param re-purposed as sample number
+			// sample number is negative 8 bit number, and provided in channel number param
+			int8_t sampleNum = -(int8_t)channel - 1;	// convert to positive, ranged from zero
 			int action = readByte_t();		if (action == -1) return;
 
 			switch (action) {
@@ -260,18 +264,19 @@ void vdu_sys_audio() {
 					// length as a 24-bit value
 					int length = read24_t();		if (length == -1) return;
 
-					sendAudioStatus(channel, loadSample(channel, length));
+					sendAudioStatus(channel, loadSample(sampleNum, length));
 				}	break;
 
 				case AUDIO_SAMPLE_CLEAR: {
 					debug_log("vdu_sys_audio: clear sample %d\n\r", channel);
-					sendAudioStatus(channel, clearSample(channel));
+					sendAudioStatus(channel, clearSample(sampleNum));
 				}	break;
 
 				case AUDIO_SAMPLE_DEBUG_INFO: {
-					debug_log("Sample info: %d\n\r", channel);
+					debug_log("Sample info: %d (%d)\n\r", (int8_t)channel, sampleNum);
 					debug_log("  samples count: %d\n\r", samples.size());
-					audio_sample* sample = samples[channel].get();
+					debug_log("  free mem: %d\n\r", heap_caps_get_free_size(MALLOC_CAP_8BIT));
+					audio_sample* sample = samples[sampleNum].get();
 					if (sample == nullptr) {
 						debug_log("  sample is null\n\r");
 						break;

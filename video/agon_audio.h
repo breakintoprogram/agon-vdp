@@ -23,7 +23,7 @@ class audio_channel {
 		~audio_channel();
 		word	play_note(byte volume, word frequency, word duration);
 		byte	getStatus();
-		void	setWaveform(byte waveformType);
+		void	setWaveform(int8_t waveformType, std::shared_ptr<audio_channel> channelRef);
 		void	setVolume(byte volume);
 		void	setFrequency(word frequency);
 		void	setVolumeEnvelope(VolumeEnvelope * envelope);
@@ -50,15 +50,20 @@ struct audio_sample {
 	~audio_sample();
 	int length = 0;					// Length of the sample in bytes
 	int8_t * data = nullptr;		// Pointer to the sample data
-	std::vector<std::shared_ptr<audio_channel>> channels;	// List of channels playing this sample
+	std::vector<std::weak_ptr<audio_channel>> channels;	// List of channels playing this sample
 };
+
+extern std::array<std::unique_ptr<audio_sample>, MAX_AUDIO_SAMPLES> samples;
 
 audio_sample::~audio_sample() {
 	// iterate over channels
-	for (auto channel : this->channels) {
-		debug_log("audio_sample: removing sample from channel %d\n\r", channel->channel());
-		// Remove sample from channel
-		channel->setWaveform(AUDIO_WAVE_DEFAULT);
+	for (auto channelRef : this->channels) {
+		if (!channelRef.expired()) {
+			auto channel = channelRef.lock();
+			debug_log("audio_sample: removing sample from channel %d\n\r", channel->channel());
+			// Remove sample from channel
+			channel->setWaveform(AUDIO_WAVE_DEFAULT, nullptr);
+		}
 	}
 
 	if (this->data) {
@@ -74,7 +79,7 @@ audio_channel::audio_channel(int channel) {
 	this->_volume = 0;
 	this->_frequency = 750;
 	this->_duration = -1;
-	setWaveform(AUDIO_WAVE_DEFAULT);
+	setWaveform(AUDIO_WAVE_DEFAULT, nullptr);
 	debug_log("audio_driver: init %d\n\r", this->_channel);
 	debug_log("free mem: %d\n\r", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 }
@@ -128,8 +133,7 @@ byte audio_channel::getStatus() {
 	return status;
 }
 
-void audio_channel::setWaveform(byte waveformType) {
-	// std::unique_ptr<WaveformGenerator> newWaveform = nullptr;
+void audio_channel::setWaveform(int8_t waveformType, std::shared_ptr<audio_channel> channelRef) {
 	fabgl::WaveformGenerator * newWaveform = nullptr;
 
 	switch (waveformType) {
@@ -151,8 +155,23 @@ void audio_channel::setWaveform(byte waveformType) {
 		case AUDIO_WAVE_VICNOISE:
 			newWaveform = new VICNoiseGenerator();
 			break;
-		case AUDIO_WAVE_SAMPLE:
-			debug_log("audio_driver: sample waveform not yet supported\n\r");
+		default:
+			// negative values indicate a sample number
+			if (waveformType < 0) {
+				int8_t sampleNum = -waveformType - 1;
+				if (sampleNum >= 0 && sampleNum < MAX_AUDIO_SAMPLES) {
+					debug_log("audio_driver: using sample %d for waveform (%d)\n\r", waveformType, sampleNum);
+					audio_sample* sample = samples[sampleNum].get();
+					if (sample) {
+						newWaveform = new SamplesGenerator(sample->data, sample->length);
+						sample->channels.push_back(channelRef);
+					} else {
+						debug_log("audio_driver: sample %d not found\n\r", waveformType);
+					}
+				}
+			} else {
+				debug_log("audio_driver: unknown waveform type %d\n\r", waveformType);
+			}
 			break;
 	}
 
@@ -284,13 +303,7 @@ bool audio_channel::isFinished(word elapsed) {
 	return (elapsed >= this->_duration);
 }
 
-bool loopy = false;
-
 void audio_channel::loop() {
-	if (!loopy) {
-		loopy = true;
-		debug_log("audio_driver: loop %d\n\r", this->_channel);
-	}
 	switch (this->_state) {
 		case AUDIO_STATE_PENDING:
 			debug_log("audio_driver: play %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);
@@ -341,16 +354,13 @@ void audio_channel::loop() {
 		}
 		case AUDIO_STATE_RELEASE: {
 			word elapsed = millis() - this->_startTime;
-			byte newVolume = this->getVolume(elapsed);
+			// update volume and frequency as appropriate
+			this->_waveform->setVolume(this->getVolume(elapsed));
 
 			if (isFinished(elapsed)) {
-				// we've reached zero volume, so stop playback
 				this->_waveform->enable(false);
 				debug_log("audio_driver: end (released)\n\r");
 				this->_state = AUDIO_STATE_IDLE;
-			} else {
-				// update volume
-				this->_waveform->setVolume(newVolume);
 			}
 			break;
 		}
