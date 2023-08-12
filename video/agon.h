@@ -90,6 +90,7 @@
 #define AUDIO_WAVE_SINE			3		// Sine wave
 #define AUDIO_WAVE_NOISE		4		// Noise (simple, no frequency support)
 #define AUDIO_WAVE_VICNOISE		5		// VIC-style noise (supports frequency)
+#define AUDIO_WAVE_SAMPLE		8		// Sample playback (internally used, can't be passed as a parameter)
 // negative values for waveforms indicate a sample number
 
 #define AUDIO_SAMPLE_LOAD		0		// Send a sample to the VDP

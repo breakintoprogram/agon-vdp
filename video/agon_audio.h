@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <vector>
+#include <unordered_map>
 #include <fabgl.h>
 
 #include "envelopes.h"
@@ -50,14 +51,15 @@ struct audio_sample {
 	~audio_sample();
 	int length = 0;					// Length of the sample in bytes
 	int8_t * data = nullptr;		// Pointer to the sample data
-	std::vector<std::weak_ptr<audio_channel>> channels;	// List of channels playing this sample
+	std::unordered_map<byte, std::weak_ptr<audio_channel>> channels;	// Channels playing this sample
 };
 
-extern std::array<std::unique_ptr<audio_sample>, MAX_AUDIO_SAMPLES> samples;
+extern std::array<std::shared_ptr<audio_sample>, MAX_AUDIO_SAMPLES> samples;
 
 audio_sample::~audio_sample() {
 	// iterate over channels
-	for (auto channelRef : this->channels) {
+	for (auto channelPair : this->channels) {
+		auto channelRef = channelPair.second;
 		if (!channelRef.expired()) {
 			auto channel = channelRef.lock();
 			debug_log("audio_sample: removing sample from channel %d\n\r", channel->channel());
@@ -71,6 +73,55 @@ audio_sample::~audio_sample() {
 	}
 
 	debug_log("audio_sample cleared\n\r");
+}
+
+// Enhanced samples generator
+//
+class EnhancedSamplesGenerator : public WaveformGenerator {
+	public:
+		EnhancedSamplesGenerator(std::weak_ptr<audio_sample> sample);
+
+		void setFrequency(int value);
+		int getSample();
+	
+	private:
+		std::weak_ptr<audio_sample> _sample;
+		int _index;
+};
+
+EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::weak_ptr<audio_sample> sample) 
+	: _sample(sample), _index(0)
+{}
+
+void EnhancedSamplesGenerator::setFrequency(int value) {
+	// usually this will do nothing...
+	// but we'll hijack this method to allow us to reset the sample index
+	// ideally we'd override the enable method, but C++ doesn't let us do that
+	if (value < 0) {
+		_index = 0;
+	}
+}
+
+int EnhancedSamplesGenerator::getSample() {
+	if (duration() == 0 || _sample.expired()) {
+		return 0;
+	}
+
+	auto samplePtr = _sample.lock();
+	int sample = samplePtr->data[_index++];
+	
+	// Insert looping magic here
+	if (_index >= samplePtr->length) {
+		// reached end, so loop
+		_index = 0;
+	}
+
+	// process volume
+	sample = sample * volume() / 127;
+
+	decDuration();
+
+	return sample;
 }
 
 audio_channel::audio_channel(int channel) {
@@ -161,10 +212,16 @@ void audio_channel::setWaveform(int8_t waveformType, std::shared_ptr<audio_chann
 				int8_t sampleNum = -waveformType - 1;
 				if (sampleNum >= 0 && sampleNum < MAX_AUDIO_SAMPLES) {
 					debug_log("audio_driver: using sample %d for waveform (%d)\n\r", waveformType, sampleNum);
-					audio_sample* sample = samples[sampleNum].get();
+					auto sample = samples.at(sampleNum);
 					if (sample) {
-						newWaveform = new SamplesGenerator(sample->data, sample->length);
-						sample->channels.push_back(channelRef);
+						newWaveform = new EnhancedSamplesGenerator(sample);
+						// remove this channel from other samples
+						for (auto sample : samples) {
+							if (sample) {
+								sample->channels.erase(_channel);
+							}
+						}
+						sample->channels[_channel] = channelRef;
 					} else {
 						debug_log("audio_driver: sample %d not found\n\r", waveformType);
 					}
@@ -172,6 +229,7 @@ void audio_channel::setWaveform(int8_t waveformType, std::shared_ptr<audio_chann
 			} else {
 				debug_log("audio_driver: unknown waveform type %d\n\r", waveformType);
 			}
+			waveformType = AUDIO_WAVE_SAMPLE;
 			break;
 	}
 
@@ -311,7 +369,12 @@ void audio_channel::loop() {
 			this->_startTime = millis();
 			// set our initial volume and frequency
 			this->_waveform->setVolume(this->getVolume(0));
-			this->_waveform->setFrequency(this->getFrequency(0));
+			if (this->_waveformType == AUDIO_WAVE_SAMPLE) {
+				// hack to ensure samples always start from beginning
+				this->_waveform->setFrequency(-1);
+			} else {
+				this->_waveform->setFrequency(this->getFrequency(0));
+			}
 			this->_waveform->enable(true);
 			// if we have an envelope then we loop, otherwise just delay for duration			
 			if (this->_volumeEnvelope) {

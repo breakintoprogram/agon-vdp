@@ -24,7 +24,7 @@ extern byte readByte_b();
 std::array<std::shared_ptr<audio_channel>, MAX_AUDIO_CHANNELS> audio_channels;
 std::vector<TaskHandle_t> audioHandlers;
 
-std::array<std::unique_ptr<audio_sample>, MAX_AUDIO_SAMPLES> samples;	// Storage for the sample data
+std::array<std::shared_ptr<audio_sample>, MAX_AUDIO_SAMPLES> samples;	// Storage for the sample data
 
 // Audio channel driver task
 //
