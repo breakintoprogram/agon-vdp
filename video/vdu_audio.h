@@ -208,7 +208,7 @@ void setVolumeEnvelope(byte channel, byte type) {
 				int decay = readWord_t();		if (decay == -1) return;
 				int sustain = readByte_t();		if (sustain == -1) return;
 				int release = readWord_t();		if (release == -1) return;
-				ADSRVolumeEnvelope *envelope = new ADSRVolumeEnvelope(attack, decay, sustain, release);
+				auto envelope = std::make_shared<ADSRVolumeEnvelope>(attack, decay, sustain, release);
 				audio_channels[channel]->setVolumeEnvelope(envelope);
 				break;
 		}

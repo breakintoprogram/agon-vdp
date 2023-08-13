@@ -27,7 +27,7 @@ class audio_channel {
 		void	setWaveform(int8_t waveformType, std::shared_ptr<audio_channel> channelRef);
 		void	setVolume(byte volume);
 		void	setFrequency(word frequency);
-		void	setVolumeEnvelope(VolumeEnvelope * envelope);
+		void	setVolumeEnvelope(std::shared_ptr<VolumeEnvelope> envelope);
 		void	loop();
 		byte	channel() { return _channel; }
 	private:
@@ -44,7 +44,7 @@ class audio_channel {
 		word _frequency;
 		long _duration;
 		long _startTime;
-		std::unique_ptr<VolumeEnvelope> _volumeEnvelope;
+		std::shared_ptr<VolumeEnvelope> _volumeEnvelope;
 };
 
 struct audio_sample {
@@ -314,8 +314,8 @@ void audio_channel::setFrequency(word frequency) {
 	}
 }
 
-void audio_channel::setVolumeEnvelope(VolumeEnvelope * envelope) {
-	this->_volumeEnvelope.reset(envelope);
+void audio_channel::setVolumeEnvelope(std::shared_ptr<VolumeEnvelope> envelope) {
+	this->_volumeEnvelope = envelope;
 	if (envelope != nullptr && this->_state == AUDIO_STATE_PLAYING) {
 		// swap to looping
 		this->_state = AUDIO_STATE_PLAY_LOOP;
