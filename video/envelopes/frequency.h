@@ -20,7 +20,7 @@ struct FrequencyStepPhase {
 
 class SteppedFrequencyEnvelope : public FrequencyEnvelope {
 	public:
-		SteppedFrequencyEnvelope(std::shared_ptr<std::vector<FrequencyStepPhase>> phases, uint16_t stepLength, bool repeats);
+		SteppedFrequencyEnvelope(std::shared_ptr<std::vector<FrequencyStepPhase>> phases, uint16_t stepLength, bool repeats, bool cumulative, bool restrict);
 		uint16_t getFrequency(uint16_t baseFrequency, uint16_t elapsed, long duration);
 		bool isFinished(uint16_t elapsed, long duration);
 	private:
@@ -30,10 +30,12 @@ class SteppedFrequencyEnvelope : public FrequencyEnvelope {
 		int _totalAdjustment;
 		int _totalLength;
 		bool _repeats;
+		bool _cumulative;
+		bool _restrict;
 };
 
-SteppedFrequencyEnvelope::SteppedFrequencyEnvelope(std::shared_ptr<std::vector<FrequencyStepPhase>> phases, uint16_t stepLength, bool repeats)
-	: _phases(phases), _stepLength(stepLength), _repeats(repeats)
+SteppedFrequencyEnvelope::SteppedFrequencyEnvelope(std::shared_ptr<std::vector<FrequencyStepPhase>> phases, uint16_t stepLength, bool repeats, bool cumulative, bool restrict)
+	: _phases(phases), _stepLength(stepLength), _repeats(repeats), _cumulative(cumulative), _restrict(restrict)
 {
 	_totalSteps = 0;
 	_totalLength = 0;
@@ -46,7 +48,7 @@ SteppedFrequencyEnvelope::SteppedFrequencyEnvelope(std::shared_ptr<std::vector<F
 	}
 
 	debug_log("audio_driver: SteppedFrequencyEnvelope: totalSteps=%d, totalAdjustment=%d\n\r", this->_totalSteps, this->_totalAdjustment);
-	debug_log("audio_driver: SteppedFrequencyEnvelope: stepLength=%d, repeats=%d, totalLength=%d\n\r", this->_stepLength, this->_repeats, _totalLength);
+	debug_log("audio_driver: SteppedFrequencyEnvelope: stepLength=%d, repeats=%d, restricts=%d, totalLength=%d\n\r", this->_stepLength, this->_repeats, this->_restrict, _totalLength);
 }
 
 uint16_t SteppedFrequencyEnvelope::getFrequency(uint16_t baseFrequency, uint16_t elapsed, long duration) {
@@ -63,18 +65,28 @@ uint16_t SteppedFrequencyEnvelope::getFrequency(uint16_t baseFrequency, uint16_t
 	// otherwise we need to calculate the frequency
 	int frequency = baseFrequency;
 
-	// TODO cumulative adjustment (using loopCount * _totalAdjustment)
+	if (_cumulative) {
+		frequency += (loopCount * _totalAdjustment);
+	}
 
 	for (auto phase : *this->_phases) {
 		if (currentStep < phase.number) {
 			frequency += (currentStep * phase.adjustment);
 			break;
+		} else {
+			frequency += (phase.number * phase.adjustment);
 		}
 
 		currentStep -= phase.number;
 	}
 
-	// TODO loop frequency value as appropriate
+	if (_restrict) {
+		if (frequency < 0) {
+			return 0;
+		} else if (frequency > 65535) {
+			return 0;
+		}
+	}
 
 	return frequency;
 }

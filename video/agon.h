@@ -102,6 +102,10 @@
 
 #define AUDIO_FREQUENCY_ENVELOPE_STEPPED	1		// Stepped frequency envelope
 
+#define AUDIO_FREQUENCY_REPEATS 0x01	// Repeat/loop the frequency envelope
+#define AUDIO_FREQUENCY_CUMULATIVE	0x02	// Reset frequency envelope when looping
+#define AUDIO_FREQUENCY_RESTRICT	0x04	// Restrict frequency envelope to the range 0-65535
+
 #define AUDIO_STATUS_ACTIVE		0x01	// Has an active waveform
 #define AUDIO_STATUS_PLAYING	0x02	// Playing a note (not in release phase)
 #define AUDIO_STATUS_INDEFINITE	0x04	// Indefinite duration sound playing
