@@ -272,11 +272,12 @@ void audio_channel::setVolume(byte volume) {
 				break;
 			case AUDIO_STATE_PLAY_LOOP:
 				// we are looping, so an envelope may be active
-				if (this->_volumeEnvelope && volume == 0 && this->_duration == -1) {
-					// when we have an active envelope with indefinite playback and we're setting our volume to zero
-					// we instead set the duration to the current elapsed time, so the envelope can finish (release)
+				if (volume == 0 && this->_duration == -1) {
+					// abort loop by setting a duration to now
 					this->_duration = millis() - this->_startTime;
-				} else {
+				}
+				if (!(this->_volumeEnvelope || this->_frequencyEnvelope)) {
+					// no envelope, so set volume to new value
 					this->_volume = volume;
 				}
 				break;
@@ -319,7 +320,7 @@ void audio_channel::setFrequency(word frequency) {
 
 void audio_channel::setVolumeEnvelope(std::shared_ptr<VolumeEnvelope> envelope) {
 	this->_volumeEnvelope = envelope;
-	if (envelope != nullptr && this->_state == AUDIO_STATE_PLAYING) {
+	if (envelope && this->_state == AUDIO_STATE_PLAYING) {
 		// swap to looping
 		this->_state = AUDIO_STATE_PLAY_LOOP;
 		audioTaskAbortDelay(this->_channel);
@@ -328,7 +329,7 @@ void audio_channel::setVolumeEnvelope(std::shared_ptr<VolumeEnvelope> envelope) 
 
 void audio_channel::setFrequencyEnvelope(std::shared_ptr<FrequencyEnvelope> envelope) {
 	this->_frequencyEnvelope = envelope;
-	if (envelope != nullptr && this->_state == AUDIO_STATE_PLAYING) {
+	if (envelope && this->_state == AUDIO_STATE_PLAYING) {
 		// swap to looping
 		this->_state = AUDIO_STATE_PLAY_LOOP;
 		audioTaskAbortDelay(this->_channel);
@@ -350,8 +351,7 @@ byte audio_channel::getVolume(word elapsed) {
 }
 
 word audio_channel::getFrequency(word elapsed) {
-	// uint16_t getFrequency(uint16_t baseFrequency, uint16_t elapsed, long duration);
-	if (this->_frequencyEnvelope != NULL) {
+	if (this->_frequencyEnvelope) {
 		return this->_frequencyEnvelope->getFrequency((uint16_t) this->_frequency, (uint16_t) elapsed, this->_duration);
 	}
 	return this->_frequency;
@@ -361,7 +361,10 @@ bool audio_channel::isReleasing(word elapsed) {
 	if (this->_volumeEnvelope) {
 		return this->_volumeEnvelope->isReleasing(elapsed, this->_duration);
 	}
-	return false;
+	if (this->_duration == -1) {
+		return false;
+	}
+	return elapsed >= this->_duration;
 }
 
 bool audio_channel::isFinished(word elapsed) {
@@ -390,7 +393,7 @@ void audio_channel::loop() {
 			}
 			this->_waveform->enable(true);
 			// if we have an envelope then we loop, otherwise just delay for duration			
-			if (this->_volumeEnvelope) {
+			if (this->_volumeEnvelope || this->_frequencyEnvelope) {
 				this->_state = AUDIO_STATE_PLAY_LOOP;
 			} else {
 				this->_state = AUDIO_STATE_PLAYING;
@@ -425,13 +428,19 @@ void audio_channel::loop() {
 				this->_state = AUDIO_STATE_RELEASE;
 			}
 			// update volume and frequency as appropriate
-			this->_waveform->setVolume(this->getVolume(elapsed));
+			if (this->_volumeEnvelope)
+				this->_waveform->setVolume(this->getVolume(elapsed));
+			if (this->_frequencyEnvelope)
+				this->_waveform->setFrequency(this->getFrequency(elapsed));
 			break;
 		}
 		case AUDIO_STATE_RELEASE: {
 			word elapsed = millis() - this->_startTime;
 			// update volume and frequency as appropriate
-			this->_waveform->setVolume(this->getVolume(elapsed));
+			if (this->_volumeEnvelope)
+				this->_waveform->setVolume(this->getVolume(elapsed));
+			if (this->_frequencyEnvelope)
+				this->_waveform->setFrequency(this->getFrequency(elapsed));
 
 			if (isFinished(elapsed)) {
 				this->_waveform->enable(false);
