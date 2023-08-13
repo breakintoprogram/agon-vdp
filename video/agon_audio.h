@@ -272,12 +272,15 @@ void audio_channel::setVolume(byte volume) {
 				break;
 			case AUDIO_STATE_PLAY_LOOP:
 				// we are looping, so an envelope may be active
-				if (volume == 0 && this->_duration == -1) {
-					// abort loop by setting a duration to now
+				if (volume == 0) {
+					// silence whilst looping always stops playback - curtail duration
 					this->_duration = millis() - this->_startTime;
-				}
-				if (!(this->_volumeEnvelope || this->_frequencyEnvelope)) {
-					// no envelope, so set volume to new value
+					// if there's a volume envelope, just allow release to happen, otherwise...
+					if (!this->_volumeEnvelope) {
+						this->_volume = 0;
+					}
+				} else {
+					// Change base volume level, so next loop iteration will use it
 					this->_volume = volume;
 				}
 				break;
