@@ -2,7 +2,7 @@
 // Title:	        Agon Video BIOS - Function prototypes
 // Author:        	Dean Belfield
 // Created:       	05/09/2022
-// Last Updated:    09/08/2023
+// Last Updated:    13/08/2023
 //
 // Modinfo:
 // 04/03/2023:      Added LOGICAL_SCRW and LOGICAL_SCRH
@@ -11,6 +11,7 @@
 // 22/03/2023:		Added VDP codes
 // 23/03/2023:		Increased baud rate to 1152000
 // 09/08/2023:		Added VDP_SWITCHBUFFER
+// 13/08/2023:		Added additional modelines
 
 #pragma once
 
@@ -78,3 +79,9 @@
 // Function Prototypes
 //
 void debug_log(const char *format, ...);
+
+// Additional modelines
+//
+#ifndef VGA_640x240_60Hz
+#define VGA_640x240_60Hz	"\"640x240@60Hz\" 25.175 640 656 752 800 240 245 247 262 -HSync -VSync DoubleScan"
+#endif

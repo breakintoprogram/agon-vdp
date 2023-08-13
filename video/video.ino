@@ -5,7 +5,7 @@
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (vdp-gl maintenance)
 // Created:       	22/03/2022
-// Last Updated:	09/08/2023
+// Last Updated:	13/08/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -39,7 +39,7 @@
 // 30/05/2023:					+ Added VDU 23,16 (cursor movement control)
 // 28/06/2023:					+ Improved get_screen_char, fixed vdu_textViewport, cursorHome, changed modeline for Mode 2
 // 30/06/2023:					+ Fixed vdu_sys_sprites to correctly discard serial input if bitmap allocation fails
-// 09/08/2023:					+ New video modes
+// 13/08/2023:					+ New video modes, mode change resets page mode
 
 #include "fabgl.h"
 #include "HardwareSerial.h"
@@ -114,10 +114,6 @@ bool			doWaitCompletion;				// For vdu function
 uint8_t			palette[64];					// Storage for the palette
 bool			legacyModes = false;			// Default legacy modes being false
 bool			doubleBuffered = false;			// Disable double buffering by default
-
-// The following definition is (not yet) in vdp-gl but is required for new modes 3-6
-
-#define VGA_640x240_60Hz  "\"640x240@60Hz\" 25.175 640 656 752 800 240 245 247 262 -HSync -VSync DoubleScan"
 
 audio_channel *	audio_channels[AUDIO_CHANNELS];	// Storage for the channel data
 
@@ -851,6 +847,7 @@ int change_mode(int mode) {
 	cursorEnabled = true;
 	cursorBehaviour = 0;
 	activeCursor = &textCursor;
+	pagedMode = false;
 	vdu_resetViewports();
 	sendModeInformation();
 	debug_log("do_modeChange: canvas(%d,%d), scale(%f,%f)\n\r", canvasW, canvasH, logicalScaleX, logicalScaleY);
