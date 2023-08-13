@@ -100,6 +100,8 @@
 #define AUDIO_ENVELOPE_NONE		0		// No envelope
 #define AUDIO_ENVELOPE_ADSR		1		// Simple ADSR volume envelope
 
+#define AUDIO_FREQUENCY_ENVELOPE_STEPPED	1		// Stepped frequency envelope
+
 #define AUDIO_STATUS_ACTIVE		0x01	// Has an active waveform
 #define AUDIO_STATUS_PLAYING	0x02	// Playing a note (not in release phase)
 #define AUDIO_STATUS_INDEFINITE	0x04	// Indefinite duration sound playing

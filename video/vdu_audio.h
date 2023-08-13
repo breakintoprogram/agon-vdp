@@ -215,6 +215,36 @@ void setVolumeEnvelope(byte channel, byte type) {
 	}
 }
 
+// Set channel frequency envelope
+//
+void setFrequencyEnvelope(byte channel, byte type) {
+	if (channelEnabled(channel)) {
+		switch (type) {
+			case AUDIO_ENVELOPE_NONE:
+				audio_channels[channel]->setFrequencyEnvelope(nullptr);
+				debug_log("vdu_sys_audio: channel %d - frequency envelope disabled\n\r", channel);
+				break;
+			case AUDIO_FREQUENCY_ENVELOPE_STEPPED:
+				int stepCount = readByte_t();	if (stepCount == -1) return;
+				byte repeats = readByte_t();	if (repeats == -1) return;
+				int stepLength = readWord_t();	if (stepLength == -1) return;
+				auto steps = std::make_shared<std::vector<FrequencyStep>>();
+				debug_log("vdu_sys_audio: channel %d - stepped frequency envelope, steps %d, repeats %d, step length %d\n\r", channel, stepCount, repeats, stepLength);
+				for (int n = 0; n < stepCount; n++) {
+					int increment = readWord_t();	if (increment == -1) return;
+					int number = readWord_t();		if (number == -1) return;
+					steps->push_back(FrequencyStep { (int16_t)increment, number });
+				}
+				debug_log("got steps\n\r");
+				auto envelope = std::make_shared<SteppedFrequencyEnvelope>(steps, stepLength, repeats != 0);
+				debug_log("got envelope\n\r");
+				audio_channels[channel]->setFrequencyEnvelope(envelope);
+				debug_log("set envelope\n\r");
+				break;
+		}
+	}
+}
+
 // Audio VDU command support (VDU 23, 0, &85, <args>)
 //
 void vdu_sys_audio() {
@@ -301,7 +331,9 @@ void vdu_sys_audio() {
 		}	break;
 
 		case AUDIO_CMD_ENV_FREQUENCY: {
-			debug_log("vdu_sys_audio: env_frequency - not implemented yet\n\r");
+			int type = readByte_t();		if (type == -1) return;
+
+			setFrequencyEnvelope(channel, type);
 		}	break;
 
 		case AUDIO_CMD_ENABLE: {

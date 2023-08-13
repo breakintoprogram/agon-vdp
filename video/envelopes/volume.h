@@ -1,8 +1,8 @@
 //
-// Title:	        Audio Envelope support
-// Author:        	Steve Sims
-// Created:       	06/08/2023
-// Last Updated:	06/08/2023
+// Title:			Audio Volume Envelope support
+// Author:			Steve Sims
+// Created:			06/08/2023
+// Last Updated:	13/08/2023
 
 class VolumeEnvelope {
 	public:
@@ -24,13 +24,11 @@ class ADSRVolumeEnvelope : public VolumeEnvelope {
 		word _release;
 };
 
-ADSRVolumeEnvelope::ADSRVolumeEnvelope(word attack, word decay, byte sustain, word release) {
+ADSRVolumeEnvelope::ADSRVolumeEnvelope(word attack, word decay, byte sustain, word release)
+	: _attack(attack), _decay(decay), _sustain(sustain), _release(release)
+{
 	// attack, decay, release are time values in milliseconds
 	// sustain is 0-255, centered on 127, and is the relative sustain level
-	this->_attack = attack;
-	this->_decay = decay;
-	this->_sustain = sustain;
-	this->_release = release;
 	debug_log("audio_driver: ADSRVolumeEnvelope: attack=%d, decay=%d, sustain=%d, release=%d\n\r", this->_attack, this->_decay, this->_sustain, this->_release);
 }
 

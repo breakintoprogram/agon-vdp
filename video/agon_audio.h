@@ -12,7 +12,8 @@
 #include <unordered_map>
 #include <fabgl.h>
 
-#include "envelopes.h"
+#include "envelopes/volume.h"
+#include "envelopes/frequency.h"
 
 extern void audioTaskAbortDelay(int channel);
 
@@ -28,6 +29,7 @@ class audio_channel {
 		void	setVolume(byte volume);
 		void	setFrequency(word frequency);
 		void	setVolumeEnvelope(std::shared_ptr<VolumeEnvelope> envelope);
+		void	setFrequencyEnvelope(std::shared_ptr<FrequencyEnvelope> envelope);
 		void	loop();
 		byte	channel() { return _channel; }
 	private:
@@ -45,6 +47,7 @@ class audio_channel {
 		long _duration;
 		long _startTime;
 		std::shared_ptr<VolumeEnvelope> _volumeEnvelope;
+		std::shared_ptr<FrequencyEnvelope> _frequencyEnvelope;
 };
 
 struct audio_sample {
@@ -176,9 +179,9 @@ byte audio_channel::getStatus() {
 	if (this->_volumeEnvelope) {
 		status |= AUDIO_STATUS_HAS_VOLUME_ENVELOPE;
 	}
-	// if (this->_frequencyEnvelope) {
-	// 	status |= AUDIO_STATUS_HAS_FREQUENCY_ENVELOPE;
-	// }
+	if (this->_frequencyEnvelope) {
+		status |= AUDIO_STATUS_HAS_FREQUENCY_ENVELOPE;
+	}
 
 	debug_log("audio_driver: getStatus %d\n\r", status);
 	return status;
@@ -323,6 +326,15 @@ void audio_channel::setVolumeEnvelope(std::shared_ptr<VolumeEnvelope> envelope) 
 	}
 }
 
+void audio_channel::setFrequencyEnvelope(std::shared_ptr<FrequencyEnvelope> envelope) {
+	this->_frequencyEnvelope = envelope;
+	if (envelope != nullptr && this->_state == AUDIO_STATE_PLAYING) {
+		// swap to looping
+		this->_state = AUDIO_STATE_PLAY_LOOP;
+		audioTaskAbortDelay(this->_channel);
+	}
+}
+
 void audio_channel::waitForAbort() {
 	while (this->_state == AUDIO_STATE_ABORT) {
 		// wait for abort to complete
@@ -338,9 +350,10 @@ byte audio_channel::getVolume(word elapsed) {
 }
 
 word audio_channel::getFrequency(word elapsed) {
-	// if (this->_frequencyEnvelope != NULL) {
-	// 	return this->_frequencyEnvelope->getFrequency(this->_frequency, elapsed, this->_duration);
-	// }
+	// uint16_t getFrequency(uint16_t baseFrequency, uint16_t elapsed, long duration);
+	if (this->_frequencyEnvelope != NULL) {
+		return this->_frequencyEnvelope->getFrequency((uint16_t) this->_frequency, (uint16_t) elapsed, this->_duration);
+	}
 	return this->_frequency;
 }
 
