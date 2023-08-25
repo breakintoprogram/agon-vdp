@@ -6,19 +6,14 @@
 
 #include <memory>
 #include <vector>
-#include <atomic>
+#include <array>
 #include <fabgl.h>
 
 fabgl::SoundGenerator		SoundGenerator;		// The audio class
 
 #include "agon.h"
 #include "agon_audio.h"
-
-extern void send_packet(byte code, byte len, byte data[]);
-extern int readByte_t();
-extern int readWord_t();
-extern int read24_t();
-extern byte readByte_b();
+#include "vdp_protocol.h"
 
 // audio channels and their associated tasks
 std::array<std::shared_ptr<audio_channel>, MAX_AUDIO_CHANNELS> audio_channels;
@@ -232,7 +227,7 @@ void setFrequencyEnvelope(byte channel, byte type) {
 				for (int n = 0; n < phaseCount; n++) {
 					int adjustment = readWord_t();	if (adjustment == -1) return;
 					int number = readWord_t();		if (number == -1) return;
-					phases->push_back(FrequencyStepPhase { (int16_t)adjustment, number });
+					phases->push_back(FrequencyStepPhase { (int16_t)adjustment, (uint16_t)number });
 				}
 				bool repeats = control & AUDIO_FREQUENCY_REPEATS;
 				bool cumulative = control & AUDIO_FREQUENCY_CUMULATIVE;

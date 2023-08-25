@@ -8,8 +8,8 @@
 // Modinfo:
 
 #include <memory>
-#include <vector>
 #include <unordered_map>
+#include <array>
 #include <fabgl.h>
 
 #include "envelopes/volume.h"

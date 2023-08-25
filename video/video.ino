@@ -41,9 +41,8 @@
 // 30/06/2023:					+ Fixed vdu_sys_sprites to correctly discard serial input if bitmap allocation fails
 // 13/08/2023:					+ New video modes, mode change resets page mode
 
-#include "fabgl.h"
-#include "HardwareSerial.h"
-#include "ESP32Time.h"
+#include <fabgl.h>
+#include <ESP32Time.h>
 
 #define VERSION			1
 #define REVISION		4
@@ -71,6 +70,7 @@ fabgl::PaintOptions			tpo;				// Text paint options
 #include "agon.h"								// Configuration file
 #include "agon_fonts.h"							// The Acorn BBC Micro Font
 #include "agon_palette.h"						// Colour lookup table
+#include "vdp_protocol.h"						// VDP Protocol
 #include "vdu_audio.h"							// Audio support
 
 int				VGAColourDepth;					// Number of colours per pixel (2, 4,8, 16 or 64)
@@ -126,17 +126,7 @@ void setup() {
 	#if DEBUG == 1 || SERIALKB == 1
 	DBGSerial.begin(500000, SERIAL_8N1, 3, 1);
 	#endif 
-	ESPSerial.end();
- 	ESPSerial.setRxBufferSize(UART_RX_SIZE);					// Can't be called when running
- 	ESPSerial.begin(UART_BR, SERIAL_8N1, UART_RX, UART_TX);
-	#if USE_HWFLOW == 1
-	ESPSerial.setHwFlowCtrlMode(HW_FLOWCTRL_RTS, 64);			// Can be called whenever
-	ESPSerial.setPins(UART_NA, UART_NA, UART_CTS, UART_RTS);	// Must be called after begin
-	#else 
-	pinMode(UART_RTS, OUTPUT);
-	pinMode(UART_CTS, INPUT);	
-	setRTSStatus(true);
-	#endif
+	setupVDPProtocol();
 	wait_eZ80();
  	PS2Controller.begin(PS2Preset::KeyboardPort0, KbdMode::CreateVirtualKeysQueue);
 	PS2Controller.keyboard()->setLayout(&fabgl::UKLayout);
@@ -154,7 +144,7 @@ void loop() {
 	bool cursorVisible = false;
 	bool cursorState = false;
 
-	while(true) {
+	while (true) {
 		if(terminalMode) {
 			do_keyboard_terminal();
 			continue;
@@ -165,24 +155,14 @@ void loop() {
       		do_cursor();
     	}
     	do_keyboard();
-    	if(ESPSerial.available() > 0) {
-			#if USE_HWFLOW == 0
-			if(ESPSerial.available() > UART_RX_THRESH) {
-				setRTSStatus(false);		
-			}
-			#endif 
-      		if(cursorState) {
+    	if (byteAvailable()) {
+      		if (cursorState) {
  	    		cursorState = false;
         		do_cursor();
       		}
-      		byte c = ESPSerial.read();
+      		byte c = readByte();
       		vdu(c);
     	}
-		#if USE_HWFLOW == 0
-		else {
-			setRTSStatus(true);
-		}
-		#endif
     	count++;
   	}
 }
@@ -215,98 +195,20 @@ void debug_log(const char *format, ...) {
 	#endif
 }
 
-// Read an unsigned byte from the serial port, with a timeout
-// Returns:
-// - Byte value (0 to 255) if value read, otherwise -1
-//
-int readByte_t() {
-	int	i;
-	unsigned long t = millis();
-
-	while(millis() - t < 1000) {
-		if(ESPSerial.available() > 0) {
-			return ESPSerial.read();
-		}
-	}
-	return -1;
-}
-
-// Read an unsigned word from the serial port, with a timeout
-// Returns:
-// - Word value (0 to 65535) if 2 bytes read, otherwise -1
-//
-int	readWord_t() {
-	int	l = readByte_t();
-	if(l >= 0) {
-		int h = readByte_t();
-		if(h >= 0) {
-			return (h << 8) | l;
-		}
-	}
-	return -1;
-}
-
-// Read an unsigned 24-bit value from the serial port, with a timeout
-// Returns:
-// - Value (0 to 16777215) if 3 bytes read, otherwise -1
-//
-int	read24_t() {
-	int	l = readByte_t();
-	if (l >= 0) {
-		int m = readByte_t();
-		if (m >= 0) {
-			int h = readByte_t();
-			if (h >= 0) {
-				return (h << 16) | (m << 8) | l;
-			}
-		}
-	}
-	return -1;
-}
-
-// Read an unsigned byte from the serial port (blocking)
-//
-byte readByte_b() {
-  	while(ESPSerial.available() == 0);
-  	return ESPSerial.read();
-}
-
-// Read an unsigned word from the serial port (blocking)
-//
-uint32_t readLong_b() {
-  uint32_t temp;
-  temp  =  readByte_b();		// LSB;
-  temp |= (readByte_b() << 8);
-  temp |= (readByte_b() << 16);
-  temp |= (readByte_b() << 24);
-  return temp;
-}
-
 // Copy the AGON font data from Flash to RAM
 //
 void copy_font() {
 	memcpy(fabgl::FONT_AGON_DATA + 256, fabgl::FONT_AGON_BITMAP, sizeof(fabgl::FONT_AGON_BITMAP));
 }
 
-// Set the RTS line value
-//
-void setRTSStatus(bool value) {
-	digitalWrite(UART_RTS, value ? LOW : HIGH);		// Asserts when LOW
-}
-
 // Wait for eZ80 to initialise
 //
 void wait_eZ80() {
 	debug_log("wait_eZ80: Start\n\r");
-	while(!initialised) {
-    	if(ESPSerial.available() > 0) {
-			#if USE_HWFLOW == 0
-			if(ESPSerial.available() > UART_RX_THRESH) {
-				setRTSStatus(false);		
-			}
-			#endif 		
-			byte c = ESPSerial.read();	// Only handle VDU 23 packets
-			if(c == 23) {
+	while (!initialised) {
+    	if (byteAvailable()) {
+			byte c = readByte();	// Only handle VDU 23 packets
+			if (c == 23) {
 				vdu_sys();
 			}
 		}
@@ -538,7 +440,7 @@ void switchTerminalMode() {
 	cls(true);
   	delete Canvas;
 	Terminal.begin(VGAController);	
-	Terminal.connectSerialPort(ESPSerial);
+	Terminal.connectSerialPort(VDPSerial);
 	Terminal.enableCursor(true);
 	terminalMode = true;
 }
@@ -875,14 +777,14 @@ void do_keyboard_terminal() {
 	//
 	if(kb->getNextVirtualKey(&item, 0)) {
 		if(item.down) {
-			ESPSerial.write(item.ASCII);
+			writeByte(item.ASCII);
 		}
 	}
 
 	// Wait for the response and write to the screen
 	//
-	while(ESPSerial.available()) {
-		Terminal.write(ESPSerial.read());
+	while(byteAvailable()) {
+		Terminal.write(readByte());
 	}
 }
 
@@ -985,16 +887,6 @@ void do_keyboard() {
 			item.down,
 		};
 		send_packet(PACKET_KEYCODE, sizeof packet, packet);
-	}
-}
-
-// Send a packet of data to the MOS
-//
-void send_packet(byte code, byte len, byte data[]) {
-	ESPSerial.write(code + 0x80);
-	ESPSerial.write(len);
-	for(int i = 0; i < len; i++) {
-		ESPSerial.write(data[i]);
 	}
 }
 
