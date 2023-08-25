@@ -15,10 +15,6 @@
 
 #pragma once
 
-#define	ESPSerial Serial2
-
-#define USE_HWFLOW				1		// Flow Control: 1 = enable hardware flow control to eZ80
-
 #define EPOCH_YEAR				1980	// 1-byte dates are offset from this (for FatFS)
 #define MAX_SPRITES				256		// Maximum number of sprites
 #define MAX_BITMAPS				256		// Maximum number of bitmaps
