@@ -4,6 +4,9 @@
 // Created:       	29/07/2023
 // Last Updated:	29/07/2023
 
+#ifndef VDU_AUDIO_H
+#define VDU_AUDIO_H
+
 #include <memory>
 #include <vector>
 #include <array>
@@ -127,13 +130,6 @@ void setWaveform(byte channel, int8_t waveformType) {
 	if (channelEnabled(channel)) {
 		auto channelRef = audio_channels[channel];
 		channelRef->setWaveform(waveformType, channelRef);
-	}
-}
-
-void discardBytes(int length) {
-	while (length > 0) {
-		readByte_b();
-		length--;
 	}
 }
 
@@ -350,3 +346,5 @@ void vdu_sys_audio() {
 		}	break;
 	}
 }
+
+#endif // VDU_AUDIO_H

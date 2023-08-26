@@ -7,6 +7,9 @@
 //
 // Modinfo:
 
+#ifndef AGON_AUDIO_H
+#define AGON_AUDIO_H
+
 #include <memory>
 #include <unordered_map>
 #include <array>
@@ -459,3 +462,5 @@ void audio_channel::loop() {
 			break;
 	}
 }
+
+#endif // AGON_AUDIO_H
