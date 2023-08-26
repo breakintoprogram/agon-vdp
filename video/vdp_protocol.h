@@ -105,6 +105,15 @@ uint32_t readLong_b() {
   return temp;
 }
 
+// Discard a given number of bytes from input stream
+//
+void discardBytes(int length) {
+	while (length > 0) {
+		readByte_b();
+		length--;
+	}
+}
+
 // Send a packet of data to the MOS
 //
 void send_packet(byte code, byte len, byte data[]) {
