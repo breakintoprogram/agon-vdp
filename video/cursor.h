@@ -11,7 +11,6 @@
 extern int		fontW;
 extern int		fontH;
 extern fabgl::Canvas * Canvas;
-extern void wait_shiftkey();	// defined by agon_keyboard.h
 
 Point			textCursor;						// Text cursor
 Point *			activeCursor;					// Pointer to the active text cursor (textCursor or p1)
@@ -55,7 +54,19 @@ void cursorDown() {
 		pagedModeCount++;
 		if (pagedModeCount >= (activeViewport->Y2 - activeViewport->Y1 + 1) / fontH) {
 			pagedModeCount = 0;
-			wait_shiftkey();
+			byte ascii;
+			byte vk;
+			byte down;
+			if (!wait_shiftkey(&ascii, &vk, &down)) {
+				// ESC pressed
+				byte packet[] = {
+					ascii,
+					0,
+					vk,
+					down,
+				};
+				send_packet(PACKET_KEYCODE, sizeof packet, packet);
+			}
 		}
 	}
 	//
