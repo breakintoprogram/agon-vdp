@@ -72,6 +72,7 @@ fabgl::PaintOptions			tpo;				// Text paint options
 #include "agon_palette.h"						// Colour lookup table
 #include "vdu_audio.h"							// Audio support
 #include "agon_keyboard.h"						// Keyboard support
+#include "cursor.h"								// Cursor support
 #include "vdp_protocol.h"						// VDP Protocol
 #include "vdu.h"								// VDU functions
 #include "viewport.h"							// Viewport support
@@ -141,6 +142,48 @@ void loop() {
     	}
     	count++;
   	}
+}
+
+// Handle the keyboard: BBC VDU Mode
+//
+void do_keyboard() {
+	byte keycode;
+	byte modifiers;
+	byte vk;
+	byte down;
+	if (getKeyboardKey(&keycode, &modifiers, &vk, &down)) {
+		// Handle some control keys
+		//
+		switch (keycode) {
+			case 14: setPagedMode(true); break;
+			case 15: setPagedMode(false); break;
+		}
+		// Create and send the packet back to MOS
+		//
+		byte packet[] = {
+			keycode,
+			modifiers,
+			vk,
+			down,
+		};
+		send_packet(PACKET_KEYCODE, sizeof packet, packet);
+	}
+}
+
+// Handle the keyboard: CP/M Terminal Mode
+// 
+void do_keyboard_terminal() {
+	byte ascii;
+	if (getKeyboardKey(&ascii)) {
+		// send raw byte straight to z80
+		writeByte(ascii);
+	}
+
+	// Write anything read from z80 to the screen
+	//
+	while (byteAvailable()) {
+		Terminal.write(readByte());
+	}
 }
 
 // The boot screen
