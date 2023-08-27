@@ -52,7 +52,6 @@
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
 
-fabgl::PS2Controller		PS2Controller;		// The keyboard class
 fabgl::Canvas *				Canvas;				// The canvas class
 
 fabgl::VGA2Controller		VGAController2;		// VGA class - 2 colours
@@ -72,6 +71,7 @@ fabgl::PaintOptions			tpo;				// Text paint options
 #include "agon_fonts.h"							// The Acorn BBC Micro Font
 #include "agon_palette.h"						// Colour lookup table
 #include "vdu_audio.h"							// Audio support
+#include "agon_keyboard.h"						// Keyboard support
 #include "vdp_protocol.h"						// VDP Protocol
 #include "vdu.h"								// VDU functions
 #include "viewport.h"							// Viewport support
@@ -88,12 +88,8 @@ uint8_t 		current_sprite = 0; 			// Current sprite number
 uint8_t 		current_bitmap = 0;				// Current bitmap number
 Bitmap			bitmaps[MAX_BITMAPS];			// Bitmap object storage
 Sprite			sprites[MAX_SPRITES];			// Sprite object storage
-byte 			keycode = 0;					// Last pressed key code
-byte 			modifiers = 0;					// Last pressed key modifiers
 bool			terminalMode = false;			// Terminal mode
 int				videoMode;						// Current video mode
-int				kbRepeatDelay = 500;			// Keyboard repeat delay ms (250, 500, 750 or 1000)		
-int				kbRepeatRate = 100;				// Keyboard repeat rate ms (between 33 and 500)
 bool			doWaitCompletion;				// For vdu function
 uint8_t			palette[64];					// Storage for the palette
 bool			legacyModes = false;			// Default legacy modes being false
@@ -111,10 +107,7 @@ void setup() {
 	#endif 
 	setupVDPProtocol();
 	wait_eZ80();
- 	PS2Controller.begin(PS2Preset::KeyboardPort0, KbdMode::CreateVirtualKeysQueue);
-	PS2Controller.keyboard()->setLayout(&fabgl::UKLayout);
-	PS2Controller.keyboard()->setCodePage(fabgl::CodePages::get(1252));
-	PS2Controller.keyboard()->setTypematicRateAndDelay(kbRepeatRate, kbRepeatDelay);
+	setupKeyboard();
 	init_audio();
 	copy_font();
   	set_mode(1);
@@ -128,12 +121,12 @@ void loop() {
 	bool cursorState = false;
 
 	while (true) {
-		if(terminalMode) {
+		if (terminalMode) {
 			do_keyboard_terminal();
 			continue;
 		}
     	cursorVisible = ((count & 0xFFFF) == 0);
-    	if(cursorVisible) {
+    	if (cursorVisible) {
       		cursorState = !cursorState;
       		do_cursor();
     	}
@@ -534,128 +527,6 @@ void printFmt(const char *format, ...) {
    	}
    	va_end(ap);
  }
-
-// Handle the keyboard: CP/M Terminal Mode
-// 
-void do_keyboard_terminal() {
-  	fabgl::Keyboard* kb = PS2Controller.keyboard();
-	fabgl::VirtualKeyItem item;
-
-	// Read the keyboard and transmit to the Z80
-	//
-	if(kb->getNextVirtualKey(&item, 0)) {
-		if(item.down) {
-			writeByte(item.ASCII);
-		}
-	}
-
-	// Wait for the response and write to the screen
-	//
-	while(byteAvailable()) {
-		Terminal.write(readByte());
-	}
-}
-
-// Wait for shift key to be released, then pressed (for paged mode)
-// 
-void wait_shiftkey() {
-  	fabgl::Keyboard* kb = PS2Controller.keyboard();
-	fabgl::VirtualKeyItem item;
-
-	// Wait for shift to be released
-	//
-	do {
-		kb->getNextVirtualKey(&item, 0);
-	} while(item.SHIFT);
-
-	// And pressed again
-	//
-	do {
-		kb->getNextVirtualKey(&item, 0);
-		if(item.ASCII == 27) {	// Check for ESC
-			byte packet[] = {
-				item.ASCII,
-				0,
-				item.vk,
-				item.down,
-			};
-			send_packet(PACKET_KEYCODE, sizeof packet, packet);
-			return;
-		}
-	} while(!item.SHIFT);
-}
-
-// Handle the keyboard: BBC VDU Mode
-//
-void do_keyboard() {
-  	fabgl::Keyboard* kb = PS2Controller.keyboard();
-	fabgl::VirtualKeyItem item;
-
-	#if SERIALKB == 1
-	if(DBGSerial.available()) {
-		byte packet[] = {
-			DBGSerial.read(),
-			0,
-		};
-		send_packet(PACKET_KEYCODE, sizeof packet, packet);
-		return;
-	}
-	#endif
-	
-	if(kb->getNextVirtualKey(&item, 0)) {
-		if(item.down) {
-			switch(item.vk) {
-				case fabgl::VK_LEFT:
-					keycode = 0x08;
-					break;
-				case fabgl::VK_TAB:
-					keycode = 0x09;
-					break;
-				case fabgl::VK_RIGHT:
-					keycode = 0x15;
-					break;
-				case fabgl::VK_DOWN:
-					keycode = 0x0A;
-					break;
-				case fabgl::VK_UP:
-					keycode = 0x0B;
-					break;
-				case fabgl::VK_BACKSPACE:
-					keycode = 0x7F;
-					break;
-				default:
-					keycode = item.ASCII;	
-					break;
-			}
-			// Pack the modifiers into a byte
-			//
-			modifiers = 
-				item.CTRL		<< 0 |
-				item.SHIFT		<< 1 |
-				item.LALT		<< 2 |
-				item.RALT		<< 3 |
-				item.CAPSLOCK	<< 4 |
-				item.NUMLOCK	<< 5 |
-				item.SCROLLLOCK << 6 |
-				item.GUI		<< 7
-			;
-		}
-		// Handle some control keys
-		//
-		switch(keycode) {
-			case 14: setPagedMode(true); break;
-			case 15: setPagedMode(false); break;
-		}
-		// Create and send the packet back to MOS
-		//
-		byte packet[] = {
-			keycode,
-			modifiers,
-			item.vk,
-			item.down,
-		};
-		send_packet(PACKET_KEYCODE, sizeof packet, packet);
-	}
 }
 
 // Sprite Engine

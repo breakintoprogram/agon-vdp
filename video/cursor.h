@@ -4,13 +4,14 @@
 #include <fabgl.h>
 #include <Arduino.h>
 
+#include "agon_keyboard.h"
 #include "vdp_protocol.h"
 #include "viewport.h"
 
 extern int		fontW;
 extern int		fontH;
 extern fabgl::Canvas * Canvas;
-extern void wait_shiftkey();
+extern void wait_shiftkey();	// defined by agon_keyboard.h
 
 Point			textCursor;						// Text cursor
 Point *			activeCursor;					// Pointer to the active text cursor (textCursor or p1)
