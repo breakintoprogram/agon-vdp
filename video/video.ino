@@ -679,13 +679,13 @@ int change_resolution(int colours, char * modeLine) {
 // -  2: Not enough memory for mode
 // - -1: Invalid mode
 //
-int change_mode(int mode) {
+int change_mode(int mode, bool force = false) {
 	int errVal = -1;
 
 	doubleBuffered = false;			// Default is to not double buffer the display
 
 	cls(true);
-	if(mode != videoMode) {
+	if(force || (mode != videoMode)) {
 		switch(mode) {
 			case 0:{
 					if (legacyModes == true) {
@@ -863,7 +863,8 @@ void set_mode(int mode) {
 	int errVal = change_mode(mode);
 	if(errVal != 0) {
 		debug_log("set_mode: error %d\n\r", errVal);
-		change_mode(videoMode);
+		errVal = change_mode(videoMode, true);
+		if (errVal != 0) debug_log("set_mode: error %d restoring previous screen mode %d\n\r", errVal, videoMode);
 		return;
 	}
 	videoMode = mode;
