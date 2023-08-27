@@ -1,0 +1,613 @@
+#ifndef GRAPHICS_H
+#define GRAPHICS_H
+
+#include <fabgl.h>
+
+#include "agon.h"
+#include "agon_screen.h"
+#include "agon_fonts.h"							// The Acorn BBC Micro Font
+#include "agon_palette.h"						// Colour lookup table
+#include "cursor.h"
+#include "viewport.h"
+
+extern uint8_t numsprites;
+
+fabgl::PaintOptions			gpo;				// Graphics paint options
+fabgl::PaintOptions			tpo;				// Text paint options
+
+Point       	p1, p2, p3;						// Coordinate store for plot
+RGB888    		gfg, gbg;						// Graphics foreground and background colour
+RGB888      	tfg, tbg;						// Text foreground and background colour
+int				fontW;							// Font width
+int				fontH;							// Font height
+int				videoMode;						// Current video mode
+bool			legacyModes = false;			// Default legacy modes being false
+uint8_t			palette[64];					// Storage for the palette
+
+
+// VDU 23, 0, &86: Send MODE information (screen details)
+//
+void sendModeInformation() {
+	byte packet[] = {
+		canvasW & 0xFF,	 					// Width in pixels (L)
+		(canvasW >> 8) & 0xFF,				// Width in pixels (H)
+		canvasH & 0xFF,						// Height in pixels (L)
+		(canvasH >> 8) & 0xFF,				// Height in pixels (H)
+		canvasW / fontW,					// Width in characters (byte)
+		canvasH / fontH,					// Height in characters (byte)
+		getVGAColourDepth(),				// Colour depth
+		videoMode,							// The video mode number
+	};
+	send_packet(PACKET_MODE, sizeof packet, packet);
+}
+
+// Copy the AGON font data from Flash to RAM
+//
+void copy_font() {
+	memcpy(fabgl::FONT_AGON_DATA + 256, fabgl::FONT_AGON_BITMAP, sizeof(fabgl::FONT_AGON_BITMAP));
+}
+
+// Redefine a character in the font
+//
+void redefineCharacter(int c, uint8_t * data) {
+	memcpy(&fabgl::FONT_AGON_DATA[c * 8], data, 8);
+}
+
+bool cmpChar(uint8_t * c1, uint8_t *c2, int len) {
+	for (int i = 0; i < len; i++) {
+		if (*c1++ != *c2++) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// Try and match a character at given pixel position
+//
+char getScreenChar(int px, int py) {
+	RGB888	pixel;
+	uint8_t	charRow;
+	uint8_t	charData[8];
+	uint8_t R = tbg.R;
+	uint8_t G = tbg.G;
+	uint8_t B = tbg.B;
+
+	// Do some bounds checking first
+	//
+	if (px < 0 || py < 0 || px >= canvasW - 8 || py >= canvasH - 8) {
+		return 0;
+	}
+
+	// Now scan the screen and get the 8 byte pixel representation in charData
+	//
+	for (int y = 0; y < 8; y++) {
+		charRow = 0;
+		for (int x = 0; x < 8; x++) {
+			pixel = Canvas->getPixel(px + x, py + y);
+			if (!(pixel.R == R && pixel.G == G && pixel.B == B)) {
+				charRow |= (0x80 >> x);
+			}
+		}
+		charData[y] = charRow;
+	}
+	//
+	// Finally try and match with the character set array
+	//
+	for (int i = 32; i <= 255; i++) {
+		if (cmpChar(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {	
+			return i;		
+		}
+	}
+	return 0;
+}
+
+// Get pixel value at screen coordinates
+//
+RGB888 getPixel(int x, int y) {
+	Point p = translateViewport(scale(x, y));
+	if (p.X >= 0 && p.Y >= 0 && p.X < canvasW && p.Y < canvasH) {
+		return Canvas->getPixel(p.X, p.Y);
+	}
+	return RGB888(0,0,0);
+}
+
+// Get the palette index for a given RGB888 colour
+//
+uint8_t getPaletteIndex(RGB888 colour) {
+	for (int i = 0; i < getVGAColourDepth(); i++) {
+		if (colourLookup[palette[i]] == colour) {
+			return i;
+		}
+	}
+	return 0;
+}
+
+// Set logical palette
+// Parameters:
+// - l: The logical colour to change
+// - p: The physical colour to change
+// - r: The red component
+// - g: The green component
+// - b: The blue component
+//
+void setPalette(int l, int p, int r, int g, int b) {
+	RGB888 col;				// The colour to set
+
+	if (getVGAColourDepth() < 64) {		// If it is a paletted video mode
+		if (p == 255) {					// If p = 255, then use the RGB values
+			col = RGB888(r, g, b);
+		} else if (p < 64) {			// If p < 64, then look the value up in the colour lookup table
+			col = colourLookup[p];
+		} else {				
+			debug_log("vdu_palette: p=%d not supported\n\r", p);
+			return;
+		}
+		setPaletteItem(l, col);
+		Canvas->waitCompletion(false);
+		debug_log("vdu_palette: %d,%d,%d,%d,%d\n\r", l, p, r, g, b);
+	} else {
+		debug_log("vdu_palette: not supported in this mode\n\r");
+	}
+}
+
+// Reset the palette and set the foreground and background drawing colours
+// Parameters:
+// - colour: Array of indexes into colourLookup table
+// - sizeOfArray: Size of passed colours array
+//
+void resetPalette(const uint8_t colours[]) {
+	for (int i = 0; i < 64; i++) {
+		uint8_t c = colours[i % getVGAColourDepth()];
+		palette[i] = c;
+		setPaletteItem(i, colourLookup[c]);
+	}
+	updateRGB2PaletteLUT();
+}
+
+// Get the paint options for a given GCOL mode
+//
+fabgl::PaintOptions getPaintOptions(int mode, fabgl::PaintOptions priorPaintOptions) {
+	fabgl::PaintOptions p = priorPaintOptions;
+	
+	switch (mode) {
+		case 0: p.NOT = 0; p.swapFGBG = 0; break;
+		case 4: p.NOT = 1; p.swapFGBG = 0; break;
+	}
+	return p;
+}
+
+// Set text colour (handles COLOUR / VDU 17)
+//
+void setTextColour(byte colour) {
+	byte c = palette[colour % getVGAColourDepth()];
+
+	if (colour >= 0 && colour < 64) {
+		tfg = colourLookup[c];
+		debug_log("vdu_colour: tfg %d = %02X : %02X,%02X,%02X\n\r", colour, c, tfg.R, tfg.G, tfg.B);
+	}
+	else if (colour >= 128 && colour < 192) {
+		tbg = colourLookup[c];
+		debug_log("vdu_colour: tbg %d = %02X : %02X,%02X,%02X\n\r", colour, c, tbg.R, tbg.G, tbg.B);	
+	}
+	else {
+		debug_log("vdu_colour: invalid colour %d\n\r", colour);
+	}
+}
+
+// Set graphics colour (handles GCOL / VDU 18)
+//
+void setGraphicsColour(byte mode, byte colour) {
+	byte c = palette[colour % getVGAColourDepth()];
+
+	if (mode >= 0 && mode <= 6) {
+		if (colour >= 0 && colour < 64) {
+			gfg = colourLookup[c];
+			debug_log("vdu_gcol: mode %d, gfg %d = %02X : %02X,%02X,%02X\n\r", mode, colour, c, gfg.R, gfg.G, gfg.B);
+		}
+		else if (colour >= 128 && colour < 192) {
+			gbg = colourLookup[c];
+			debug_log("vdu_gcol: mode %d, gbg %d = %02X : %02X,%02X,%02X\n\r", mode, colour, c, gbg.R, gbg.G, gbg.B);
+		}
+		else {
+			debug_log("vdu_gcol: invalid colour %d\n\r", colour);
+		}
+		gpo = getPaintOptions(mode, gpo);
+	}
+	else {
+		debug_log("vdu_gcol: invalid mode %d\n\r", mode);
+	}
+}
+
+// Clear a viewport
+//
+void clearViewport(Rect * viewport) {
+	if (Canvas) {
+		if (useViewports) {
+			Canvas->fillRectangle(*viewport);
+		}
+		else {
+			Canvas->clear();
+		}
+	}
+}
+
+// Clear the screen
+// 
+void cls(bool resetViewports) {
+	if (resetViewports) {
+		viewportReset();
+	}
+	if (Canvas) {
+		Canvas->setPenColor(tfg);
+ 		Canvas->setBrushColor(tbg);	
+		Canvas->setPaintOptions(tpo);
+		clearViewport(getViewport(VIEWPORT_TEXT));
+	}
+	if (numsprites) {
+		auto controller = getVGAController();
+		if (controller) {
+			controller->removeSprites();
+			clearViewport(getViewport(VIEWPORT_TEXT));
+		}
+		numsprites = 0;
+	}
+	homeCursor();
+	setPagedMode();
+}
+
+// Clear the graphics area
+//
+void clg() {
+	// TODO BBC's CLG resets graphics cursor to 0,0
+	if (Canvas) {
+		Canvas->setPenColor(gfg);
+ 		Canvas->setBrushColor(gbg);	
+		Canvas->setPaintOptions(gpo);
+		clearViewport(getViewport(VIEWPORT_GRAPHICS));
+	}
+}
+
+//// Graphics drawing routines
+
+// Push point to list
+//
+void pushPoint(Point p) {
+	p3 = p2;
+	p2 = p1;
+	p1 = p;
+}
+void pushPoint(short x, short y) {
+	pushPoint(translateViewport(scale(x, y)));
+}
+
+// get graphics cursor
+//
+Point * getGraphicsCursor() {
+	return &p1;
+}
+
+// Set up canvas for drawing graphics
+//
+void setGraphicsOptions() {
+	Canvas->setClippingRect(graphicsViewport);
+	Canvas->setPenColor(gfg);
+	Canvas->setPaintOptions(gpo);
+}
+
+// Move to
+//
+void moveTo() {
+    Canvas->moveTo(p1.X, p1.Y);
+}
+
+// Line plot
+//
+void plotLine() {
+	Canvas->lineTo(p1.X, p1.Y);
+}
+
+// Point point
+//
+void plotPoint() {
+	Canvas->setPixel(p1.X, p1.Y);
+}
+
+// Triangle plot
+//
+void plotTriangle(byte mode) {
+  	Point p[3] = {
+		p3,
+		p2,
+		p1, 
+	};
+  	Canvas->setBrushColor(gfg);
+  	Canvas->fillPath(p, 3);
+  	Canvas->setBrushColor(tbg);
+}
+
+// Circle plot
+//
+void plotCircle(byte mode) {
+	int a, b, r;
+  	switch (mode) {
+    	case 0x00 ... 0x03: // Circle
+      		r = 2 * (p1.X + p1.Y);
+      		Canvas->drawEllipse(p2.X, p2.Y, r, r);
+      		break;
+    	case 0x04 ... 0x07: // Circle
+      		a = p2.X - p1.X;
+      		b = p2.Y - p1.Y;
+      		r = 2 * sqrt(a * a + b * b);
+      		Canvas->drawEllipse(p2.X, p2.Y, r, r);
+      		break;
+  	}
+}
+
+// Character plot
+//
+void plotCharacter(char c) {
+	if (textCursorActive()) {
+		Canvas->setClippingRect(defaultViewport);
+		Canvas->setPenColor(tfg);
+		Canvas->setBrushColor(tbg);
+		Canvas->setPaintOptions(tpo);
+	}
+	else {
+		Canvas->setClippingRect(graphicsViewport);
+		Canvas->setPenColor(gfg);
+		Canvas->setPaintOptions(gpo);
+	}
+	Canvas->drawChar(activeCursor->X, activeCursor->Y, c);
+	cursorRight();
+}
+
+// Backspace plot
+//
+void plotBackspace() {
+	cursorLeft();
+	Canvas->setBrushColor(textCursorActive() ? tbg : gbg);
+	Canvas->fillRectangle(activeCursor->X, activeCursor->Y, activeCursor->X + fontW - 1, activeCursor->Y + fontH - 1);
+}
+
+// Set character overwrite mode (background fill)
+//
+inline void setCharacterOverwrite(bool overwrite) {
+	Canvas->setGlyphOptions(GlyphOptions().FillBackground(overwrite));
+}
+
+// Wait for plot completion
+//
+void waitPlotCompletion() {
+	Canvas->waitCompletion(false);
+}
+
+// Set a clipping rectangle
+//
+void setClippingRect(Rect rect) {
+	Canvas->setClippingRect(rect);
+}
+
+// Draw cursor
+//
+void drawCursor(Point p) {
+	Canvas->swapRectangle(p.X, p.Y, p.X + fontW - 1, p.Y + fontH - 1);
+}
+
+// Do the mode change
+// Parameters:
+// - mode: The video mode
+// Returns:
+// -  0: Successful
+// -  1: Invalid # of colours
+// -  2: Not enough memory for mode
+// - -1: Invalid mode
+//
+int change_mode(int mode) {
+	int errVal = -1;
+
+	doubleBuffered = false;			// Default is to not double buffer the display
+
+	cls(true);
+	if (mode != videoMode) {
+		switch (mode) {
+			case 0:{
+					if (legacyModes == true) {
+						errVal = change_resolution(2, SVGA_1024x768_60Hz);
+					} else {
+						errVal = change_resolution(16, VGA_640x480_60Hz);	// VDP 1.03 Mode 3, VGA Mode 12h
+					}
+				}
+				break;
+			case 1:{
+					if (legacyModes == true) {
+						errVal = change_resolution(16, VGA_512x384_60Hz);
+					} else {
+						errVal = change_resolution(4, VGA_640x480_60Hz);
+					}
+				}
+				break;
+			case 2:{
+					if (legacyModes == true) {
+						errVal = change_resolution(64, VGA_320x200_75Hz);
+					} else {
+						errVal = change_resolution(2, VGA_640x480_60Hz);
+					}
+				}
+				break;
+			case 3: {
+					if (legacyModes == true) {
+						errVal = change_resolution(16, VGA_640x480_60Hz);
+					} else {
+						errVal = change_resolution(64, VGA_640x240_60Hz);
+					}
+				}
+				break;
+			case 4:
+				errVal = change_resolution(16, VGA_640x240_60Hz);
+				break;
+			case 5:
+				errVal = change_resolution(4, VGA_640x240_60Hz);
+				break;
+			case 6:
+				errVal = change_resolution(2, VGA_640x240_60Hz);
+				break;
+			case 8:
+				errVal = change_resolution(64, QVGA_320x240_60Hz);		// VGA "Mode X"
+				break;
+			case 9:
+				errVal = change_resolution(16, QVGA_320x240_60Hz);
+				break;
+			case 10:
+				errVal = change_resolution(4, QVGA_320x240_60Hz);
+				break;
+			case 11:
+				errVal = change_resolution(2, QVGA_320x240_60Hz);
+				break;
+			case 12:
+				errVal = change_resolution(64, VGA_320x200_70Hz);		// VGA Mode 13h
+				break;
+			case 13:
+				errVal = change_resolution(16, VGA_320x200_70Hz);
+				break;
+			case 14:
+				errVal = change_resolution(4, VGA_320x200_70Hz);
+				break;
+			case 15:
+				errVal = change_resolution(2, VGA_320x200_70Hz);
+				break;
+			case 16:
+				errVal = change_resolution(4, SVGA_800x600_60Hz);
+				break;
+			case 17:
+				errVal = change_resolution(2, SVGA_800x600_60Hz);
+				break;
+			case 18:
+				errVal = change_resolution(2, SVGA_1024x768_60Hz);		// VDP 1.03 Mode 0
+				break;
+			case 129:
+				doubleBuffered = true;
+				errVal = change_resolution(4, VGA_640x480_60Hz);
+				break;
+			case 130:
+				doubleBuffered = true;
+				errVal = change_resolution(2, VGA_640x480_60Hz);
+				break;
+			case 132:
+				doubleBuffered = true;
+				errVal = change_resolution(16, VGA_640x240_60Hz);
+				break;
+			case 133:
+				doubleBuffered = true;
+				errVal = change_resolution(4, VGA_640x240_60Hz);
+				break;
+			case 134:
+				doubleBuffered = true;
+				errVal = change_resolution(2, VGA_640x240_60Hz);
+				break;
+			case 136:
+				doubleBuffered = true;
+				errVal = change_resolution(64, QVGA_320x240_60Hz);		// VGA "Mode X"
+				break;
+			case 137:
+				doubleBuffered = true;
+				errVal = change_resolution(16, QVGA_320x240_60Hz);
+				break;
+			case 138:
+				doubleBuffered = true;
+				errVal = change_resolution(4, QVGA_320x240_60Hz);
+				break;	
+			case 139:
+				doubleBuffered = true;
+				errVal = change_resolution(2, QVGA_320x240_60Hz);
+				break;
+			case 140:
+				doubleBuffered = true;
+				errVal = change_resolution(64, VGA_320x200_70Hz);		// VGA Mode 13h
+				break;
+			case 141:
+				doubleBuffered = true;
+				errVal = change_resolution(16, VGA_320x200_70Hz);
+				break;
+			case 142:
+				doubleBuffered = true;
+				errVal = change_resolution(4, VGA_320x200_70Hz);
+				break;
+			case 143:
+				doubleBuffered = true;
+				errVal = change_resolution(2, VGA_320x200_70Hz);
+				break;									
+		}
+		if (errVal != 0) {
+			return errVal;
+		}
+	}
+	switch (getVGAColourDepth()) {
+		case  2: resetPalette(defaultPalette02); break;
+		case  4: resetPalette(defaultPalette04); break;
+		case  8: resetPalette(defaultPalette08); break;
+		case 16: resetPalette(defaultPalette10); break;
+		case 64: resetPalette(defaultPalette40); break;
+	}
+	tpo = getPaintOptions(0, tpo);
+	gpo = getPaintOptions(0, gpo);
+ 	gfg = colourLookup[0x3F];
+	gbg = colourLookup[0x00];
+	tfg = colourLookup[0x3F];
+	tbg = colourLookup[0x00];
+  	Canvas->selectFont(&fabgl::FONT_AGON);
+  	setCharacterOverwrite(true);
+  	Canvas->setPenWidth(1);
+	setOrigin(0,0);
+	pushPoint(0,0);
+	pushPoint(0,0);
+	pushPoint(0,0);
+	setCanvasWH(Canvas->getWidth(), Canvas->getHeight());
+	fontW = Canvas->getFontInfo()->width;
+	fontH = Canvas->getFontInfo()->height;
+	resetCursor();
+	viewportReset();
+	sendModeInformation();
+	debug_log("do_modeChange: canvas(%d,%d), scale(%f,%f), mode %d, videoMode %d\n\r", canvasW, canvasH, logicalScaleX, logicalScaleY, mode, videoMode);
+	return 0;
+}
+
+// Change the video mode
+// If there is an error, restore the last mode
+// Parameters:
+// - mode: The video mode
+// 
+void set_mode(int mode) {
+	int errVal = change_mode(mode);
+	if (errVal != 0) {
+		debug_log("set_mode: error %d\n\r", errVal);
+		change_mode(videoMode);
+		return;
+	}
+	videoMode = mode;
+}
+
+void setLegacyModes(bool legacy) {
+	legacyModes = legacy;
+}
+
+void scrollRegion(Rect * region, int direction, int movement) {
+	Canvas->setScrollingRegion(region->X1, region->Y1, region->X2, region->Y2);
+
+	switch (direction) {
+		case 0:	// Right
+			Canvas->scroll(movement, 0);
+			break;
+		case 1: // Left
+			Canvas->scroll(-movement, 0);
+			break;
+		case 2: // Down
+			Canvas->scroll(0, movement);
+			break;
+		case 3: // Up
+			Canvas->scroll(0, -movement);
+			break;
+	}
+	Canvas->waitCompletion(false);
+}
+
+#endif

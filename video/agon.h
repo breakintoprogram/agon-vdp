@@ -115,6 +115,12 @@
 #define AUDIO_STATE_RELEASE		4		// Channel is releasing a note
 #define AUDIO_STATE_ABORT		5		// Channel is aborting a note
 
+// Viewport definitions
+#define VIEWPORT_TEXT			0		// Text viewport
+#define VIEWPORT_DEFAULT		1		// Default (whole screen) viewport
+#define VIEWPORT_GRAPHICS		2		// Graphics viewport
+#define VIEWPORT_ACTIVE			3		// Active viewport
+
 #define LOGICAL_SCRW            1280    // As per the BBC Micro standard
 #define LOGICAL_SCRH            1024
 
