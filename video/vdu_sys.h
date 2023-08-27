@@ -7,11 +7,11 @@
 
 #include "agon.h"
 #include "agon_fonts.h"
+#include "agon_keyboard.h"
 #include "cursor.h"
 #include "vdp_protocol.h"
 #include "vdu_audio.h"
 
-extern fabgl::PS2Controller PS2Controller;
 extern int VGAColourDepth;					// Number of colours per pixel (2, 4,8, 16 or 64)
 extern Point p1, p2, p3;						// Coordinate store for plot
 extern RGB888 gfg, gbg;						// Graphics foreground and background colour
@@ -19,8 +19,6 @@ extern RGB888 tfg, tbg;						// Text foreground and background colour
 extern uint8_t palette[64];					// Storage for the palette
 extern const RGB888 colourLookup[64];		// Lookup table for VGA colours
 extern int videoMode;						// Current video mode
-extern int kbRepeatDelay;					// Keyboard repeat delay ms (250, 500, 750 or 1000)		
-extern int kbRepeatRate;					// Keyboard repeat rate ms (between 33 and 500)
 extern bool legacyModes;					// Default legacy modes being false
 extern bool doubleBuffered;					// Disable double buffering by default
 extern void switchTerminalMode();			// Switch to terminal mode
@@ -97,20 +95,7 @@ void sendGeneralPoll() {
 //
 void vdu_sys_video_kblayout() {
 	int	region = readByte_t();			// Fetch the region
-	// TODO refactor out setting layout to keyboard handling file
-	switch(region) {
-		case 1:	PS2Controller.keyboard()->setLayout(&fabgl::USLayout); break;
-		case 2:	PS2Controller.keyboard()->setLayout(&fabgl::GermanLayout); break;
-		case 3:	PS2Controller.keyboard()->setLayout(&fabgl::ItalianLayout); break;
-		case 4:	PS2Controller.keyboard()->setLayout(&fabgl::SpanishLayout); break;
-		case 5: PS2Controller.keyboard()->setLayout(&fabgl::FrenchLayout); break;
-		case 6:	PS2Controller.keyboard()->setLayout(&fabgl::BelgianLayout); break;
-		case 7:	PS2Controller.keyboard()->setLayout(&fabgl::NorwegianLayout); break;
-		case 8:	PS2Controller.keyboard()->setLayout(&fabgl::JapaneseLayout);break;
-		default:
-			PS2Controller.keyboard()->setLayout(&fabgl::UKLayout);
-			break;
-	}
+	setKeyboardLayout(region);
 }
 
 // VDU 23, 0, &82: Send the cursor position back to MOS
@@ -223,16 +208,16 @@ void vdu_sys_video_time() {
 // Send the keyboard state
 //
 void sendKeyboardState() {
-	bool numLock;
-	bool capsLock;
-	bool scrollLock;
-	PS2Controller.keyboard()->getLEDs(&numLock, &capsLock, &scrollLock);
+	int delay;
+	int rate;
+	byte ledState;
+	getKeyboardState(&delay, &rate, &ledState);
 	byte packet[] = {
-		kbRepeatDelay & 0xFF,
-		(kbRepeatDelay >> 8) & 0xFF,
-		kbRepeatRate & 0xFF,
-		(kbRepeatRate >> 8) & 0xFF,
-		scrollLock | (capsLock << 1) | (numLock << 2)
+		delay & 0xFF,
+		(delay >> 8) & 0xFF,
+		rate & 0xFF,
+		(rate >> 8) & 0xFF,
+		ledState
 	};
 	send_packet(PACKET_KEYSTATE, sizeof packet, packet);
 }
@@ -241,19 +226,12 @@ void sendKeyboardState() {
 // Send 255 for LEDs to leave them unchanged
 //
 void vdu_sys_keystate() {
-	// TODO refactor keyboard handling things to keyboard.h
-	int d = readWord_t(); if (d == -1) return;
-	int r = readWord_t(); if (r == -1) return;
-	int b = readByte_t(); if (b == -1) return;
+	int delay = readWord_t(); if (delay == -1) return;
+	int rate = readWord_t(); if (rate == -1) return;
+	int ledState = readByte_t(); if (ledState == -1) return;
 
-	if (d >= 250 && d <= 1000) kbRepeatDelay = (d / 250) * 250;	// In steps of 250ms
-	if (r >=  33 && r <=  500) kbRepeatRate  = r;
-
-	if (b != 255) {
-		PS2Controller.keyboard()->setLEDs(b & 4, b & 2, b & 1);
-	}
-	PS2Controller.keyboard()->setTypematicRateAndDelay(kbRepeatRate, kbRepeatDelay);
-	debug_log("vdu_sys_video: keystate: d=%d, r=%d, led=%d\n\r", kbRepeatDelay, kbRepeatRate, b);
+	setKeyboardState(delay, rate, ledState);
+	debug_log("vdu_sys_video: keystate: delay=%d, rate=%d, led=%d\n\r", kbRepeatDelay, kbRepeatRate, ledState);
 	sendKeyboardState();
 }
 
