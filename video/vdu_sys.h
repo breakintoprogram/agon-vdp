@@ -9,17 +9,9 @@
 #include "agon_fonts.h"
 #include "agon_keyboard.h"
 #include "cursor.h"
+#include "graphics.h"
 #include "vdp_protocol.h"
 
-extern int VGAColourDepth;					// Number of colours per pixel (2, 4,8, 16 or 64)
-extern Point p1, p2, p3;						// Coordinate store for plot
-extern RGB888 gfg, gbg;						// Graphics foreground and background colour
-extern RGB888 tfg, tbg;						// Text foreground and background colour
-extern uint8_t palette[64];					// Storage for the palette
-extern const RGB888 colourLookup[64];		// Lookup table for VGA colours
-extern int videoMode;						// Current video mode
-extern bool legacyModes;					// Default legacy modes being false
-extern bool doubleBuffered;					// Disable double buffering by default
 extern void switchTerminalMode();			// Switch to terminal mode
 extern void vdu_sys_sprites();				// Sprite handler
 extern void vdu_sys_audio();				// Audio handler
@@ -27,58 +19,6 @@ extern word play_note(byte channel, byte volume, word frequency, word duration);
 
 bool 			initialised = false;			// Is the system initialised yet?
 ESP32Time		rtc(0);							// The RTC
-
-
-//// TODO: move to text.h file
-
-bool cmp_char(uint8_t * c1, uint8_t *c2, int len) {
-	for (int i = 0; i < len; i++) {
-		if (*c1++ != *c2++) {
-			return false;
-		}
-	}
-	return true;
-}
-
-// Try and match a character
-//
-char get_screen_char(int px, int py) {
-	RGB888	pixel;
-	uint8_t	charRow;
-	uint8_t	charData[8];
-	uint8_t R = tbg.R;
-	uint8_t G = tbg.G;
-	uint8_t B = tbg.B;
-
-	// Do some bounds checking first
-	//
-	if (px < 0 || py < 0 || px >= canvasW - 8 || py >= canvasH - 8) {
-		return 0;
-	}
-
-	// Now scan the screen and get the 8 byte pixel representation in charData
-	//
-	for (int y = 0; y < 8; y++) {
-		charRow = 0;
-		for (int x = 0; x < 8; x++) {
-			pixel = Canvas->getPixel(px + x, py + y);
-			if (!(pixel.R == R && pixel.G == G && pixel.B == B)) {
-				charRow |= (0x80 >> x);
-			}
-		}
-		charData[y] = charRow;
-	}
-	//
-	// Finally try and match with the character set array
-	//
-	for (int i = 32; i <= 255; i++) {
-		if (cmp_char(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {	
-			return i;		
-		}
-	}
-	return 0;
-}
-
 
 
 // VDU 23, 0, &80, <echo>: Send a general poll/echo byte back to MOS
@@ -114,7 +54,7 @@ void sendCursorPosition() {
 void sendScreenChar(int x, int y) {
 	int	px = x * fontW;
 	int py = y * fontH;
-	char c = get_screen_char(px, py);
+	char c = getScreenChar(px, py);
 	byte packet[] = {
 		c,
 	};
@@ -124,22 +64,8 @@ void sendScreenChar(int x, int y) {
 // VDU 23, 0, &84: Send a pixel value back to MOS
 //
 void sendScreenPixel(int x, int y) {
-	// TODO refactor VGA and colour things
-	RGB888	pixel;
-	byte 	pixelIndex = 0;
-	Point	p = translateViewport(scale(x, y));
-	//
-	// Do some bounds checking first
-	//
-	if (p.X >= 0 && p.Y >= 0 && p.X < canvasW && p.Y < canvasH) {
-		pixel = Canvas->getPixel(p.X, p.Y);
-		for (byte i = 0; i < VGAColourDepth; i++) {
-			if (colourLookup[palette[i]] == pixel) {
-				pixelIndex = i;
-				break;
-			}
-		}
-	}	
+	RGB888 pixel = getPixel(x, y);
+	byte pixelIndex = getPaletteIndex(pixel);
 	byte packet[] = {
 		pixel.R,	// Send the colour components
 		pixel.G,
@@ -147,23 +73,6 @@ void sendScreenPixel(int x, int y) {
 		pixelIndex,	// And the pixel index in the palette
 	};
 	send_packet(PACKET_SCRPIXEL, sizeof packet, packet);	
-}
-
-// VDU 23, 0, &86: Send MODE information (screen details)
-//
-void sendModeInformation() {
-	// TODO refactor VGA and mode things
-	byte packet[] = {
-		canvasW & 0xFF,	 					// Width in pixels (L)
-		(canvasW >> 8) & 0xFF,				// Width in pixels (H)
-		canvasH & 0xFF,						// Height in pixels (L)
-		(canvasH >> 8) & 0xFF,				// Height in pixels (H)
-		canvasW / fontW,					// Width in characters (byte)
-		canvasH / fontH,					// Height in characters (byte)
-		VGAColourDepth,						// Colour depth
-		videoMode,							// The video mode number
-	};
-	send_packet(PACKET_MODE, sizeof packet, packet);
 }
 
 // Send TIME information (from ESP32 RTC)
@@ -277,21 +186,17 @@ void vdu_sys_video() {
 		case VDP_LOGICALCOORDS: {		// VDU 23, 0, &C0, n
 			int b = readByte_t();		// Set logical coord mode
 			if (b >= 0) {
-				logicalCoords = b;	
+				setLogicalCoords((bool) b);	// (0 = off, 1 = on)
 			}
 		}	break;
 		case VDP_LEGACYMODES: {			// VDU 23, 0, &C1, n
 			int b = readByte_t();		// Switch legacy modes on or off
-			if (b == 0) {
-				legacyModes = false;
-			} else {
-				legacyModes = true;
+			if (b >= 0) {
+				setLegacyModes((bool) b);
 			}
 		}	break;
 		case VDP_SWITCHBUFFER: {		// VDU 23, 0, &C3
-			if (doubleBuffered == true) {
-				Canvas->swapBuffers();
-			}
+			switchBuffer();
 		}	break;
 		case VDP_TERMINALMODE: {		// VDU 23, 0, &FF
 			switchTerminalMode(); 		// Switch to terminal mode
@@ -302,41 +207,14 @@ void vdu_sys_video() {
 // VDU 23,7: Scroll rectangle on screen
 //
 void vdu_sys_scroll() {
-	// TODO refactor to use scrolling handling inside viewport.h
-	int extent = readByte_t(); 		if(extent == -1) return;	// Extent (0 = text viewport, 1 = entire screen, 2 = graphics viewport)
-	int direction = readByte_t();	if(direction == -1) return;	// Direction
-	int movement = readByte_t();	if(movement == -1) return;	// Number of pixels to scroll
+	int extent = readByte_t(); 		if (extent == -1) return;	// Extent (0 = text viewport, 1 = entire screen, 2 = graphics viewport)
+	int direction = readByte_t();	if (direction == -1) return;	// Direction
+	int movement = readByte_t();	if (movement == -1) return;	// Number of pixels to scroll
 
-	Rect * region;
+	// Extent matches viewport constant defs (plus 3=active)
+	Rect * region = getViewport(extent);
 
-	switch(extent) {
-		case 0:		// Text viewport
-			region = &textViewport;
-			break;
-		case 2: 	// Graphics viewport
-			region = &graphicsViewport;
-			break;
-		default:	// Entire screen
-			region = &defaultViewport;
-			break;
-	}
-	Canvas->setScrollingRegion(region->X1, region->Y1, region->X2, region->Y2);
-
-	switch(direction) {
-		case 0:	// Right
-			Canvas->scroll(movement, 0);
-			break;
-		case 1: // Left
-			Canvas->scroll(-movement, 0);
-			break;
-		case 2: // Down
-			Canvas->scroll(0, movement);
-			break;
-		case 3: // Up
-			Canvas->scroll(0, -movement);
-			break;
-	}
-	Canvas->waitCompletion(false);
+	scrollRegion(region, direction, movement);
 }
 
 
@@ -349,7 +227,7 @@ void vdu_sys_cursorBehaviour() {
 	setCursorBehaviour((byte) setting, (byte) mask);
 }
 
-// VDU 23, char, n1, n2, n3, n4, n5, n6, n7, n8: Redefine a display character
+// VDU 23, c, n1, n2, n3, n4, n5, n6, n7, n8: Redefine a display character
 // Parameters:
 // - c: The character to redefine
 //
@@ -357,15 +235,15 @@ void vdu_sys_udg(byte c) {
 	uint8_t		buffer[8];
 	int			b;
 
-	for(int i = 0; i < 8; i++) {
+	for (int i = 0; i < 8; i++) {
 		b = readByte_t();
-		if(b == -1) {
+		if (b == -1) {
 			return;
 		}
 		buffer[i] = b;
 	}	
-	// TODO refactor character redefinition to font handling file
-	memcpy(&fabgl::FONT_AGON_DATA[c * 8], buffer, 8);
+
+	redefineCharacter(c, buffer);
 }
 
 
@@ -385,7 +263,7 @@ void vdu_sys() {
 	// If mode < 32, then it's a system command
 	//
 	else if (mode < 32) {
-  		switch(mode) {
+  		switch (mode) {
 			case 0x00: {					// VDU 23, 0
 	  			vdu_sys_video();			// Video system control
 			}	break;
@@ -400,8 +278,7 @@ void vdu_sys() {
 			}	break;
 			case 0x10: {					// VDU 23, 16
 				vdu_sys_cursorBehaviour();	// Set cursor behaviour
-				break;
-			}
+			}	break;
 			case 0x1B: {					// VDU 23, 27
 				vdu_sys_sprites();			// Sprite system control
 			}	break;

@@ -6,11 +6,14 @@
 
 #include "agon_keyboard.h"
 #include "vdp_protocol.h"
+#include "graphics.h"
 #include "viewport.h"
 
 extern int		fontW;
 extern int		fontH;
 extern fabgl::Canvas * Canvas;
+extern void drawCursor(Point p);
+extern void scrollRegion(Rect * r, int direction, int amount);
 
 Point			textCursor;						// Text cursor
 Point *			activeCursor;					// Pointer to the active text cursor (textCursor or p1)
@@ -24,7 +27,7 @@ int				pagedModeCount = 0;				// Scroll counter for paged mode
 //
 void do_cursor() {
 	if (cursorEnabled) {
-		Canvas->swapRectangle(textCursor.X, textCursor.Y, textCursor.X + fontW - 1, textCursor.Y + fontH - 1);
+		drawCursor(textCursor);
 	}
 }
 
@@ -75,8 +78,7 @@ void cursorDown() {
 	if (activeCursor->Y > activeViewport->Y2) {
 		activeCursor->Y -= fontH;
 		if (~cursorBehaviour & 0x01) {
-			Canvas->setScrollingRegion(activeViewport->X1, activeViewport->Y1, activeViewport->X2, activeViewport->Y2);
-			Canvas->scroll(0, -fontH);
+			scrollRegion(activeViewport, 3, fontH);
 		}
 		else {
 			activeCursor->X = activeViewport->X2 + 1;
@@ -128,13 +130,18 @@ void cursorTab(int x, int y) {
 	activeCursor->Y = y * fontH;
 }
 
+void setPagedMode(bool mode = pagedMode) {
+	pagedMode = mode;
+	pagedModeCount = 0;
+}
+
 // Reset basic cursor control
 //
 void resetCursor() {
 	activeCursor = &textCursor;
 	cursorEnabled = true;
 	cursorBehaviour = 0;
-	pagedMode = false;
+	setPagedMode(false);
 }
 
 void homeCursor() {
@@ -143,11 +150,6 @@ void homeCursor() {
 
 void enableCursor(bool enable = true) {
 	cursorEnabled = enable;
-}
-
-void setPagedMode(bool mode = pagedMode) {
-	pagedMode = mode;
-	pagedModeCount = 0;
 }
 
 void ensureCursorInViewport(Rect viewport) {
@@ -163,6 +165,18 @@ void ensureCursorInViewport(Rect viewport) {
 
 void setCursorBehaviour(byte setting, byte mask = 0xFF) {
 	cursorBehaviour = (cursorBehaviour & mask) ^ setting;
+}
+
+Point * getTextCursor() {
+	return &textCursor;
+}
+
+void setActiveCursor(Point * cursor) {
+	activeCursor = cursor;
+}
+
+bool textCursorActive() {
+	return activeCursor == &textCursor;
 }
 
 #endif	// CURSOR_H

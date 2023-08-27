@@ -52,37 +52,17 @@
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
 
-fabgl::Canvas *				Canvas;				// The canvas class
-
-fabgl::VGA2Controller		VGAController2;		// VGA class - 2 colours
-fabgl::VGA4Controller		VGAController4;		// VGA class - 4 colours
-fabgl::VGA8Controller		VGAController8;		// VGA class - 8 colours
-fabgl::VGA16Controller		VGAController16;	// VGA class - 16 colours
-fabgl::VGAController		VGAController64;	// VGA class - 64 colours
-
-fabgl::VGABaseController *	VGAController;		// Pointer to the current VGA controller class (one of the above)
 
 fabgl::Terminal				Terminal;			// Used for CP/M mode
 
-fabgl::PaintOptions			gpo;				// Graphics paint options
-fabgl::PaintOptions			tpo;				// Text paint options
-
 #include "agon.h"								// Configuration file
-#include "agon_fonts.h"							// The Acorn BBC Micro Font
-#include "agon_palette.h"						// Colour lookup table
 #include "vdu_audio.h"							// Audio support
 #include "agon_keyboard.h"						// Keyboard support
-#include "cursor.h"								// Cursor support
+#include "agon_screen.h"						// Screen support
+#include "graphics.h"							// Graphics support
 #include "vdp_protocol.h"						// VDP Protocol
 #include "vdu.h"								// VDU functions
-#include "viewport.h"							// Viewport support
 
-int				VGAColourDepth;					// Number of colours per pixel (2, 4,8, 16 or 64)
-Point       	p1, p2, p3;						// Coordinate store for plot
-RGB888    		gfg, gbg;						// Graphics foreground and background colour
-RGB888      	tfg, tbg;						// Text foreground and background colour
-int				fontW;							// Font width
-int				fontH;							// Font height
 int         	count = 0;						// Generic counter, incremented every iteration of loop
 uint8_t			numsprites = 0;					// Number of sprites on stage
 uint8_t 		current_sprite = 0; 			// Current sprite number
@@ -90,11 +70,6 @@ uint8_t 		current_bitmap = 0;				// Current bitmap number
 Bitmap			bitmaps[MAX_BITMAPS];			// Bitmap object storage
 Sprite			sprites[MAX_SPRITES];			// Sprite object storage
 bool			terminalMode = false;			// Terminal mode
-int				videoMode;						// Current video mode
-bool			doWaitCompletion;				// For vdu function
-uint8_t			palette[64];					// Storage for the palette
-bool			legacyModes = false;			// Default legacy modes being false
-bool			doubleBuffered = false;			// Disable double buffering by default
 
 #if DEBUG == 1 || SERIALKB == 1
 HardwareSerial DBGSerial(0);
@@ -214,341 +189,15 @@ void debug_log(const char *format, ...) {
 	#endif
 }
 
-// Copy the AGON font data from Flash to RAM
-//
-void copy_font() {
-	memcpy(fabgl::FONT_AGON_DATA + 256, fabgl::FONT_AGON_BITMAP, sizeof(fabgl::FONT_AGON_BITMAP));
-}
-
-// Clear the screen
-// 
-void cls(bool resetViewports) {
-	if (resetViewports) {
-		viewportReset();
-	}
-	if (Canvas) {
-		Canvas->setPenColor(tfg);
- 		Canvas->setBrushColor(tbg);	
-		Canvas->setPaintOptions(tpo);
-		clearViewport(&textViewport);
-	}
-	if (numsprites) {
-		if(VGAController) {
-			VGAController->removeSprites();
-			clearViewport(&textViewport);
-		}
-		numsprites = 0;
-	}
-	homeCursor();
-	setPagedMode();
-}
-
-// Clear the graphics area
-//
-void clg() {
-	if (Canvas) {
-		Canvas->setPenColor(gfg);
- 		Canvas->setBrushColor(gbg);	
-		Canvas->setPaintOptions(gpo);
-		clearViewport(&graphicsViewport);
-	}
-}
-
 // Switch to terminal mode
 //
 void switchTerminalMode() {
 	cls(true);
   	delete Canvas;
-	Terminal.begin(VGAController);	
+	Terminal.begin(getVGAController());	
 	Terminal.connectSerialPort(VDPSerial);
 	Terminal.enableCursor(true);
 	terminalMode = true;
-}
-
-// Get controller
-// Parameters:
-// - colours: Number of colours per pixel (2, 4, 8, 16 or 64)
-// Returns:
-// - A singleton instance of a VGAController class
-//
-fabgl::VGABaseController * get_VGAController(int colours) {
-	switch(colours) {
-		case  2: return VGAController2.instance();
-		case  4: return VGAController4.instance();
-		case  8: return VGAController8.instance();
-		case 16: return VGAController16.instance();
-		case 64: return VGAController64.instance();
-	}
-	return nullptr;
-}
-
-// Update the internal FabGL LUT
-//
-void updateRGB2PaletteLUT() {
-	switch(VGAColourDepth) {
-		case 2: VGAController2.updateRGB2PaletteLUT(); break;
-		case 4: VGAController4.updateRGB2PaletteLUT(); break;
-		case 8: VGAController8.updateRGB2PaletteLUT(); break;
-		case 16: VGAController16.updateRGB2PaletteLUT(); break;
-	}
-}
-
-// Reset the palette and set the foreground and background drawing colours
-// Parameters:
-// - colou: Array of indexes into colourLookup table
-// - sizeOfArray: Size of passed colours array
-//
-void resetPalette(const uint8_t colours[]) {
-	for(int i = 0; i < 64; i++) {
-		uint8_t c = colours[i%VGAColourDepth];
-		palette[i] = c;
-		setPaletteItem(i, colourLookup[c]);
-	}
-	updateRGB2PaletteLUT();
-}
-
-// Change video resolution
-// Parameters:
-// - colours: Number of colours per pixel (2, 4, 8, 16 or 64)
-// - modeLine: A modeline string (see the FagGL documentation for more details)
-// Returns:
-// - 0: Successful
-// - 1: Invalid # of colours
-// - 2: Not enough memory for mode
-//
-int change_resolution(int colours, char * modeLine) {
-	fabgl::VGABaseController * controller = get_VGAController(colours);
-
-	if(controller == nullptr) {						// If controller is null, then an invalid # of colours was passed
-		return 1;									// So return the error
-	}
-  	delete Canvas;									// Delete the canvas
-
-	VGAColourDepth = colours;						// Set the number of colours per pixel
-	if(VGAController != controller) {				// Is it a different controller?
-		if(VGAController) {							// If there is an existing controller running then
-			VGAController->end();					// end it
-		}
-		VGAController = controller;					// Switch to the new controller
-		VGAController->begin();						// And spin it up
-	}
-	if(modeLine) {									// If modeLine is not a null pointer then
-		if (doubleBuffered == true) {
-			VGAController->setResolution(modeLine, -1, -1, 1);
-		} else {
-			VGAController->setResolution(modeLine);		// Set the resolution
-		}
-	}
-	VGAController->enableBackgroundPrimitiveExecution(true);
-	VGAController->enableBackgroundPrimitiveTimeout(false);
-
-  	Canvas = new fabgl::Canvas(VGAController);		// Create the new canvas
-	//
-	// Check whether the selected mode has enough memory for the vertical resolution
-	//
-	if(VGAController->getScreenHeight() != VGAController->getViewPortHeight()) {
-		return 2;
-	}
-	return 0;										// Return with no errors
-}
-
-// Do the mode change
-// Parameters:
-// - mode: The video mode
-// Returns:
-// -  0: Successful
-// -  1: Invalid # of colours
-// -  2: Not enough memory for mode
-// - -1: Invalid mode
-//
-int change_mode(int mode) {
-	int errVal = -1;
-
-	doubleBuffered = false;			// Default is to not double buffer the display
-
-	cls(true);
-	switch(mode) {
-		case 0:{
-				if (legacyModes == true) {
-					errVal = change_resolution(2, SVGA_1024x768_60Hz);
-				} else {
-					errVal = change_resolution(16, VGA_640x480_60Hz);	// VDP 1.03 Mode 3, VGA Mode 12h
-				}
-			}
-			break;
-		case 1:{
-				if (legacyModes == true) {
-					errVal = change_resolution(16, VGA_512x384_60Hz);
-				} else {
-					errVal = change_resolution(4, VGA_640x480_60Hz);
-				}
-			}
-			break;
-		case 2:{
-				if (legacyModes == true) {
-					errVal = change_resolution(64, VGA_320x200_75Hz);
-				} else {
-					errVal = change_resolution(2, VGA_640x480_60Hz);
-				}
-			}
-			break;
-		case 3: {
-				if (legacyModes == true) {
-					errVal = change_resolution(16, VGA_640x480_60Hz);
-				} else {
-					errVal = change_resolution(64, VGA_640x240_60Hz);
-				}
-			}
-			break;
-		case 4:
-			errVal = change_resolution(16, VGA_640x240_60Hz);
-			break;
-		case 5:
-			errVal = change_resolution(4, VGA_640x240_60Hz);
-			break;
-		case 6:
-			errVal = change_resolution(2, VGA_640x240_60Hz);
-			break;
-		case 8:
-			errVal = change_resolution(64, QVGA_320x240_60Hz);		// VGA "Mode X"
-			break;
-		case 9:
-			errVal = change_resolution(16, QVGA_320x240_60Hz);
-			break;
-		case 10:
-			errVal = change_resolution(4, QVGA_320x240_60Hz);
-			break;
-		case 11:
-			errVal = change_resolution(2, QVGA_320x240_60Hz);
-			break;
-		case 12:
-			errVal = change_resolution(64, VGA_320x200_70Hz);		// VGA Mode 13h
-			break;
-		case 13:
-			errVal = change_resolution(16, VGA_320x200_70Hz);
-			break;
-		case 14:
-			errVal = change_resolution(4, VGA_320x200_70Hz);
-			break;
-		case 15:
-			errVal = change_resolution(2, VGA_320x200_70Hz);
-			break;
-		case 16:
-			errVal = change_resolution(4, SVGA_800x600_60Hz);
-			break;
-		case 17:
-			errVal = change_resolution(2, SVGA_800x600_60Hz);
-			break;
-		case 18:
-			errVal = change_resolution(2, SVGA_1024x768_60Hz);		// VDP 1.03 Mode 0
-			break;
-		case 129:
-			doubleBuffered = true;
-			errVal = change_resolution(4, VGA_640x480_60Hz);
-			break;
-		case 130:
-			doubleBuffered = true;
-			errVal = change_resolution(2, VGA_640x480_60Hz);
-			break;
-		case 132:
-			doubleBuffered = true;
-			errVal = change_resolution(16, VGA_640x240_60Hz);
-			break;
-		case 133:
-			doubleBuffered = true;
-			errVal = change_resolution(4, VGA_640x240_60Hz);
-			break;
-		case 134:
-			doubleBuffered = true;
-			errVal = change_resolution(2, VGA_640x240_60Hz);
-			break;
-		case 136:
-			doubleBuffered = true;
-			errVal = change_resolution(64, QVGA_320x240_60Hz);		// VGA "Mode X"
-			break;
-		case 137:
-			doubleBuffered = true;
-			errVal = change_resolution(16, QVGA_320x240_60Hz);
-			break;
-		case 138:
-			doubleBuffered = true;
-			errVal = change_resolution(4, QVGA_320x240_60Hz);
-			break;	
-		case 139:
-			doubleBuffered = true;
-			errVal = change_resolution(2, QVGA_320x240_60Hz);
-			break;
-		case 140:
-			doubleBuffered = true;
-			errVal = change_resolution(64, VGA_320x200_70Hz);		// VGA Mode 13h
-			break;
-		case 141:
-			doubleBuffered = true;
-			errVal = change_resolution(16, VGA_320x200_70Hz);
-			break;
-		case 142:
-			doubleBuffered = true;
-			errVal = change_resolution(4, VGA_320x200_70Hz);
-			break;
-		case 143:
-			doubleBuffered = true;
-			errVal = change_resolution(2, VGA_320x200_70Hz);
-			break;									
-	}
-	if(errVal != 0) {
-		return errVal;
-	}
-	switch(VGAColourDepth) {
-		case  2: resetPalette(defaultPalette02); break;
-		case  4: resetPalette(defaultPalette04); break;
-		case  8: resetPalette(defaultPalette08); break;
-		case 16: resetPalette(defaultPalette10); break;
-		case 64: resetPalette(defaultPalette40); break;
-	}
-	tpo = getPaintOptions(0, tpo);
-	gpo = getPaintOptions(0, gpo);
- 	gfg = colourLookup[0x3F];
-	gbg = colourLookup[0x00];
-	tfg = colourLookup[0x3F];
-	tbg = colourLookup[0x00];
-  	Canvas->selectFont(&fabgl::FONT_AGON);
-  	Canvas->setGlyphOptions(GlyphOptions().FillBackground(true));
-  	Canvas->setPenWidth(1);
-	setOrigin(0,0);
-	p1 = Point(0,0);
-	p2 = Point(0,0);
-	p3 = Point(0,0);
-	canvasW = Canvas->getWidth();
-	canvasH = Canvas->getHeight();
-	fontW = Canvas->getFontInfo()->width;
-	fontH = Canvas->getFontInfo()->height;
-	logicalScaleX = LOGICAL_SCRW / (double)canvasW;
-	logicalScaleY = LOGICAL_SCRH / (double)canvasH;
-	resetCursor();
-	viewportReset();
-	sendModeInformation();
-	debug_log("do_modeChange: canvas(%d,%d), scale(%f,%f)\n\r", canvasW, canvasH, logicalScaleX, logicalScaleY);
-	return 0;
-}
-
-// Change the video mode
-// If there is an error, restore the last mode
-// Parameters:
-// - mode: The video mode
-// 
-void set_mode(int mode) {
-	int errVal = change_mode(mode);
-	if(errVal != 0) {
-		debug_log("set_mode: error %d\n\r", errVal);
-		errVal = change_mode(videoMode);
-		if (errVal != 0) {
-			videoMode = 1;
-			debug_log("set_mode: error %d defaulting to screen mode %d\n\r", errVal, videoMode);
-			change_mode(1);
-		}
-		return;
-	}
-	videoMode = mode;
 }
 
 void print(char const * text) {
@@ -569,7 +218,6 @@ void printFmt(const char *format, ...) {
      	print(buf);
    	}
    	va_end(ap);
- }
 }
 
 // Sprite Engine
@@ -650,7 +298,7 @@ void vdu_sys_sprites(void) {
 
 			if(bitmaps[current_bitmap].data) {
 				Canvas->drawBitmap(x,y,&bitmaps[current_bitmap]);
-				doWaitCompletion = true;
+				waitPlotCompletion();
 			}
 			debug_log("vdu_sys_sprites: bitmap %d draw command\n\r", current_bitmap);
 		}	break;
@@ -699,7 +347,7 @@ void vdu_sys_sprites(void) {
 			else {
 				VGAController->removeSprites();
 			}
-			doWaitCompletion = true;
+			waitPlotCompletion();
 			debug_log("vdu_sys_sprites: %d sprites activated\n\r", numsprites);
 		}	break;
 
@@ -765,7 +413,7 @@ void vdu_sys_sprites(void) {
 	        	free(bitmaps[n].data);
 				bitmaps[n].dataAllocated = false;
 			}
-			doWaitCompletion = true;
+			waitPlotCompletion();
 			debug_log("vdu_sys_sprites: reset\n\r");
 		}	break;
     }

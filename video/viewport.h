@@ -5,8 +5,10 @@
 
 #include "agon.h"
 #include "cursor.h"
+#include "graphics.h"
 
 extern fabgl::Canvas * Canvas;
+extern void setClippingRect(Rect r);
 
 Point			origin;							// Screen origin
 int				canvasW;						// Canvas width
@@ -30,17 +32,18 @@ void viewportReset() {
 	useViewports = false;
 }
 
-// Clear a viewport
-//
-void clearViewport(Rect * viewport) {
-	if (Canvas) {
-		if (useViewports) {
-			Canvas->fillRectangle(*viewport);
-		}
-		else {
-			Canvas->clear();
-		}
-	}
+Rect * getViewport(byte type) {
+    switch (type) {
+        case VIEWPORT_TEXT: return &textViewport;
+        case VIEWPORT_DEFAULT: return &defaultViewport;
+        case VIEWPORT_GRAPHICS: return &graphicsViewport;
+        case VIEWPORT_ACTIVE: return activeViewport;
+        default: return &defaultViewport;
+    }
+}
+
+void setActiveViewport(byte type) {
+    activeViewport = getViewport(type);
 }
 
 // Translate a point relative to the graphics viewport
@@ -81,13 +84,13 @@ Point translateCanvas(Point p) {
 
 // Set graphics viewport
 bool setGraphicsViewport(short x1, short y1, short x2, short y2) {
-	Point p1 = translateCanvas(scale((short)x1, (short)y1));
-	Point p2 = translateCanvas(scale((short)x2, (short)y2));
+	Point p1 = translateCanvas(scale(x1, y1));
+	Point p2 = translateCanvas(scale(x2, y2));
 
 	if (p1.X >= 0 && p2.X < canvasW && p1.Y >= 0 && p2.Y < canvasH && p2.X > p1.X && p2.Y > p1.Y) {
 		graphicsViewport = Rect(p1.X, p1.Y, p2.X, p2.Y);
 		useViewports = true;
-    	Canvas->setClippingRect(graphicsViewport);
+        setClippingRect(graphicsViewport);
         return true;
     }
     return false;
@@ -108,6 +111,17 @@ bool setTextViewport(short x1, short y1, short x2, short y2) {
 
 inline void setOrigin(int x, int y) {
     origin = scale(x, y);
+}
+
+inline void setCanvasWH(int w, int h) {
+    canvasW = w;
+    canvasH = h;
+	logicalScaleX = LOGICAL_SCRW / (double)canvasW;
+	logicalScaleY = LOGICAL_SCRH / (double)canvasH;
+}
+
+inline void setLogicalCoords(bool b) {
+    logicalCoords = b;
 }
 
 #endif // VIEWPORT_H
