@@ -684,6 +684,7 @@ int change_mode(int mode) {
 
 	doubleBuffered = false;			// Default is to not double buffer the display
 
+	cls(true);
 	switch(mode) {
 		case 0:{
 				if (legacyModes == true) {
@@ -844,7 +845,6 @@ int change_mode(int mode) {
 	cursorEnabled = true;
 	cursorBehaviour = 0;
 	vdu_resetViewports();
-	textCursor = Point(activeViewport->X1, activeViewport->Y1);
 	activeCursor = &textCursor;
 	pagedMode = false;
 	sendModeInformation();
@@ -862,7 +862,11 @@ void set_mode(int mode) {
 	if(errVal != 0) {
 		debug_log("set_mode: error %d\n\r", errVal);
 		errVal = change_mode(videoMode);
-		if (errVal != 0) debug_log("set_mode: error %d restoring previous screen mode %d\n\r", errVal, videoMode);
+		if (errVal != 0) {
+			debug_log("set_mode: error %d restoring previous screen mode %d\n\r", errVal, videoMode);
+			videoMode = 1;
+			change_mode(1);
+		}
 		return;
 	}
 	videoMode = mode;
