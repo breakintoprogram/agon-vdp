@@ -186,7 +186,7 @@ void debug_log(const char *format, ...) {
 //
 void switchTerminalMode() {
 	cls(true);
-	delete Canvas;
+	delete canvas;
 	Terminal.begin(getVGAController());	
 	Terminal.connectSerialPort(VDPSerial);
 	Terminal.enableCursor(true);

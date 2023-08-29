@@ -43,7 +43,7 @@ void createBitmap(int width, int height, void * data, PixelFormat format = Pixel
 void drawBitmap(int x, int y) {
 	auto bitmap = getBitmap();
 	if (bitmap->data) {
-		Canvas->drawBitmap(x, y, bitmap);
+		canvas->drawBitmap(x, y, bitmap);
 		waitPlotCompletion();
 	}
 }
@@ -139,7 +139,7 @@ void moveSpriteBy(int x, int y) {
 
 void refreshSprites() {
 	if (numsprites) {
-		VGAController->refreshSprites();
+		getVGAController()->refreshSprites();
 	}
 }
 

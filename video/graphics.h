@@ -82,7 +82,7 @@ char getScreenChar(int px, int py) {
 	for (int y = 0; y < 8; y++) {
 		charRow = 0;
 		for (int x = 0; x < 8; x++) {
-			pixel = Canvas->getPixel(px + x, py + y);
+			pixel = canvas->getPixel(px + x, py + y);
 			if (!(pixel.R == R && pixel.G == G && pixel.B == B)) {
 				charRow |= (0x80 >> x);
 			}
@@ -105,7 +105,7 @@ char getScreenChar(int px, int py) {
 RGB888 getPixel(int x, int y) {
 	Point p = translateViewport(scale(x, y));
 	if (p.X >= 0 && p.Y >= 0 && p.X < canvasW && p.Y < canvasH) {
-		return Canvas->getPixel(p.X, p.Y);
+		return canvas->getPixel(p.X, p.Y);
 	}
 	return RGB888(0,0,0);
 }
@@ -220,12 +220,12 @@ void setGraphicsColour(byte mode, byte colour) {
 // Clear a viewport
 //
 void clearViewport(Rect * viewport) {
-	if (Canvas) {
+	if (canvas) {
 		if (useViewports) {
-			Canvas->fillRectangle(*viewport);
+			canvas->fillRectangle(*viewport);
 		}
 		else {
-			Canvas->clear();
+			canvas->clear();
 		}
 	}
 }
@@ -252,27 +252,27 @@ Point * getGraphicsCursor() {
 // Set up canvas for drawing graphics
 //
 void setGraphicsOptions() {
-	Canvas->setClippingRect(graphicsViewport);
-	Canvas->setPenColor(gfg);
-	Canvas->setPaintOptions(gpo);
+	canvas->setClippingRect(graphicsViewport);
+	canvas->setPenColor(gfg);
+	canvas->setPaintOptions(gpo);
 }
 
 // Move to
 //
 void moveTo() {
-	Canvas->moveTo(p1.X, p1.Y);
+	canvas->moveTo(p1.X, p1.Y);
 }
 
 // Line plot
 //
 void plotLine() {
-	Canvas->lineTo(p1.X, p1.Y);
+	canvas->lineTo(p1.X, p1.Y);
 }
 
 // Point point
 //
 void plotPoint() {
-	Canvas->setPixel(p1.X, p1.Y);
+	canvas->setPixel(p1.X, p1.Y);
 }
 
 // Triangle plot
@@ -283,9 +283,9 @@ void plotTriangle(byte mode) {
 		p2,
 		p1, 
 	};
-	Canvas->setBrushColor(gfg);
-	Canvas->fillPath(p, 3);
-	Canvas->setBrushColor(tbg);
+	canvas->setBrushColor(gfg);
+	canvas->fillPath(p, 3);
+	canvas->setBrushColor(tbg);
 }
 
 // Circle plot
@@ -295,13 +295,13 @@ void plotCircle(byte mode) {
 	switch (mode) {
 		case 0x00 ... 0x03: // Circle
 			r = 2 * (p1.X + p1.Y);
-			Canvas->drawEllipse(p2.X, p2.Y, r, r);
+			canvas->drawEllipse(p2.X, p2.Y, r, r);
 			break;
 		case 0x04 ... 0x07: // Circle
 			a = p2.X - p1.X;
 			b = p2.Y - p1.Y;
 			r = 2 * sqrt(a * a + b * b);
-			Canvas->drawEllipse(p2.X, p2.Y, r, r);
+			canvas->drawEllipse(p2.X, p2.Y, r, r);
 		break;
 	}
 }
@@ -310,17 +310,17 @@ void plotCircle(byte mode) {
 //
 void plotCharacter(char c) {
 	if (textCursorActive()) {
-		Canvas->setClippingRect(defaultViewport);
-		Canvas->setPenColor(tfg);
-		Canvas->setBrushColor(tbg);
-		Canvas->setPaintOptions(tpo);
+		canvas->setClippingRect(defaultViewport);
+		canvas->setPenColor(tfg);
+		canvas->setBrushColor(tbg);
+		canvas->setPaintOptions(tpo);
 	}
 	else {
-		Canvas->setClippingRect(graphicsViewport);
-		Canvas->setPenColor(gfg);
-		Canvas->setPaintOptions(gpo);
+		canvas->setClippingRect(graphicsViewport);
+		canvas->setPenColor(gfg);
+		canvas->setPaintOptions(gpo);
 	}
-	Canvas->drawChar(activeCursor->X, activeCursor->Y, c);
+	canvas->drawChar(activeCursor->X, activeCursor->Y, c);
 	cursorRight();
 }
 
@@ -328,26 +328,26 @@ void plotCharacter(char c) {
 //
 void plotBackspace() {
 	cursorLeft();
-	Canvas->setBrushColor(textCursorActive() ? tbg : gbg);
-	Canvas->fillRectangle(activeCursor->X, activeCursor->Y, activeCursor->X + fontW - 1, activeCursor->Y + fontH - 1);
+	canvas->setBrushColor(textCursorActive() ? tbg : gbg);
+	canvas->fillRectangle(activeCursor->X, activeCursor->Y, activeCursor->X + fontW - 1, activeCursor->Y + fontH - 1);
 }
 
 // Set character overwrite mode (background fill)
 //
 inline void setCharacterOverwrite(bool overwrite) {
-	Canvas->setGlyphOptions(GlyphOptions().FillBackground(overwrite));
+	canvas->setGlyphOptions(GlyphOptions().FillBackground(overwrite));
 }
 
 // Set a clipping rectangle
 //
 void setClippingRect(Rect rect) {
-	Canvas->setClippingRect(rect);
+	canvas->setClippingRect(rect);
 }
 
 // Draw cursor
 //
 void drawCursor(Point p) {
-	Canvas->swapRectangle(p.X, p.Y, p.X + fontW - 1, p.Y + fontH - 1);
+	canvas->swapRectangle(p.X, p.Y, p.X + fontW - 1, p.Y + fontH - 1);
 }
 
 
@@ -357,10 +357,10 @@ void cls(bool resetViewports) {
 	if (resetViewports) {
 		viewportReset();
 	}
-	if (Canvas) {
-		Canvas->setPenColor(tfg);
-		Canvas->setBrushColor(tbg);	
-		Canvas->setPaintOptions(tpo);
+	if (canvas) {
+		canvas->setPenColor(tfg);
+		canvas->setBrushColor(tbg);	
+		canvas->setPaintOptions(tpo);
 		clearViewport(getViewport(VIEWPORT_TEXT));
 	}
 	if (hasActiveSprites()) {
@@ -374,10 +374,10 @@ void cls(bool resetViewports) {
 // Clear the graphics area
 //
 void clg() {
-	if (Canvas) {
-		Canvas->setPenColor(gfg);
-		Canvas->setBrushColor(gbg);	
-		Canvas->setPaintOptions(gpo);
+	if (canvas) {
+		canvas->setPenColor(gfg);
+		canvas->setBrushColor(gbg);	
+		canvas->setPaintOptions(gpo);
 		clearViewport(getViewport(VIEWPORT_GRAPHICS));
 	}
 	pushPoint(0, 0);		// Reset graphics origin (as per BBC Micro CLG)
@@ -538,16 +538,16 @@ int change_mode(int mode) {
 	gbg = colourLookup[0x00];
 	tfg = colourLookup[0x3F];
 	tbg = colourLookup[0x00];
-	Canvas->selectFont(&fabgl::FONT_AGON);
+	canvas->selectFont(&fabgl::FONT_AGON);
 	setCharacterOverwrite(true);
-	Canvas->setPenWidth(1);
+	canvas->setPenWidth(1);
 	setOrigin(0,0);
 	pushPoint(0,0);
 	pushPoint(0,0);
 	pushPoint(0,0);
-	setCanvasWH(Canvas->getWidth(), Canvas->getHeight());
-	fontW = Canvas->getFontInfo()->width;
-	fontH = Canvas->getFontInfo()->height;
+	setCanvasWH(canvas->getWidth(), canvas->getHeight());
+	fontW = canvas->getFontInfo()->width;
+	fontH = canvas->getFontInfo()->height;
 	viewportReset();
 	resetCursor();
 	homeCursor();
@@ -581,20 +581,20 @@ void setLegacyModes(bool legacy) {
 }
 
 void scrollRegion(Rect * region, int direction, int movement) {
-	Canvas->setScrollingRegion(region->X1, region->Y1, region->X2, region->Y2);
+	canvas->setScrollingRegion(region->X1, region->Y1, region->X2, region->Y2);
 
 	switch (direction) {
 		case 0:	// Right
-			Canvas->scroll(movement, 0);
+			canvas->scroll(movement, 0);
 			break;
 		case 1: // Left
-			Canvas->scroll(-movement, 0);
+			canvas->scroll(-movement, 0);
 			break;
 		case 2: // Down
-			Canvas->scroll(0, movement);
+			canvas->scroll(0, movement);
 			break;
 		case 3: // Up
-			Canvas->scroll(0, -movement);
+			canvas->scroll(0, -movement);
 			break;
 	}
 	waitPlotCompletion();
