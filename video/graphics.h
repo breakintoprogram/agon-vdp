@@ -142,7 +142,7 @@ void setPalette(int l, int p, int r, int g, int b) {
 			return;
 		}
 		setPaletteItem(l, col);
-		Canvas->waitCompletion(false);
+		waitPlotCompletion();
 		debug_log("vdu_palette: %d,%d,%d,%d,%d\n\r", l, p, r, g, b);
 	} else {
 		debug_log("vdu_palette: not supported in this mode\n\r");
@@ -597,7 +597,7 @@ void scrollRegion(Rect * region, int direction, int movement) {
 			Canvas->scroll(0, -movement);
 			break;
 	}
-	Canvas->waitCompletion(false);
+	waitPlotCompletion();
 }
 
 #endif
