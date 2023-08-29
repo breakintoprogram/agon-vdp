@@ -149,6 +149,9 @@ bool wait_shiftkey(byte *ascii, byte* vk, byte* down) {
 	//
 	do {
 		kb->getNextVirtualKey(&item, 0);
+		*ascii = item.ASCII;
+		*vk = item.vk;
+		*down = item.down;
 		if (item.ASCII == 27) {	// Check for ESC
 			return false;
 		}
