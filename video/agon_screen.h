@@ -48,7 +48,7 @@ void updateRGB2PaletteLUT() {
 // Get current colour depth
 //
 inline int getVGAColourDepth() {
-    return _VGAColourDepth;
+	return _VGAColourDepth;
 }
 
 // Set a palette item
@@ -57,7 +57,7 @@ inline int getVGAColourDepth() {
 // - c: The new colour
 // 
 void setPaletteItem(int l, RGB888 c) {
-    int depth = getVGAColourDepth();
+	int depth = getVGAColourDepth();
 	if (l < depth) {
 		switch (depth) {
 			case 2: VGAController2.setPaletteItem(l, c); break;
@@ -83,7 +83,7 @@ int change_resolution(int colours, char * modeLine) {
 	if (controller == nullptr) {					// If controller is null, then an invalid # of colours was passed
 		return 1;									// So return the error
 	}
-  	delete Canvas;									// Delete the canvas
+	delete Canvas;									// Delete the canvas
 
 	_VGAColourDepth = colours;						// Set the number of colours per pixel
 	if (VGAController != controller) {				// Is it a different controller?
@@ -100,12 +100,12 @@ int change_resolution(int colours, char * modeLine) {
 			VGAController->setResolution(modeLine);	// Set the resolution
 		}
 	} else {
-        debug_log("change_resolution: modeLine is null\n\r");
-    }
+		debug_log("change_resolution: modeLine is null\n\r");
+	}
 	VGAController->enableBackgroundPrimitiveExecution(true);
 	VGAController->enableBackgroundPrimitiveTimeout(false);
 
-  	Canvas = new fabgl::Canvas(VGAController);		// Create the new canvas
+	Canvas = new fabgl::Canvas(VGAController);		// Create the new canvas
 	//
 	// Check whether the selected mode has enough memory for the vertical resolution
 	//
@@ -115,10 +115,18 @@ int change_resolution(int colours, char * modeLine) {
 	return 0;										// Return with no errors
 }
 
+// Swap to other buffer if we're in a double-buffered mode
+//
 void switchBuffer() {
 	if (doubleBuffered == true) {
 		Canvas->swapBuffers();
 	}
+}
+
+// Wait for plot completion
+//
+void waitPlotCompletion() {
+	Canvas->waitCompletion(false);
 }
 
 #endif // AGON_SCREEN_H

@@ -1,11 +1,11 @@
 //
-// Title:	        Agon Video BIOS
-// Author:        	Dean Belfield
+// Title:			Agon Video BIOS
+// Author:			Dean Belfield
 // Contributors:	Jeroen Venema (Sprite Code, VGA Mode Switching)
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (vdp-gl maintenance)
-//					Steve Sims (Audio enhancements)
-// Created:       	22/03/2022
+//					Steve Sims (Audio enhancements, Refactoring, bug fixes)
+// Created:			22/03/2022
 // Last Updated:	05/09/2023
 //
 // Modinfo:
@@ -63,12 +63,7 @@ fabgl::Terminal				Terminal;			// Used for CP/M mode
 #include "vdp_protocol.h"						// VDP Protocol
 #include "vdu.h"								// VDU functions
 
-int         	count = 0;						// Generic counter, incremented every iteration of loop
-uint8_t			numsprites = 0;					// Number of sprites on stage
-uint8_t 		current_sprite = 0; 			// Current sprite number
-uint8_t 		current_bitmap = 0;				// Current bitmap number
-Bitmap			bitmaps[MAX_BITMAPS];			// Bitmap object storage
-Sprite			sprites[MAX_SPRITES];			// Sprite object storage
+int				count = 0;						// Generic counter, incremented every iteration of loop
 bool			terminalMode = false;			// Terminal mode
 
 #if DEBUG == 1 || SERIALKB == 1
@@ -76,7 +71,7 @@ HardwareSerial DBGSerial(0);
 #endif 
 
 void setup() {
-	disableCore0WDT(); delay(200);								// Disable the watchdog timers
+	disableCore0WDT(); delay(200);				// Disable the watchdog timers
 	disableCore1WDT(); delay(200);
 	#if DEBUG == 1 || SERIALKB == 1
 	DBGSerial.begin(500000, SERIAL_8N1, 3, 1);
@@ -101,22 +96,22 @@ void loop() {
 			do_keyboard_terminal();
 			continue;
 		}
-    	cursorVisible = ((count & 0xFFFF) == 0);
-    	if (cursorVisible) {
-      		cursorState = !cursorState;
-      		do_cursor();
-    	}
-    	do_keyboard();
-    	if (byteAvailable()) {
-      		if (cursorState) {
- 	    		cursorState = false;
-        		do_cursor();
-      		}
-      		byte c = readByte();
-      		vdu(c);
-    	}
-    	count++;
-  	}
+		cursorVisible = ((count & 0xFFFF) == 0);
+		if (cursorVisible) {
+			cursorState = !cursorState;
+			do_cursor();
+		}
+		do_keyboard();
+		if (byteAvailable()) {
+			if (cursorState) {
+ 				cursorState = false;
+				do_cursor();
+			}
+			byte c = readByte();
+			vdu(c);
+		}
+		count++;
+	}
 }
 
 // Handle the keyboard: BBC VDU Mode
@@ -164,9 +159,9 @@ void do_keyboard_terminal() {
 // The boot screen
 //
 void boot_screen() {
-  	printFmt("Agon Quark VDP Version %d.%02d", VERSION, REVISION);
+	printFmt("Agon Quark VDP Version %d.%02d", VERSION, REVISION);
 	#if RC > 0
-	  	printFmt(" RC%d", RC);
+		printFmt(" RC%d", RC);
 	#endif
 	printFmt("\n\r");
 }
@@ -175,17 +170,17 @@ void boot_screen() {
 //
 void debug_log(const char *format, ...) {
 	#if DEBUG == 1
-   	va_list ap;
-   	va_start(ap, format);
-   	int size = vsnprintf(nullptr, 0, format, ap) + 1;
-   	if (size > 0) {
-    	va_end(ap);
-     	va_start(ap, format);
-     	char buf[size + 1];
-     	vsnprintf(buf, size, format, ap);
-     	DBGSerial.print(buf);
-   	}
-   	va_end(ap);
+	va_list ap;
+	va_start(ap, format);
+	int size = vsnprintf(nullptr, 0, format, ap) + 1;
+	if (size > 0) {
+		va_end(ap);
+		va_start(ap, format);
+		char buf[size + 1];
+		vsnprintf(buf, size, format, ap);
+		DBGSerial.print(buf);
+	}
+	va_end(ap);
 	#endif
 }
 
@@ -193,7 +188,7 @@ void debug_log(const char *format, ...) {
 //
 void switchTerminalMode() {
 	cls(true);
-  	delete Canvas;
+	delete Canvas;
 	Terminal.begin(getVGAController());	
 	Terminal.connectSerialPort(VDPSerial);
 	Terminal.enableCursor(true);
@@ -201,9 +196,9 @@ void switchTerminalMode() {
 }
 
 void print(char const * text) {
-	for(int i = 0; i < strlen(text); i++) {
-    	vdu(text[i]);
-  	}
+	for (int i = 0; i < strlen(text); i++) {
+		vdu(text[i]);
+	}
 }
 
 void printFmt(const char *format, ...) {
@@ -220,201 +215,3 @@ void printFmt(const char *format, ...) {
    	va_end(ap);
 }
 
-// Sprite Engine
-//
-void vdu_sys_sprites(void) {
-    uint32_t	color;
-    void *		dataptr;
-    int16_t 	x, y;
-    int16_t 	width, height;
-    uint16_t 	n, temp;
-    
-    int cmd = readByte_t();
-
-    switch(cmd) {
-    	case 0: {	// Select bitmap
-			int	rb = readByte_t();
-			if(rb >= 0) {
-        		current_bitmap = rb;
-        		debug_log("vdu_sys_sprites: bitmap %d selected\n\r", current_bitmap);
-			}
-		}	break;
-      	
-		case 1: 	// Send bitmap data
-      	case 2: {	// Define bitmap in single color
-			int rw = readWord_t(); if(rw == -1) return;
-			int rh = readWord_t(); if(rh == -1) return;
-
-			width = rw;
-			height = rh;
-			//
-        	// Clear out any old data first
-			//
-        	free(bitmaps[current_bitmap].data);
-			//
-        	// Allocate new heap data
-			//
-        	dataptr = (void *)heap_caps_malloc(sizeof(uint32_t)*width*height, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
-        	bitmaps[current_bitmap].data = (uint8_t *)dataptr;
-
-        	if(dataptr != NULL) {                  
-				if(cmd == 1) {
-					//
-					// Read data to the new databuffer
-					//
-					for(n = 0; n < width*height; n++) ((uint32_t *)bitmaps[current_bitmap].data)[n] = readLong_b();  
-					debug_log("vdu_sys_sprites: bitmap %d - data received - width %d, height %d\n\r", current_bitmap, width, height);
-				}
-				if(cmd == 2) {
-					color = readLong_b();
-					//
-					// Define single color
-					//
-					for(n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = color;            
-					debug_log("vdu_sys_sprites: bitmap %d - set to solid color - width %d, height %d\n\r", current_bitmap, width, height);            
-				}
-				// Create bitmap structure
-				//
-				bitmaps[current_bitmap] = Bitmap(width,height,dataptr,PixelFormat::RGBA8888);
-				bitmaps[current_bitmap].dataAllocated = false;
-			}
-	        else { 
-				//
-				// Discard incoming serial data if failed to allocate memory
-				//
-				if (cmd == 1) {
-					discardBytes(4*width*height);
-				}
-				if (cmd == 2) {
-					discardBytes(4);
-				}
-				debug_log("vdu_sys_sprites: bitmap %d - data discarded, no memory available - width %d, height %d\n\r", current_bitmap, width, height);
-			}
-		}	break;
-      	
-		case 3: {	// Draw bitmap to screen (x,y)
-			int	rx = readWord_t(); if(rx == -1) return; x = rx;
-			int ry = readWord_t(); if(ry == -1) return; y = ry;
-
-			if(bitmaps[current_bitmap].data) {
-				Canvas->drawBitmap(x,y,&bitmaps[current_bitmap]);
-				waitPlotCompletion();
-			}
-			debug_log("vdu_sys_sprites: bitmap %d draw command\n\r", current_bitmap);
-		}	break;
-
-	   /*
-		* Sprites
-		* 
-		* Sprite creation order:
-		* 1) Create bitmap(s) for sprite, or re-use bitmaps already created
-		* 2) Select the correct sprite ID (0-255). The GDU only accepts sequential sprite sets, starting from ID 0. All sprites must be adjacent to 0
-		* 3) Clear out any frames from previous program definitions
-		* 4) Add one or more frames to each sprite
-		* 5) Activate sprite to the GDU
-		* 6) Show sprites on screen / move them around as needed
-		* 7) Refresh
-		*/
-    	case 4: {	// Select sprite
-			int b = readByte_t(); if(b == -1) return;
-			current_sprite = b;
-			debug_log("vdu_sys_sprites: sprite %d selected\n\r", current_sprite);
-		}	break;
-
-      	case 5: {	// Clear frames
-			sprites[current_sprite].visible = false;
-			sprites[current_sprite].setFrame(0);
-			sprites[current_sprite].clearBitmaps();
-			debug_log("vdu_sys_sprites: sprite %d - all frames cleared\n\r", current_sprite);
-		}	break;
-        
-      	case 6:	{	// Add frame to sprite
-			int b = readByte_t(); if(b == -1) return; n = b;
-			sprites[current_sprite].addBitmap(&bitmaps[n]);
-			debug_log("vdu_sys_sprites: sprite %d - bitmap %d added as frame %d\n\r", current_sprite, n, sprites[current_sprite].framesCount-1);
-		}	break;
-
-      	case 7:	{	// Active sprites to GDU
-			int b = readByte_t(); if(b == -1) return;
-			/*
-			* Sprites 0-(numsprites-1) will be activated on-screen
-			* Make sure all sprites have at least one frame attached to them
-			*/
-			numsprites = b;
-			if(numsprites) {
-				VGAController->setSprites(sprites, numsprites);
-			}
-			else {
-				VGAController->removeSprites();
-			}
-			waitPlotCompletion();
-			debug_log("vdu_sys_sprites: %d sprites activated\n\r", numsprites);
-		}	break;
-
-      	case 8: {	// Set next frame on sprite
-			sprites[current_sprite].nextFrame();
-			debug_log("vdu_sys_sprites: sprite %d next frame\n\r", current_sprite);
-		}	break;
-
-      	case 9:	{	// Set previous frame on sprite
-			n = sprites[current_sprite].currentFrame;
-			if(n) sprites[current_sprite].currentFrame = n-1; // previous frame
-			else sprites[current_sprite].currentFrame = sprites[current_sprite].framesCount - 1;  // last frame
-			debug_log("vdu_sys_sprites: sprite %d previous frame\n\r", current_sprite);
-		}	break;
-
-      	case 10: {	// Set current frame id on sprite
-			int b = readByte_t(); if(b == -1) return;
-			n = b;
-			if(n < sprites[current_sprite].framesCount) sprites[current_sprite].currentFrame = n;
-			debug_log("vdu_sys_sprites: sprite %d set to frame %d\n\r", current_sprite,n);
-		}	break;
-
-      	case 11: {	// Show sprite
-        	sprites[current_sprite].visible = 1;
-			debug_log("vdu_sys_sprites: sprite %d show cmd\n\r", current_sprite);
-		}	break;
-
-      	case 12: {	// Hide sprite
-			sprites[current_sprite].visible = 0;
-			debug_log("vdu_sys_sprites: sprite %d hide cmd\n\r", current_sprite);
-		}	break;
-
-      	case 13: {	// Move sprite to coordinate on screen
-			int	rx = readWord_t(); if(rx == -1) return; x = rx;
-			int ry = readWord_t(); if(ry == -1) return; y = ry;
-
-			sprites[current_sprite].moveTo(x, y); 
-			debug_log("vdu_sys_sprites: sprite %d - move to (%d,%d)\n\r", current_sprite, x, y);
-		}	break;
-
-      	case 14: {	// Move sprite by offset to current coordinate on screen
-			int	rx = readWord_t(); if(rx == -1) return; x = rx;
-			int ry = readWord_t(); if(ry == -1) return; y = ry;
-			sprites[current_sprite].x += x;
-			sprites[current_sprite].y += y;
-			debug_log("vdu_sys_sprites: sprite %d - move by offset (%d,%d)\n\r", current_sprite, x, y);
-		}	break;
-
-	  	case 15: {	// Refresh
-			if(numsprites) { 
-				VGAController->refreshSprites();
-			}
-			debug_log("vdu_sys_sprites: perform sprite refresh\n\r");
-		}	break;
-		case 16: {	// Reset
-			cls(false);
-			for(n = 0; n < MAX_SPRITES; n++) {
-				sprites[n].visible = false;
-				sprites[current_sprite].setFrame(0);
-				sprites[n].clearBitmaps();
-			}
-			for(n = 0; n < MAX_BITMAPS; n++) {
-	        	free(bitmaps[n].data);
-				bitmaps[n].dataAllocated = false;
-			}
-			waitPlotCompletion();
-			debug_log("vdu_sys_sprites: reset\n\r");
-		}	break;
-    }
-}
