@@ -6,7 +6,6 @@
 #include <ESP32Time.h>
 
 #include "agon.h"
-#include "agon_fonts.h"
 #include "agon_keyboard.h"
 #include "cursor.h"
 #include "graphics.h"

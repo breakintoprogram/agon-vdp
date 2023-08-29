@@ -3,15 +3,15 @@
 
 #include <fabgl.h>
 
-fabgl::Canvas *				Canvas;				// The canvas class
+fabgl::Canvas *				canvas;				// The canvas class
 
-fabgl::VGA2Controller		VGAController2;		// VGA class - 2 colours
-fabgl::VGA4Controller		VGAController4;		// VGA class - 4 colours
-fabgl::VGA8Controller		VGAController8;		// VGA class - 8 colours
-fabgl::VGA16Controller		VGAController16;	// VGA class - 16 colours
-fabgl::VGAController		VGAController64;	// VGA class - 64 colours
+fabgl::VGA2Controller		_VGAController2;	// VGA class - 2 colours
+fabgl::VGA4Controller		_VGAController4;	// VGA class - 4 colours
+fabgl::VGA8Controller		_VGAController8;	// VGA class - 8 colours
+fabgl::VGA16Controller		_VGAController16;	// VGA class - 16 colours
+fabgl::VGAController		_VGAController64;	// VGA class - 64 colours
 
-fabgl::VGABaseController *	VGAController;		// Pointer to the current VGA controller class (one of the above)
+fabgl::VGABaseController *	_VGAController;		// Pointer to the current VGA controller class (one of the above)
 
 int				_VGAColourDepth;				// Number of colours per pixel (2, 4, 8, 16 or 64)
 bool			doubleBuffered = false;			// Disable double buffering by default
@@ -25,11 +25,11 @@ bool			doubleBuffered = false;			// Disable double buffering by default
 //
 fabgl::VGABaseController * getVGAController(int colours = _VGAColourDepth) {
 	switch (colours) {
-		case  2: return VGAController2.instance();
-		case  4: return VGAController4.instance();
-		case  8: return VGAController8.instance();
-		case 16: return VGAController16.instance();
-		case 64: return VGAController64.instance();
+		case  2: return _VGAController2.instance();
+		case  4: return _VGAController4.instance();
+		case  8: return _VGAController8.instance();
+		case 16: return _VGAController16.instance();
+		case 64: return _VGAController64.instance();
 	}
 	return nullptr;
 }
@@ -38,10 +38,10 @@ fabgl::VGABaseController * getVGAController(int colours = _VGAColourDepth) {
 //
 void updateRGB2PaletteLUT() {
 	switch (_VGAColourDepth) {
-		case 2: VGAController2.updateRGB2PaletteLUT(); break;
-		case 4: VGAController4.updateRGB2PaletteLUT(); break;
-		case 8: VGAController8.updateRGB2PaletteLUT(); break;
-		case 16: VGAController16.updateRGB2PaletteLUT(); break;
+		case 2: _VGAController2.updateRGB2PaletteLUT(); break;
+		case 4: _VGAController4.updateRGB2PaletteLUT(); break;
+		case 8: _VGAController8.updateRGB2PaletteLUT(); break;
+		case 16: _VGAController16.updateRGB2PaletteLUT(); break;
 	}
 }
 
@@ -60,10 +60,10 @@ void setPaletteItem(int l, RGB888 c) {
 	int depth = getVGAColourDepth();
 	if (l < depth) {
 		switch (depth) {
-			case 2: VGAController2.setPaletteItem(l, c); break;
-			case 4: VGAController4.setPaletteItem(l, c); break;
-			case 8: VGAController8.setPaletteItem(l, c); break;
-			case 16: VGAController16.setPaletteItem(l, c); break;
+			case 2: _VGAController2.setPaletteItem(l, c); break;
+			case 4: _VGAController4.setPaletteItem(l, c); break;
+			case 8: _VGAController8.setPaletteItem(l, c); break;
+			case 16: _VGAController16.setPaletteItem(l, c); break;
 		}
 	}
 }
@@ -78,38 +78,38 @@ void setPaletteItem(int l, RGB888 c) {
 // - 2: Not enough memory for mode
 //
 int change_resolution(int colours, char * modeLine) {
-	fabgl::VGABaseController * controller = getVGAController(colours);
+	auto controller = getVGAController(colours);
 
 	if (controller == nullptr) {					// If controller is null, then an invalid # of colours was passed
 		return 1;									// So return the error
 	}
-	delete Canvas;									// Delete the canvas
+	delete canvas;									// Delete the canvas
 
 	_VGAColourDepth = colours;						// Set the number of colours per pixel
-	if (VGAController != controller) {				// Is it a different controller?
-		if (VGAController) {						// If there is an existing controller running then
-			VGAController->end();					// end it
+	if (_VGAController != controller) {				// Is it a different controller?
+		if (_VGAController) {						// If there is an existing controller running then
+			_VGAController->end();					// end it
 		}
-		VGAController = controller;					// Switch to the new controller
-		VGAController->begin();						// And spin it up
+		_VGAController = controller;				// Switch to the new controller
+		controller->begin();						// And spin it up
 	}
 	if (modeLine) {									// If modeLine is not a null pointer then
 		if (doubleBuffered == true) {
-			VGAController->setResolution(modeLine, -1, -1, 1);
+			controller->setResolution(modeLine, -1, -1, 1);
 		} else {
-			VGAController->setResolution(modeLine);	// Set the resolution
+			controller->setResolution(modeLine);	// Set the resolution
 		}
 	} else {
 		debug_log("change_resolution: modeLine is null\n\r");
 	}
-	VGAController->enableBackgroundPrimitiveExecution(true);
-	VGAController->enableBackgroundPrimitiveTimeout(false);
+	controller->enableBackgroundPrimitiveExecution(true);
+	controller->enableBackgroundPrimitiveTimeout(false);
 
-	Canvas = new fabgl::Canvas(VGAController);		// Create the new canvas
+	canvas = new fabgl::Canvas(controller);			// Create the new canvas
 	//
 	// Check whether the selected mode has enough memory for the vertical resolution
 	//
-	if (VGAController->getScreenHeight() != VGAController->getViewPortHeight()) {
+	if (controller->getScreenHeight() != controller->getViewPortHeight()) {
 		return 2;
 	}
 	return 0;										// Return with no errors
@@ -119,14 +119,14 @@ int change_resolution(int colours, char * modeLine) {
 //
 void switchBuffer() {
 	if (doubleBuffered == true) {
-		Canvas->swapBuffers();
+		canvas->swapBuffers();
 	}
 }
 
 // Wait for plot completion
 //
 inline void waitPlotCompletion(bool waitForVSync = false) {
-	Canvas->waitCompletion(waitForVSync);
+	canvas->waitCompletion(waitForVSync);
 }
 
 #endif // AGON_SCREEN_H
