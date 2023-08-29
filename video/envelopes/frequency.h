@@ -4,6 +4,9 @@
 // Created:       	13/08/2023
 // Last Updated:	13/08/2023
 
+#ifndef ENVELOPE_FREQUENCY_H
+#define ENVELOPE_FREQUENCY_H
+
 #include <memory>
 #include <vector>
 
@@ -99,3 +102,5 @@ bool SteppedFrequencyEnvelope::isFinished(uint16_t elapsed, long duration) {
 
 	return elapsed >= _totalLength;
 }
+
+#endif // ENVELOPE_FREQUENCY_H
