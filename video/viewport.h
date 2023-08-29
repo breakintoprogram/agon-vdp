@@ -7,7 +7,6 @@
 #include "cursor.h"
 #include "graphics.h"
 
-extern fabgl::Canvas * Canvas;
 extern void setClippingRect(Rect r);
 
 Point			origin;							// Screen origin
@@ -17,9 +16,9 @@ bool			logicalCoords = true;			// Use BBC BASIC logical coordinates
 double			logicalScaleX;					// Scaling factor for logical coordinates
 double			logicalScaleY;
 Rect *			activeViewport;					// Pointer to the active text viewport (textViewport or graphicsViewport)
-Rect 			defaultViewport;				// Default viewport
-Rect 			textViewport;					// Text viewport
-Rect 			graphicsViewport;				// Graphics viewport
+Rect			defaultViewport;				// Default viewport
+Rect			textViewport;					// Text viewport
+Rect			graphicsViewport;				// Graphics viewport
 bool			useViewports = false;			// Viewports are enabled
 
 // Reset viewports to default
@@ -33,17 +32,17 @@ void viewportReset() {
 }
 
 Rect * getViewport(byte type) {
-    switch (type) {
-        case VIEWPORT_TEXT: return &textViewport;
-        case VIEWPORT_DEFAULT: return &defaultViewport;
-        case VIEWPORT_GRAPHICS: return &graphicsViewport;
-        case VIEWPORT_ACTIVE: return activeViewport;
-        default: return &defaultViewport;
-    }
+	switch (type) {
+		case VIEWPORT_TEXT: return &textViewport;
+		case VIEWPORT_DEFAULT: return &defaultViewport;
+		case VIEWPORT_GRAPHICS: return &graphicsViewport;
+		case VIEWPORT_ACTIVE: return activeViewport;
+		default: return &defaultViewport;
+	}
 }
 
 void setActiveViewport(byte type) {
-    activeViewport = getViewport(type);
+	activeViewport = getViewport(type);
 }
 
 // Translate a point relative to the graphics viewport
@@ -90,10 +89,10 @@ bool setGraphicsViewport(short x1, short y1, short x2, short y2) {
 	if (p1.X >= 0 && p2.X < canvasW && p1.Y >= 0 && p2.Y < canvasH && p2.X > p1.X && p2.Y > p1.Y) {
 		graphicsViewport = Rect(p1.X, p1.Y, p2.X, p2.Y);
 		useViewports = true;
-        setClippingRect(graphicsViewport);
-        return true;
-    }
-    return false;
+		setClippingRect(graphicsViewport);
+		return true;
+	}
+	return false;
 }
 
 // Set text viewport
@@ -106,22 +105,22 @@ bool setTextViewport(short x1, short y1, short x2, short y2) {
 		useViewports = true;
 		return true;
 	}
-    return false;
+	return false;
 }
 
 inline void setOrigin(int x, int y) {
-    origin = scale(x, y);
+	origin = scale(x, y);
 }
 
 inline void setCanvasWH(int w, int h) {
-    canvasW = w;
-    canvasH = h;
+	canvasW = w;
+	canvasH = h;
 	logicalScaleX = LOGICAL_SCRW / (double)canvasW;
 	logicalScaleY = LOGICAL_SCRH / (double)canvasH;
 }
 
 inline void setLogicalCoords(bool b) {
-    logicalCoords = b;
+	logicalCoords = b;
 }
 
 #endif // VIEWPORT_H

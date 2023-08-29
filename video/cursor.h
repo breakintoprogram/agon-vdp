@@ -11,7 +11,6 @@
 
 extern int		fontW;
 extern int		fontH;
-extern fabgl::Canvas * Canvas;
 extern void drawCursor(Point p);
 extern void scrollRegion(Rect * r, int direction, int amount);
 
@@ -34,7 +33,7 @@ void do_cursor() {
 // Move the active cursor to the leftmost position in the viewport
 //
 void cursorCR() {
-  	activeCursor->X = activeViewport->X1;
+	activeCursor->X = activeViewport->X1;
 }
 
 // Move the active cursor down a line
@@ -88,11 +87,11 @@ void cursorDown() {
 
 // Move the active cursor up a line
 //
-void cursorUp() {	
-  	activeCursor->Y -= fontH;
-  	if (activeCursor->Y < activeViewport->Y1) {
+void cursorUp() {
+	activeCursor->Y -= fontH;
+	if (activeCursor->Y < activeViewport->Y1) {
 		activeCursor->Y = activeViewport->Y1;
-  	}
+	}
 }
 
 // Move the active cursor back one character
@@ -107,13 +106,13 @@ void cursorLeft() {
 // Advance the active cursor right one character
 //
 void cursorRight() {
-  	activeCursor->X += fontW;											
-  	if (activeCursor->X > activeViewport->X2) {								// If advanced past right edge of active viewport
+	activeCursor->X += fontW;											
+	if (activeCursor->X > activeViewport->X2) {								// If advanced past right edge of active viewport
 		if (activeCursor == &textCursor || (~cursorBehaviour & 0x40)) {		// If it is a text cursor or VDU 5 CR/LF is enabled then
 			cursorCR();														// Do carriage return
-   			cursorDown();													// and line feed
+			cursorDown();													// and line feed
 		}
-  	}
+	}
 }
 
 // Move the active cursor to the top-left position in the viewport
@@ -148,7 +147,7 @@ void homeCursor() {
 	textCursor = Point(activeViewport->X1, activeViewport->Y1);
 }
 
-void enableCursor(bool enable = true) {
+inline void enableCursor(bool enable = true) {
 	cursorEnabled = enable;
 }
 
@@ -163,19 +162,19 @@ void ensureCursorInViewport(Rect viewport) {
 	}
 }
 
-void setCursorBehaviour(byte setting, byte mask = 0xFF) {
+inline void setCursorBehaviour(byte setting, byte mask = 0xFF) {
 	cursorBehaviour = (cursorBehaviour & mask) ^ setting;
 }
 
-Point * getTextCursor() {
+inline Point * getTextCursor() {
 	return &textCursor;
 }
 
-void setActiveCursor(Point * cursor) {
+inline void setActiveCursor(Point * cursor) {
 	activeCursor = cursor;
 }
 
-bool textCursorActive() {
+inline bool textCursorActive() {
 	return activeCursor == &textCursor;
 }
 

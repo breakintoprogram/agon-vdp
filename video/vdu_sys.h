@@ -12,11 +12,11 @@
 #include "graphics.h"
 #include "vdp_protocol.h"
 #include "vdu_audio.h"
+#include "vdu_sprites.h"
 
-extern void switchTerminalMode();			// Switch to terminal mode
-extern void vdu_sys_sprites();				// Sprite handler
+extern void switchTerminalMode();				// Switch to terminal mode
 
-bool 			initialised = false;			// Is the system initialised yet?
+bool			initialised = false;			// Is the system initialised yet?
 ESP32Time		rtc(0);							// The RTC
 
 
@@ -148,9 +148,9 @@ void vdu_sys_keystate() {
 // These can send responses back; the response contains a packet # that matches the VDU command mode byte
 //
 void vdu_sys_video() {
-  	int	mode = readByte_t();
+	int	mode = readByte_t();
 
-  	switch (mode) {
+	switch (mode) {
 		case VDP_GP: {					// VDU 23, 0, &80
 			sendGeneralPoll();			// Send a general poll packet
 		}	break;
@@ -169,7 +169,7 @@ void vdu_sys_video() {
 			int x = readWord_t();		// Get pixel value at screen position x, y
 			int y = readWord_t();
 			sendScreenPixel((short)x, (short)y);
-		} 	break;		
+		}	break;		
 		case VDP_AUDIO: {				// VDU 23, 0, &85, channel, command, <args>
 			vdu_sys_audio();
 		}	break;
@@ -206,7 +206,7 @@ void vdu_sys_video() {
 // VDU 23,7: Scroll rectangle on screen
 //
 void vdu_sys_scroll() {
-	int extent = readByte_t(); 		if (extent == -1) return;	// Extent (0 = text viewport, 1 = entire screen, 2 = graphics viewport)
+	int extent = readByte_t();		if (extent == -1) return;	// Extent (0 = text viewport, 1 = entire screen, 2 = graphics viewport)
 	int direction = readByte_t();	if (direction == -1) return;	// Direction
 	int movement = readByte_t();	if (movement == -1) return;	// Number of pixels to scroll
 
@@ -250,7 +250,7 @@ void vdu_sys_udg(byte c) {
 // VDU 23,mode
 //
 void vdu_sys() {
-  	int mode = readByte_t();
+	int mode = readByte_t();
 
 	//
 	// If mode is -1, then there's been a timeout
@@ -262,7 +262,7 @@ void vdu_sys() {
 	// If mode < 32, then it's a system command
 	//
 	else if (mode < 32) {
-  		switch (mode) {
+		switch (mode) {
 			case 0x00: {					// VDU 23, 0
 	  			vdu_sys_video();			// Video system control
 			}	break;
@@ -281,7 +281,7 @@ void vdu_sys() {
 			case 0x1B: {					// VDU 23, 27
 				vdu_sys_sprites();			// Sprite system control
 			}	break;
-  		}
+		}
 	}
 	//
 	// Otherwise, do

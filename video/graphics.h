@@ -8,16 +8,15 @@
 #include "agon_fonts.h"							// The Acorn BBC Micro Font
 #include "agon_palette.h"						// Colour lookup table
 #include "cursor.h"
+#include "sprites.h"
 #include "viewport.h"
-
-extern uint8_t numsprites;
 
 fabgl::PaintOptions			gpo;				// Graphics paint options
 fabgl::PaintOptions			tpo;				// Text paint options
 
-Point       	p1, p2, p3;						// Coordinate store for plot
-RGB888    		gfg, gbg;						// Graphics foreground and background colour
-RGB888      	tfg, tbg;						// Text foreground and background colour
+Point			p1, p2, p3;						// Coordinate store for plot
+RGB888			gfg, gbg;						// Graphics foreground and background colour
+RGB888			tfg, tbg;						// Text foreground and background colour
 int				fontW;							// Font width
 int				fontH;							// Font height
 int				videoMode;						// Current video mode
@@ -29,7 +28,7 @@ uint8_t			palette[64];					// Storage for the palette
 //
 void sendModeInformation() {
 	byte packet[] = {
-		canvasW & 0xFF,	 					// Width in pixels (L)
+		canvasW & 0xFF,						// Width in pixels (L)
 		(canvasW >> 8) & 0xFF,				// Width in pixels (H)
 		canvasH & 0xFF,						// Height in pixels (L)
 		(canvasH >> 8) & 0xFF,				// Height in pixels (H)
@@ -231,42 +230,6 @@ void clearViewport(Rect * viewport) {
 	}
 }
 
-// Clear the screen
-// 
-void cls(bool resetViewports) {
-	if (resetViewports) {
-		viewportReset();
-	}
-	if (Canvas) {
-		Canvas->setPenColor(tfg);
- 		Canvas->setBrushColor(tbg);	
-		Canvas->setPaintOptions(tpo);
-		clearViewport(getViewport(VIEWPORT_TEXT));
-	}
-	if (numsprites) {
-		auto controller = getVGAController();
-		if (controller) {
-			controller->removeSprites();
-			clearViewport(getViewport(VIEWPORT_TEXT));
-		}
-		numsprites = 0;
-	}
-	homeCursor();
-	setPagedMode();
-}
-
-// Clear the graphics area
-//
-void clg() {
-	// TODO BBC's CLG resets graphics cursor to 0,0
-	if (Canvas) {
-		Canvas->setPenColor(gfg);
- 		Canvas->setBrushColor(gbg);	
-		Canvas->setPaintOptions(gpo);
-		clearViewport(getViewport(VIEWPORT_GRAPHICS));
-	}
-}
-
 //// Graphics drawing routines
 
 // Push point to list
@@ -297,7 +260,7 @@ void setGraphicsOptions() {
 // Move to
 //
 void moveTo() {
-    Canvas->moveTo(p1.X, p1.Y);
+	Canvas->moveTo(p1.X, p1.Y);
 }
 
 // Line plot
@@ -315,32 +278,32 @@ void plotPoint() {
 // Triangle plot
 //
 void plotTriangle(byte mode) {
-  	Point p[3] = {
+	Point p[3] = {
 		p3,
 		p2,
 		p1, 
 	};
-  	Canvas->setBrushColor(gfg);
-  	Canvas->fillPath(p, 3);
-  	Canvas->setBrushColor(tbg);
+	Canvas->setBrushColor(gfg);
+	Canvas->fillPath(p, 3);
+	Canvas->setBrushColor(tbg);
 }
 
 // Circle plot
 //
 void plotCircle(byte mode) {
 	int a, b, r;
-  	switch (mode) {
-    	case 0x00 ... 0x03: // Circle
-      		r = 2 * (p1.X + p1.Y);
-      		Canvas->drawEllipse(p2.X, p2.Y, r, r);
-      		break;
-    	case 0x04 ... 0x07: // Circle
-      		a = p2.X - p1.X;
-      		b = p2.Y - p1.Y;
-      		r = 2 * sqrt(a * a + b * b);
-      		Canvas->drawEllipse(p2.X, p2.Y, r, r);
-      		break;
-  	}
+	switch (mode) {
+		case 0x00 ... 0x03: // Circle
+			r = 2 * (p1.X + p1.Y);
+			Canvas->drawEllipse(p2.X, p2.Y, r, r);
+			break;
+		case 0x04 ... 0x07: // Circle
+			a = p2.X - p1.X;
+			b = p2.Y - p1.Y;
+			r = 2 * sqrt(a * a + b * b);
+			Canvas->drawEllipse(p2.X, p2.Y, r, r);
+		break;
+	}
 }
 
 // Character plot
@@ -375,12 +338,6 @@ inline void setCharacterOverwrite(bool overwrite) {
 	Canvas->setGlyphOptions(GlyphOptions().FillBackground(overwrite));
 }
 
-// Wait for plot completion
-//
-void waitPlotCompletion() {
-	Canvas->waitCompletion(false);
-}
-
 // Set a clipping rectangle
 //
 void setClippingRect(Rect rect) {
@@ -391,6 +348,39 @@ void setClippingRect(Rect rect) {
 //
 void drawCursor(Point p) {
 	Canvas->swapRectangle(p.X, p.Y, p.X + fontW - 1, p.Y + fontH - 1);
+}
+
+
+// Clear the screen
+// 
+void cls(bool resetViewports) {
+	if (resetViewports) {
+		viewportReset();
+	}
+	if (Canvas) {
+		Canvas->setPenColor(tfg);
+		Canvas->setBrushColor(tbg);	
+		Canvas->setPaintOptions(tpo);
+		clearViewport(getViewport(VIEWPORT_TEXT));
+	}
+	if (hasActiveSprites()) {
+		activateSprites(0);
+		clearViewport(getViewport(VIEWPORT_TEXT));
+	}
+	homeCursor();
+	setPagedMode();
+}
+
+// Clear the graphics area
+//
+void clg() {
+	if (Canvas) {
+		Canvas->setPenColor(gfg);
+		Canvas->setBrushColor(gbg);	
+		Canvas->setPaintOptions(gpo);
+		clearViewport(getViewport(VIEWPORT_GRAPHICS));
+	}
+	pushPoint(0, 0);		// Reset graphics origin (as per BBC Micro CLG)
 }
 
 // Do the mode change
@@ -544,13 +534,13 @@ int change_mode(int mode) {
 	}
 	tpo = getPaintOptions(0, tpo);
 	gpo = getPaintOptions(0, gpo);
- 	gfg = colourLookup[0x3F];
+	gfg = colourLookup[0x3F];
 	gbg = colourLookup[0x00];
 	tfg = colourLookup[0x3F];
 	tbg = colourLookup[0x00];
-  	Canvas->selectFont(&fabgl::FONT_AGON);
-  	setCharacterOverwrite(true);
-  	Canvas->setPenWidth(1);
+	Canvas->selectFont(&fabgl::FONT_AGON);
+	setCharacterOverwrite(true);
+	Canvas->setPenWidth(1);
 	setOrigin(0,0);
 	pushPoint(0,0);
 	pushPoint(0,0);
@@ -570,7 +560,7 @@ int change_mode(int mode) {
 // If there is an error, restore the last mode
 // Parameters:
 // - mode: The video mode
-// 
+//
 void set_mode(int mode) {
 	int errVal = change_mode(mode);
 	if (errVal != 0) {
