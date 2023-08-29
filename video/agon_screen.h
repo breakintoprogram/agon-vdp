@@ -125,8 +125,8 @@ void switchBuffer() {
 
 // Wait for plot completion
 //
-void waitPlotCompletion() {
-	Canvas->waitCompletion(false);
+inline void waitPlotCompletion(bool waitForVSync = false) {
+	Canvas->waitCompletion(waitForVSync);
 }
 
 #endif // AGON_SCREEN_H
