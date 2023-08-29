@@ -4,7 +4,6 @@
 #include <fabgl.h>
 
 #include "agon.h"
-#include "cursor.h"
 #include "graphics.h"
 
 extern void setClippingRect(Rect r);

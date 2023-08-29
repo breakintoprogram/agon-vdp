@@ -60,10 +60,10 @@ fabgl::Terminal				Terminal;			// Used for CP/M mode
 #include "agon_keyboard.h"						// Keyboard support
 #include "agon_screen.h"						// Screen support
 #include "graphics.h"							// Graphics support
+#include "cursor.h"								// Cursor support
 #include "vdp_protocol.h"						// VDP Protocol
 #include "vdu.h"								// VDU functions
 
-int				count = 0;						// Generic counter, incremented every iteration of loop
 bool			terminalMode = false;			// Terminal mode
 
 #if DEBUG == 1 || SERIALKB == 1
@@ -81,13 +81,14 @@ void setup() {
 	setupKeyboard();
 	init_audio();
 	copy_font();
-  	set_mode(1);
+	set_mode(1);
 	boot_screen();
 }
 
 // The main loop
 //
 void loop() {
+	int count = 0;						// Generic counter, incremented every loop iteration
 	bool cursorVisible = false;
 	bool cursorState = false;
 

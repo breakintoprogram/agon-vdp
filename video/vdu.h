@@ -148,8 +148,6 @@ void vdu_cursorTab() {
 // Handle VDU commands
 //
 void vdu(byte c) {
-	bool useTextCursor = (activeCursor == &textCursor);
-
 	switch(c) {
 		case 0x04:	
 			// enable text cursor
