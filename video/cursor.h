@@ -30,6 +30,22 @@ void do_cursor() {
 	}
 }
 
+inline Point * getTextCursor() {
+	return &textCursor;
+}
+
+inline bool textCursorActive() {
+	return activeCursor == &textCursor;
+}
+
+inline void setActiveCursor(Point * cursor) {
+	activeCursor = cursor;
+}
+
+inline void setCursorBehaviour(byte setting, byte mask = 0xFF) {
+	cursorBehaviour = (cursorBehaviour & mask) ^ setting;
+}
+
 // Move the active cursor to the leftmost position in the viewport
 //
 void cursorCR() {
@@ -43,7 +59,7 @@ void cursorDown() {
 	//
 	// If in graphics mode, then don't scroll, wrap to top
 	// 
-	if (activeCursor != &textCursor) {
+	if (!textCursorActive()) {
 		if (activeCursor->Y > activeViewport->Y2) {	
 			activeCursor->Y = activeViewport->Y2;
 		}
@@ -98,8 +114,8 @@ void cursorUp() {
 //
 void cursorLeft() {
 	activeCursor->X -= fontW;											
-	if (activeCursor->X < activeViewport->X1) {								// If moved past left edge of active viewport then
-		activeCursor->X = activeViewport->X1;								// Lock it there
+	if (activeCursor->X < activeViewport->X1) {						// If moved past left edge of active viewport then
+		activeCursor->X = activeViewport->X1;						// Lock it there
 	}
 }
 
@@ -107,10 +123,10 @@ void cursorLeft() {
 //
 void cursorRight() {
 	activeCursor->X += fontW;											
-	if (activeCursor->X > activeViewport->X2) {								// If advanced past right edge of active viewport
-		if (activeCursor == &textCursor || (~cursorBehaviour & 0x40)) {		// If it is a text cursor or VDU 5 CR/LF is enabled then
-			cursorCR();														// Do carriage return
-			cursorDown();													// and line feed
+	if (activeCursor->X > activeViewport->X2) {						// If advanced past right edge of active viewport
+		if (textCursorActive() || (~cursorBehaviour & 0x40)) {		// If it is a text cursor or VDU 5 CR/LF is enabled then
+			cursorCR();												// Do carriage return
+			cursorDown();											// and line feed
 		}
 	}
 }
@@ -137,7 +153,7 @@ void setPagedMode(bool mode = pagedMode) {
 // Reset basic cursor control
 //
 void resetCursor() {
-	activeCursor = &textCursor;
+	setActiveCursor(getTextCursor());
 	cursorEnabled = true;
 	cursorBehaviour = 0;
 	setPagedMode(false);
@@ -160,22 +176,6 @@ void ensureCursorInViewport(Rect viewport) {
 		activeCursor->X = viewport.X1;
 		activeCursor->Y = viewport.Y1;
 	}
-}
-
-inline void setCursorBehaviour(byte setting, byte mask = 0xFF) {
-	cursorBehaviour = (cursorBehaviour & mask) ^ setting;
-}
-
-inline Point * getTextCursor() {
-	return &textCursor;
-}
-
-inline void setActiveCursor(Point * cursor) {
-	activeCursor = cursor;
-}
-
-inline bool textCursorActive() {
-	return activeCursor == &textCursor;
 }
 
 #endif	// CURSOR_H
