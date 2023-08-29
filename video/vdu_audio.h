@@ -1,7 +1,7 @@
 //
-// Title:	        Audio VDU command support
-// Author:        	Steve Sims
-// Created:       	29/07/2023
+// Title:			Audio VDU command support
+// Author:			Steve Sims
+// Created:			29/07/2023
 // Last Updated:	29/07/2023
 
 #ifndef VDU_AUDIO_H
@@ -37,7 +37,7 @@ void audio_driver(void * parameters) {
 }
 
 void init_audio_channel(int channel) {
-  	xTaskCreatePinnedToCore(audio_driver,  "audio_driver",
+	xTaskCreatePinnedToCore(audio_driver,  "audio_driver",
 		4096,						// This stack size can be checked & adjusted by reading the Stack Highwater
 		&channel,					// Parameters
 		PLAY_SOUND_PRIORITY,		// Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
@@ -132,6 +132,8 @@ void setWaveform(byte channel, int8_t waveformType) {
 		channelRef->setWaveform(waveformType, channelRef);
 	}
 }
+
+// TODO move sample management into agon_audio.h
 
 // Clear a sample
 //

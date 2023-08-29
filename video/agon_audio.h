@@ -1,8 +1,8 @@
 //
-// Title:	        Agon Video BIOS - Audio class
-// Author:        	Dean Belfield
+// Title:			Agon Video BIOS - Audio class
+// Author:			Dean Belfield
 // Contributors:	Steve Sims (enhancements for more sophisticated audio support)
-// Created:       	05/09/2022
+// Created:			05/09/2022
 // Last Updated:	04/08/2023
 //
 // Modinfo:
