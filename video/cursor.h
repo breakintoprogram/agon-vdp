@@ -2,24 +2,23 @@
 #define CURSOR_H
 
 #include <fabgl.h>
-#include <Arduino.h>
 
 #include "agon_keyboard.h"
 #include "vdp_protocol.h"
 #include "graphics.h"
 #include "viewport.h"
 
-extern int		fontW;
-extern int		fontH;
+extern uint8_t	fontW;
+extern uint8_t	fontH;
 extern void drawCursor(Point p);
-extern void scrollRegion(Rect * r, int direction, int amount);
+extern void scrollRegion(Rect * r, uint8_t direction, int16_t amount);
 
 Point			textCursor;						// Text cursor
 Point *			activeCursor;					// Pointer to the active text cursor (textCursor or p1)
 bool			cursorEnabled = true;			// Cursor visibility
-byte			cursorBehaviour = 0;			// Cursor behavior
+uint8_t			cursorBehaviour = 0;			// Cursor behavior
 bool 			pagedMode = false;				// Is output paged or not? Set by VDU 14 and 15
-int				pagedModeCount = 0;				// Scroll counter for paged mode
+uint8_t			pagedModeCount = 0;				// Scroll counter for paged mode
 
 
 // Render a cursor at the current screen position
@@ -42,7 +41,7 @@ inline void setActiveCursor(Point * cursor) {
 	activeCursor = cursor;
 }
 
-inline void setCursorBehaviour(byte setting, byte mask = 0xFF) {
+inline void setCursorBehaviour(uint8_t setting, uint8_t mask = 0xFF) {
 	cursorBehaviour = (cursorBehaviour & mask) ^ setting;
 }
 
@@ -72,12 +71,12 @@ void cursorDown() {
 		pagedModeCount++;
 		if (pagedModeCount >= (activeViewport->Y2 - activeViewport->Y1 + 1) / fontH) {
 			pagedModeCount = 0;
-			byte ascii;
-			byte vk;
-			byte down;
+			uint8_t ascii;
+			uint8_t vk;
+			uint8_t down;
 			if (!wait_shiftkey(&ascii, &vk, &down)) {
 				// ESC pressed
-				byte packet[] = {
+				uint8_t packet[] = {
 					ascii,
 					0,
 					vk,
@@ -140,7 +139,7 @@ void cursorHome() {
 
 // TAB(x,y)
 //
-void cursorTab(int x, int y) {
+void cursorTab(uint8_t x, uint8_t y) {
 	activeCursor->X = x * fontW;
 	activeCursor->Y = y * fontH;
 }

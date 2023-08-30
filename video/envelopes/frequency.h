@@ -12,8 +12,8 @@
 
 class FrequencyEnvelope {
 	public:
-		virtual uint16_t getFrequency(uint16_t baseFrequency, uint16_t elapsed, long duration);
-		virtual bool isFinished(uint16_t elapsed, long duration);
+		virtual uint16_t getFrequency(uint16_t baseFrequency, uint32_t elapsed, int32_t duration);
+		virtual bool isFinished(uint32_t elapsed, int32_t duration);
 };
 
 struct FrequencyStepPhase {
@@ -24,14 +24,14 @@ struct FrequencyStepPhase {
 class SteppedFrequencyEnvelope : public FrequencyEnvelope {
 	public:
 		SteppedFrequencyEnvelope(std::shared_ptr<std::vector<FrequencyStepPhase>> phases, uint16_t stepLength, bool repeats, bool cumulative, bool restrict);
-		uint16_t getFrequency(uint16_t baseFrequency, uint16_t elapsed, long duration);
-		bool isFinished(uint16_t elapsed, long duration);
+		uint16_t getFrequency(uint16_t baseFrequency, uint32_t elapsed, int32_t duration);
+		bool isFinished(uint32_t elapsed, int32_t duration);
 	private:
 		std::shared_ptr<std::vector<FrequencyStepPhase>> _phases;
-		long _stepLength;
-		int _totalSteps;
-		int _totalAdjustment;
-		int _totalLength;
+		uint16_t _stepLength;
+		uint32_t _totalSteps;
+		uint32_t _totalAdjustment;
+		uint32_t _totalLength;
 		bool _repeats;
 		bool _cumulative;
 		bool _restrict;
@@ -54,11 +54,11 @@ SteppedFrequencyEnvelope::SteppedFrequencyEnvelope(std::shared_ptr<std::vector<F
 	debug_log("audio_driver: SteppedFrequencyEnvelope: stepLength=%d, repeats=%d, restricts=%d, totalLength=%d\n\r", this->_stepLength, this->_repeats, this->_restrict, _totalLength);
 }
 
-uint16_t SteppedFrequencyEnvelope::getFrequency(uint16_t baseFrequency, uint16_t elapsed, long duration) {
+uint16_t SteppedFrequencyEnvelope::getFrequency(uint16_t baseFrequency, uint32_t elapsed, int32_t duration) {
 	// returns frequency for the given elapsed time
 	// a duration of -1 means we're playing forever
-	int currentStep = (elapsed / this->_stepLength) % this->_totalSteps;
-	int loopCount = elapsed / this->_totalLength;
+	auto currentStep = (elapsed / this->_stepLength) % this->_totalSteps;
+	auto loopCount = elapsed / this->_totalLength;
 
 	if (!_repeats && loopCount > 0) {
 		// we're not repeating and we've finished the envelope
@@ -66,7 +66,7 @@ uint16_t SteppedFrequencyEnvelope::getFrequency(uint16_t baseFrequency, uint16_t
 	}
 
 	// otherwise we need to calculate the frequency
-	int frequency = baseFrequency;
+	auto frequency = baseFrequency;
 
 	if (_cumulative) {
 		frequency += (loopCount * _totalAdjustment);
@@ -94,7 +94,7 @@ uint16_t SteppedFrequencyEnvelope::getFrequency(uint16_t baseFrequency, uint16_t
 	return frequency;
 }
 
-bool SteppedFrequencyEnvelope::isFinished(uint16_t elapsed, long duration) {
+bool SteppedFrequencyEnvelope::isFinished(uint32_t elapsed, int32_t duration) {
 	if (_repeats) {
 		// a repeating frequency envelope never finishes
 		return false;

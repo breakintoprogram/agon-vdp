@@ -30,7 +30,7 @@ inline bool byteAvailable() {
 	return VDPSerial.available() > 0;
 }
 
-inline byte readByte() {
+inline uint8_t readByte() {
 	return VDPSerial.read();
 }
 
@@ -42,9 +42,8 @@ inline void writeByte(byte b) {
 // Returns:
 // - Byte value (0 to 255) if value read, otherwise -1
 //
-int readByte_t() {
-	int	i;
-	unsigned long t = millis();
+int16_t readByte_t() {
+	auto t = millis();
 
 	while (millis() - t < 1000) {
 		if (byteAvailable()) {
@@ -58,10 +57,10 @@ int readByte_t() {
 // Returns:
 // - Word value (0 to 65535) if 2 bytes read, otherwise -1
 //
-int	readWord_t() {
-	int	l = readByte_t();
+uint32_t readWord_t() {
+	auto l = readByte_t();
 	if (l >= 0) {
-		int h = readByte_t();
+		auto h = readByte_t();
 		if (h >= 0) {
 			return (h << 8) | l;
 		}
@@ -73,12 +72,12 @@ int	readWord_t() {
 // Returns:
 // - Value (0 to 16777215) if 3 bytes read, otherwise -1
 //
-int	read24_t() {
-	int	l = readByte_t();
+uint32_t read24_t() {
+	auto l = readByte_t();
 	if (l >= 0) {
-		int m = readByte_t();
+		auto m = readByte_t();
 		if (m >= 0) {
-			int h = readByte_t();
+			auto h = readByte_t();
 			if (h >= 0) {
 				return (h << 16) | (m << 8) | l;
 			}
@@ -89,7 +88,7 @@ int	read24_t() {
 
 // Read an unsigned byte from the serial port (blocking)
 //
-byte readByte_b() {
+uint8_t readByte_b() {
   	while (VDPSerial.available() == 0);
   	return readByte();
 }
@@ -116,7 +115,7 @@ void discardBytes(int length) {
 
 // Send a packet of data to the MOS
 //
-void send_packet(byte code, byte len, byte data[]) {
+void send_packet(uint8_t code, uint16_t len, uint8_t data[]) {
 	writeByte(code + 0x80);
 	writeByte(len);
 	for (int i = 0; i < len; i++) {
