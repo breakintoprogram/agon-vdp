@@ -12,7 +12,6 @@
 
 #include <memory>
 #include <unordered_map>
-#include <array>
 #include <fabgl.h>
 
 #include "envelopes/volume.h"
@@ -60,7 +59,7 @@ struct audio_sample {
 	std::unordered_map<uint8_t, std::weak_ptr<audio_channel>> channels;	// Channels playing this sample
 };
 
-extern std::array<std::shared_ptr<audio_sample>, MAX_AUDIO_SAMPLES> samples;
+extern std::unordered_map<uint8_t, std::shared_ptr<audio_sample>> samples;	// Storage for the sample data
 
 audio_sample::~audio_sample() {
 	// iterate over channels
@@ -222,9 +221,9 @@ void audio_channel::setWaveform(int8_t waveformType, std::shared_ptr<audio_chann
 					if (sample) {
 						newWaveform = new EnhancedSamplesGenerator(sample);
 						// remove this channel from other samples
-						for (auto sample : samples) {
-							if (sample) {
-								sample->channels.erase(_channel);
+						for (auto samplePair : samples) {
+							if (samplePair.second) {
+								samplePair.second->channels.erase(_channel);
 							}
 						}
 						sample->channels[_channel] = channelRef;

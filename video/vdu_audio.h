@@ -9,7 +9,7 @@
 
 #include <memory>
 #include <vector>
-#include <array>
+#include <unordered_map>
 #include <fabgl.h>
 
 fabgl::SoundGenerator		SoundGenerator;		// The audio class
@@ -17,19 +17,20 @@ fabgl::SoundGenerator		SoundGenerator;		// The audio class
 #include "agon.h"
 #include "agon_audio.h"
 #include "vdp_protocol.h"
+#include "types.h"
 
 // audio channels and their associated tasks
-std::array<std::shared_ptr<audio_channel>, MAX_AUDIO_CHANNELS> audio_channels;
-std::vector<TaskHandle_t> audioHandlers;
+std::unordered_map<uint8_t, std::shared_ptr<audio_channel>> audio_channels;
+std::vector<TaskHandle_t, psram_allocator<TaskHandle_t>> audioHandlers;
 
-std::array<std::shared_ptr<audio_sample>, MAX_AUDIO_SAMPLES> samples;	// Storage for the sample data
+std::unordered_map<uint8_t, std::shared_ptr<audio_sample>> samples;	// Storage for the sample data
 
 // Audio channel driver task
 //
 void audio_driver(void * parameters) {
 	uint8_t channel = *(uint8_t *)parameters;
 
-	audio_channels.at(channel) = std::make_shared<audio_channel>(channel);
+	audio_channels[channel] = make_shared_psram<audio_channel>(channel);
 	while (true) {
 		audio_channels[channel]->loop();
 		vTaskDelay(1);
@@ -56,7 +57,7 @@ void audioTaskKill(uint8_t channel) {
 	if (audioHandlers[channel]) {
 		vTaskDelete(audioHandlers[channel]);
 		audioHandlers[channel] = nullptr;
-		audio_channels[channel] = nullptr;
+		audio_channels.erase(channel);
 		debug_log("audioTaskKill: channel %d killed\n\r", channel);
 	} else {
 		debug_log("audioTaskKill: channel %d not found\n\r", channel);
@@ -140,11 +141,11 @@ void setWaveform(uint8_t channel, int8_t waveformType) {
 uint8_t clearSample(uint8_t sampleIndex) {
 	debug_log("clearSample: sample %d\n\r", sampleIndex);
 	if (sampleIndex >= 0 && sampleIndex < MAX_AUDIO_SAMPLES) {
-		if (!samples[sampleIndex]) {
+		if (samples.find(sampleIndex) == samples.end()) {
 			debug_log("clearSample: sample %d not found\n\r", sampleIndex);
 			return 0;
 		}
-		samples[sampleIndex].reset();
+		samples.erase(sampleIndex);
 		debug_log("reset sample\n\r");
 		return 1;
 	}
@@ -160,7 +161,7 @@ uint8_t loadSample(uint8_t sampleIndex, uint32_t length) {
 		// Clear out existing sample
 		clearSample(sampleIndex);
 
-		auto sample = new audio_sample();
+		auto sample = make_shared_psram<audio_sample>();
 
 		int8_t * data = (int8_t *) heap_caps_malloc(length, MALLOC_CAP_SPIRAM);
 		sample->data = data;
@@ -169,8 +170,7 @@ uint8_t loadSample(uint8_t sampleIndex, uint32_t length) {
 			// read data into buffer
 			for (auto n = 0; n < length; n++) sample->data[n] = readByte_b();
 			sample->length = length;
-
-			samples[sampleIndex].reset(sample);
+			samples[sampleIndex] = sample;
 			debug_log("vdu_sys_audio: sample %d - data loaded, length %d\n\r", sampleIndex, sample->length);
 			return 1;
 		} else {
@@ -201,7 +201,7 @@ void setVolumeEnvelope(uint8_t channel, uint8_t type) {
 				auto decay = readWord_t();		if (decay == -1) return;
 				auto sustain = readByte_t();	if (sustain == -1) return;
 				auto release = readWord_t();	if (release == -1) return;
-				auto envelope = std::make_shared<ADSRVolumeEnvelope>(attack, decay, sustain, release);
+				auto envelope = make_shared_psram<ADSRVolumeEnvelope>(attack, decay, sustain, release);
 				audio_channels[channel]->setVolumeEnvelope(envelope);
 				break;
 		}
@@ -221,7 +221,7 @@ void setFrequencyEnvelope(uint8_t channel, uint8_t type) {
 				auto phaseCount = readByte_t();	if (phaseCount == -1) return;
 				auto control = readByte_t();		if (control == -1) return;
 				auto stepLength = readWord_t();	if (stepLength == -1) return;
-				auto phases = std::make_shared<std::vector<FrequencyStepPhase>>();
+				auto phases = make_shared_psram<std::vector<FrequencyStepPhase>>();
 				for (auto n = 0; n < phaseCount; n++) {
 					auto adjustment = readWord_t();	if (adjustment == -1) return;
 					auto number = readWord_t();		if (number == -1) return;
@@ -230,7 +230,7 @@ void setFrequencyEnvelope(uint8_t channel, uint8_t type) {
 				bool repeats = control & AUDIO_FREQUENCY_REPEATS;
 				bool cumulative = control & AUDIO_FREQUENCY_CUMULATIVE;
 				bool restrict = control & AUDIO_FREQUENCY_RESTRICT;
-				auto envelope = std::make_shared<SteppedFrequencyEnvelope>(phases, stepLength, repeats, cumulative, restrict);
+				auto envelope = make_shared_psram<SteppedFrequencyEnvelope>(phases, stepLength, repeats, cumulative, restrict);
 				audio_channels[channel]->setFrequencyEnvelope(envelope);
 				break;
 		}

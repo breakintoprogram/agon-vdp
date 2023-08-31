@@ -16,8 +16,6 @@
 
 #define VDPSerial Serial2
 
-#pragma once
-
 void setupVDPProtocol() {
 	VDPSerial.end();
 	VDPSerial.setRxBufferSize(UART_RX_SIZE);					// Can't be called when running
