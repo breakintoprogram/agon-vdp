@@ -188,8 +188,8 @@ void debug_log(const char *format, ...) {
 //
 void switchTerminalMode() {
 	cls(true);
-	delete canvas;
-	Terminal.begin(getVGAController());	
+	canvas.reset();
+	Terminal.begin(getVGAController().get());	
 	Terminal.connectSerialPort(VDPSerial);
 	Terminal.enableCursor(true);
 	terminalMode = true;
@@ -214,4 +214,3 @@ void printFmt(const char *format, ...) {
 	}
 	va_end(ap);
 }
-
