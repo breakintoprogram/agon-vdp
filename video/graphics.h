@@ -550,6 +550,10 @@ int8_t change_mode(uint8_t mode) {
 	viewportReset();
 	resetCursor();
 	homeCursor();
+	if (doubleBuffered) {
+		switchBuffer();
+		cls(false);
+	}
 	sendModeInformation();
 	debug_log("do_modeChange: canvas(%d,%d), scale(%f,%f), mode %d, videoMode %d\n\r", canvasW, canvasH, logicalScaleX, logicalScaleY, mode, videoMode);
 	return 0;
