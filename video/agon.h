@@ -1,11 +1,11 @@
 //
-// Title:	        Agon Video BIOS - Function prototypes
-// Author:        	Dean Belfield
-// Created:       	05/09/2022
-// Last Updated:    13/08/2023
+// Title:			Agon Video BIOS - Function prototypes
+// Author:			Dean Belfield
+// Created:			05/09/2022
+// Last Updated:	13/08/2023
 //
 // Modinfo:
-// 04/03/2023:      Added LOGICAL_SCRW and LOGICAL_SCRH
+// 04/03/2023:		Added LOGICAL_SCRW and LOGICAL_SCRH
 // 17/03/2023:		Added PACKET_RTC, EPOCH_YEAR, MAX_SPRITES, MAX_BITMAPS
 // 21/03/2023:		Added PACKET_KEYSTATE
 // 22/03/2023:		Added VDP codes
@@ -14,10 +14,6 @@
 // 13/08/2023:		Added additional modelines
 
 #pragma once
-
-#define	ESPSerial Serial2
-
-#define USE_HWFLOW				1		// Flow Control: 1 = enable hardware flow control to eZ80
 
 #define EPOCH_YEAR				1980	// 1-byte dates are offset from this (for FatFS)
 #define MAX_SPRITES				256		// Maximum number of sprites
@@ -119,8 +115,14 @@
 #define AUDIO_STATE_RELEASE		4		// Channel is releasing a note
 #define AUDIO_STATE_ABORT		5		// Channel is aborting a note
 
-#define LOGICAL_SCRW            1280    // As per the BBC Micro standard
-#define LOGICAL_SCRH            1024
+// Viewport definitions
+#define VIEWPORT_TEXT			0		// Text viewport
+#define VIEWPORT_DEFAULT		1		// Default (whole screen) viewport
+#define VIEWPORT_GRAPHICS		2		// Graphics viewport
+#define VIEWPORT_ACTIVE			3		// Active viewport
+
+#define LOGICAL_SCRW			1280	// As per the BBC Micro standard
+#define LOGICAL_SCRH			1024
 
 #if CONFIG_FREERTOS_UNICORE
 #define ARDUINO_RUNNING_CORE	0

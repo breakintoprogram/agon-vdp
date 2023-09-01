@@ -4,6 +4,9 @@
 // Created:			06/08/2023
 // Last Updated:	13/08/2023
 
+#ifndef ENVELOPE_VOLUME_H
+#define ENVELOPE_VOLUME_H
+
 class VolumeEnvelope {
 	public:
 		virtual byte getVolume(byte baseVolume, word elapsed, long duration);
@@ -75,3 +78,5 @@ bool ADSRVolumeEnvelope::isFinished(word elapsed, long duration) {
 
 	return (elapsed >= duration + this->_release);
 }
+
+#endif // ENVELOPE_VOLUME_H

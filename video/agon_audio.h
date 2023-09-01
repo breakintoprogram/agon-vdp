@@ -1,15 +1,18 @@
 //
-// Title:	        Agon Video BIOS - Audio class
-// Author:        	Dean Belfield
+// Title:			Agon Video BIOS - Audio class
+// Author:			Dean Belfield
 // Contributors:	Steve Sims (enhancements for more sophisticated audio support)
-// Created:       	05/09/2022
+// Created:			05/09/2022
 // Last Updated:	04/08/2023
 //
 // Modinfo:
 
+#ifndef AGON_AUDIO_H
+#define AGON_AUDIO_H
+
 #include <memory>
-#include <vector>
 #include <unordered_map>
+#include <array>
 #include <fabgl.h>
 
 #include "envelopes/volume.h"
@@ -459,3 +462,5 @@ void audio_channel::loop() {
 			break;
 	}
 }
+
+#endif // AGON_AUDIO_H

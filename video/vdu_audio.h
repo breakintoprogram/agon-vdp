@@ -1,24 +1,22 @@
 //
-// Title:	        Audio VDU command support
-// Author:        	Steve Sims
-// Created:       	29/07/2023
+// Title:			Audio VDU command support
+// Author:			Steve Sims
+// Created:			29/07/2023
 // Last Updated:	29/07/2023
+
+#ifndef VDU_AUDIO_H
+#define VDU_AUDIO_H
 
 #include <memory>
 #include <vector>
-#include <atomic>
+#include <array>
 #include <fabgl.h>
 
 fabgl::SoundGenerator		SoundGenerator;		// The audio class
 
 #include "agon.h"
 #include "agon_audio.h"
-
-extern void send_packet(byte code, byte len, byte data[]);
-extern int readByte_t();
-extern int readWord_t();
-extern int read24_t();
-extern byte readByte_b();
+#include "vdp_protocol.h"
 
 // audio channels and their associated tasks
 std::array<std::shared_ptr<audio_channel>, MAX_AUDIO_CHANNELS> audio_channels;
@@ -39,7 +37,7 @@ void audio_driver(void * parameters) {
 }
 
 void init_audio_channel(int channel) {
-  	xTaskCreatePinnedToCore(audio_driver,  "audio_driver",
+	xTaskCreatePinnedToCore(audio_driver,  "audio_driver",
 		4096,						// This stack size can be checked & adjusted by reading the Stack Highwater
 		&channel,					// Parameters
 		PLAY_SOUND_PRIORITY,		// Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
@@ -135,12 +133,7 @@ void setWaveform(byte channel, int8_t waveformType) {
 	}
 }
 
-void discardBytes(int length) {
-	while (length > 0) {
-		readByte_b();
-		length--;
-	}
-}
+// TODO move sample management into agon_audio.h
 
 // Clear a sample
 //
@@ -232,7 +225,7 @@ void setFrequencyEnvelope(byte channel, byte type) {
 				for (int n = 0; n < phaseCount; n++) {
 					int adjustment = readWord_t();	if (adjustment == -1) return;
 					int number = readWord_t();		if (number == -1) return;
-					phases->push_back(FrequencyStepPhase { (int16_t)adjustment, number });
+					phases->push_back(FrequencyStepPhase { (int16_t)adjustment, (uint16_t)number });
 				}
 				bool repeats = control & AUDIO_FREQUENCY_REPEATS;
 				bool cumulative = control & AUDIO_FREQUENCY_CUMULATIVE;
@@ -355,3 +348,5 @@ void vdu_sys_audio() {
 		}	break;
 	}
 }
+
+#endif // VDU_AUDIO_H
