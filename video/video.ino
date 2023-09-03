@@ -61,6 +61,7 @@ fabgl::Terminal				Terminal;			// Used for CP/M mode
 #include "vdp_protocol.h"						// VDP Protocol
 #include "vdu.h"								// VDU functions
 #include "vdu_audio.h"							// Audio support
+#include "vdu_stream_processor.h"
 
 bool			terminalMode = false;			// Terminal mode
 
@@ -90,6 +91,8 @@ void loop() {
 	bool cursorVisible = false;
 	bool cursorState = false;
 
+	auto processor = VDUStreamProcessor(stream);
+
 	while (true) {
 		if (terminalMode) {
 			do_keyboard_terminal();
@@ -101,13 +104,13 @@ void loop() {
 			do_cursor();
 		}
 		do_keyboard();
-		if (byteAvailable()) {
+
+		if (processor.byteAvailable()) {
 			if (cursorState) {
- 				cursorState = false;
+				cursorState = false;
 				do_cursor();
 			}
-			auto c = readByte();
-			vdu(c);
+			processor.processAllAvailable();
 		}
 		count++;
 	}

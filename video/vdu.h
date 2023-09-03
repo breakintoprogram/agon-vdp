@@ -1,3 +1,6 @@
+#ifndef VDU_H
+#define VDU_H
+
 #include "agon.h"
 #include "cursor.h"
 #include "graphics.h"
@@ -234,3 +237,5 @@ void vdu(uint8_t c) {
 			break;
 	}
 }
+
+#endif // VDU_H
