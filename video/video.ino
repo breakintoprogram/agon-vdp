@@ -42,6 +42,7 @@
 // 30/06/2023:					+ Fixed vdu_sys_sprites to correctly discard serial input if bitmap allocation fails
 // 13/08/2023:					+ New video modes, mode change resets page mode
 
+#include <HardwareSerial.h>
 #include <fabgl.h>
 
 #define VERSION			1
@@ -86,7 +87,7 @@ void setup() {
 // The main loop
 //
 void loop() {
-	int count = 0;						// Generic counter, incremented every loop iteration
+	uint32_t count = 0;						// Generic counter, incremented every loop iteration
 	bool cursorVisible = false;
 	bool cursorState = false;
 
@@ -106,7 +107,7 @@ void loop() {
  				cursorState = false;
 				do_cursor();
 			}
-			byte c = readByte();
+			auto c = readByte();
 			vdu(c);
 		}
 		count++;
@@ -116,10 +117,10 @@ void loop() {
 // Handle the keyboard: BBC VDU Mode
 //
 void do_keyboard() {
-	byte keycode;
-	byte modifiers;
-	byte vk;
-	byte down;
+	uint8_t keycode;
+	uint8_t modifiers;
+	uint8_t vk;
+	uint8_t down;
 	if (getKeyboardKey(&keycode, &modifiers, &vk, &down)) {
 		// Handle some control keys
 		//
@@ -129,7 +130,7 @@ void do_keyboard() {
 		}
 		// Create and send the packet back to MOS
 		//
-		byte packet[] = {
+		uint8_t packet[] = {
 			keycode,
 			modifiers,
 			vk,
@@ -142,7 +143,7 @@ void do_keyboard() {
 // Handle the keyboard: CP/M Terminal Mode
 // 
 void do_keyboard_terminal() {
-	byte ascii;
+	uint8_t ascii;
 	if (getKeyboardKey(&ascii)) {
 		// send raw byte straight to z80
 		writeByte(ascii);
@@ -171,7 +172,7 @@ void debug_log(const char *format, ...) {
 	#if DEBUG == 1
 	va_list ap;
 	va_start(ap, format);
-	int size = vsnprintf(nullptr, 0, format, ap) + 1;
+	auto size = vsnprintf(nullptr, 0, format, ap) + 1;
 	if (size > 0) {
 		va_end(ap);
 		va_start(ap, format);
@@ -195,7 +196,7 @@ void switchTerminalMode() {
 }
 
 void print(char const * text) {
-	for (int i = 0; i < strlen(text); i++) {
+	for (auto i = 0; i < strlen(text); i++) {
 		vdu(text[i]);
 	}
 }

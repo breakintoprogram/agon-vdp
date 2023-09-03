@@ -17,9 +17,9 @@ fabgl::PaintOptions			tpo;				// Text paint options
 Point			p1, p2, p3;						// Coordinate store for plot
 RGB888			gfg, gbg;						// Graphics foreground and background colour
 RGB888			tfg, tbg;						// Text foreground and background colour
-int				fontW;							// Font width
-int				fontH;							// Font height
-int				videoMode;						// Current video mode
+uint8_t			fontW;							// Font width
+uint8_t			fontH;							// Font height
+uint8_t			videoMode;						// Current video mode
 bool			legacyModes = false;			// Default legacy modes being false
 uint8_t			palette[64];					// Storage for the palette
 
@@ -27,7 +27,7 @@ uint8_t			palette[64];					// Storage for the palette
 // VDU 23, 0, &86: Send MODE information (screen details)
 //
 void sendModeInformation() {
-	byte packet[] = {
+	uint8_t packet[] = {
 		canvasW & 0xFF,						// Width in pixels (L)
 		(canvasW >> 8) & 0xFF,				// Width in pixels (H)
 		canvasH & 0xFF,						// Height in pixels (L)
@@ -48,12 +48,12 @@ void copy_font() {
 
 // Redefine a character in the font
 //
-void redefineCharacter(int c, uint8_t * data) {
+void redefineCharacter(uint8_t c, uint8_t * data) {
 	memcpy(&fabgl::FONT_AGON_DATA[c * 8], data, 8);
 }
 
-bool cmpChar(uint8_t * c1, uint8_t *c2, int len) {
-	for (int i = 0; i < len; i++) {
+bool cmpChar(uint8_t * c1, uint8_t *c2, uint8_t len) {
+	for (uint8_t i = 0; i < len; i++) {
 		if (*c1++ != *c2++) {
 			return false;
 		}
@@ -63,7 +63,7 @@ bool cmpChar(uint8_t * c1, uint8_t *c2, int len) {
 
 // Try and match a character at given pixel position
 //
-char getScreenChar(int px, int py) {
+char getScreenChar(uint16_t px, uint16_t py) {
 	RGB888	pixel;
 	uint8_t	charRow;
 	uint8_t	charData[8];
@@ -79,9 +79,9 @@ char getScreenChar(int px, int py) {
 
 	// Now scan the screen and get the 8 byte pixel representation in charData
 	//
-	for (int y = 0; y < 8; y++) {
+	for (uint8_t y = 0; y < 8; y++) {
 		charRow = 0;
-		for (int x = 0; x < 8; x++) {
+		for (uint8_t x = 0; x < 8; x++) {
 			pixel = canvas->getPixel(px + x, py + y);
 			if (!(pixel.R == R && pixel.G == G && pixel.B == B)) {
 				charRow |= (0x80 >> x);
@@ -92,7 +92,7 @@ char getScreenChar(int px, int py) {
 	//
 	// Finally try and match with the character set array
 	//
-	for (int i = 32; i <= 255; i++) {
+	for (uint8_t i = 32; i <= 255; i++) {
 		if (cmpChar(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {	
 			return i;		
 		}
@@ -102,7 +102,7 @@ char getScreenChar(int px, int py) {
 
 // Get pixel value at screen coordinates
 //
-RGB888 getPixel(int x, int y) {
+RGB888 getPixel(uint16_t x, uint16_t y) {
 	Point p = translateViewport(scale(x, y));
 	if (p.X >= 0 && p.Y >= 0 && p.X < canvasW && p.Y < canvasH) {
 		return canvas->getPixel(p.X, p.Y);
@@ -113,7 +113,7 @@ RGB888 getPixel(int x, int y) {
 // Get the palette index for a given RGB888 colour
 //
 uint8_t getPaletteIndex(RGB888 colour) {
-	for (int i = 0; i < getVGAColourDepth(); i++) {
+	for (uint8_t i = 0; i < getVGAColourDepth(); i++) {
 		if (colourLookup[palette[i]] == colour) {
 			return i;
 		}
@@ -129,7 +129,7 @@ uint8_t getPaletteIndex(RGB888 colour) {
 // - g: The green component
 // - b: The blue component
 //
-void setPalette(int l, int p, int r, int g, int b) {
+void setPalette(uint8_t l, uint8_t p, uint8_t r, uint8_t g, uint8_t b) {
 	RGB888 col;				// The colour to set
 
 	if (getVGAColourDepth() < 64) {		// If it is a paletted video mode
@@ -155,7 +155,7 @@ void setPalette(int l, int p, int r, int g, int b) {
 // - sizeOfArray: Size of passed colours array
 //
 void resetPalette(const uint8_t colours[]) {
-	for (int i = 0; i < 64; i++) {
+	for (uint8_t i = 0; i < 64; i++) {
 		uint8_t c = colours[i % getVGAColourDepth()];
 		palette[i] = c;
 		setPaletteItem(i, colourLookup[c]);
@@ -165,7 +165,7 @@ void resetPalette(const uint8_t colours[]) {
 
 // Get the paint options for a given GCOL mode
 //
-fabgl::PaintOptions getPaintOptions(int mode, fabgl::PaintOptions priorPaintOptions) {
+fabgl::PaintOptions getPaintOptions(uint8_t mode, fabgl::PaintOptions priorPaintOptions) {
 	fabgl::PaintOptions p = priorPaintOptions;
 	
 	switch (mode) {
@@ -177,8 +177,8 @@ fabgl::PaintOptions getPaintOptions(int mode, fabgl::PaintOptions priorPaintOpti
 
 // Set text colour (handles COLOUR / VDU 17)
 //
-void setTextColour(byte colour) {
-	byte c = palette[colour % getVGAColourDepth()];
+void setTextColour(uint8_t colour) {
+	uint8_t c = palette[colour % getVGAColourDepth()];
 
 	if (colour >= 0 && colour < 64) {
 		tfg = colourLookup[c];
@@ -195,8 +195,8 @@ void setTextColour(byte colour) {
 
 // Set graphics colour (handles GCOL / VDU 18)
 //
-void setGraphicsColour(byte mode, byte colour) {
-	byte c = palette[colour % getVGAColourDepth()];
+void setGraphicsColour(uint8_t mode, uint8_t colour) {
+	uint8_t c = palette[colour % getVGAColourDepth()];
 
 	if (mode >= 0 && mode <= 6) {
 		if (colour >= 0 && colour < 64) {
@@ -239,7 +239,7 @@ void pushPoint(Point p) {
 	p2 = p1;
 	p1 = p;
 }
-void pushPoint(short x, short y) {
+void pushPoint(uint16_t x, uint16_t y) {
 	pushPoint(translateViewport(scale(x, y)));
 }
 
@@ -277,7 +277,7 @@ void plotPoint() {
 
 // Triangle plot
 //
-void plotTriangle(byte mode) {
+void plotTriangle(uint8_t mode) {
 	Point p[3] = {
 		p3,
 		p2,
@@ -290,19 +290,18 @@ void plotTriangle(byte mode) {
 
 // Circle plot
 //
-void plotCircle(byte mode) {
-	int a, b, r;
+void plotCircle(uint8_t mode) {
 	switch (mode) {
-		case 0x00 ... 0x03: // Circle
-			r = 2 * (p1.X + p1.Y);
+		case 0x00 ... 0x03: { // Circle
+			auto r = 2 * (p1.X + p1.Y);
 			canvas->drawEllipse(p2.X, p2.Y, r, r);
-			break;
-		case 0x04 ... 0x07: // Circle
-			a = p2.X - p1.X;
-			b = p2.Y - p1.Y;
-			r = 2 * sqrt(a * a + b * b);
+		} break;
+		case 0x04 ... 0x07: { // Circle
+			auto a = p2.X - p1.X;
+			auto b = p2.Y - p1.Y;
+			auto r = 2 * sqrt(a * a + b * b);
 			canvas->drawEllipse(p2.X, p2.Y, r, r);
-		break;
+		} break;
 	}
 }
 
@@ -392,8 +391,8 @@ void clg() {
 // -  2: Not enough memory for mode
 // - -1: Invalid mode
 //
-int change_mode(int mode) {
-	int errVal = -1;
+int8_t change_mode(uint8_t mode) {
+	int8_t errVal = -1;
 
 	doubleBuffered = false;			// Default is to not double buffer the display
 
@@ -561,8 +560,8 @@ int change_mode(int mode) {
 // Parameters:
 // - mode: The video mode
 //
-void set_mode(int mode) {
-	int errVal = change_mode(mode);
+void set_mode(uint8_t mode) {
+	auto errVal = change_mode(mode);
 	if (errVal != 0) {
 		debug_log("set_mode: error %d\n\r", errVal);
 		errVal = change_mode(videoMode);
@@ -580,7 +579,7 @@ void setLegacyModes(bool legacy) {
 	legacyModes = legacy;
 }
 
-void scrollRegion(Rect * region, int direction, int movement) {
+void scrollRegion(Rect * region, uint8_t direction, int16_t movement) {
 	canvas->setScrollingRegion(region->X1, region->Y1, region->X2, region->Y2);
 
 	switch (direction) {
