@@ -5,12 +5,13 @@
 
 #include "sprites.h"
 #include "vdp_protocol.h"
+#include "types.h"
 
 void receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height) {
 	//
 	// Allocate new heap data
 	//
-	void * dataptr = (void *)heap_caps_malloc(sizeof(uint32_t)*width*height, MALLOC_CAP_SPIRAM);
+	void * dataptr = PreferPSRAMAlloc(sizeof(uint32_t)*width*height);
 
 	if (dataptr != NULL) {                  
 		if (cmd == 1) {
@@ -30,7 +31,7 @@ void receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height) {
 		}
 		// Create bitmap structure
 		//
-		createBitmap(width,height,dataptr);
+		createBitmap(width, height, dataptr);
 	}
 	else { 
 		//

@@ -161,15 +161,12 @@ uint8_t loadSample(uint8_t sampleIndex, uint32_t length) {
 		// Clear out existing sample
 		clearSample(sampleIndex);
 
-		auto sample = make_shared_psram<audio_sample>();
-
-		int8_t * data = (int8_t *) heap_caps_malloc(length, MALLOC_CAP_SPIRAM);
-		sample->data = data;
+		auto sample = make_shared_psram<audio_sample>(length);
+		auto data = sample->data;
 
 		if (data) {
 			// read data into buffer
 			for (auto n = 0; n < length; n++) sample->data[n] = readByte_b();
-			sample->length = length;
 			samples[sampleIndex] = sample;
 			debug_log("vdu_sys_audio: sample %d - data loaded, length %d\n\r", sampleIndex, sample->length);
 			return 1;

@@ -16,6 +16,7 @@
 
 #include "envelopes/volume.h"
 #include "envelopes/frequency.h"
+#include "types.h"
 
 extern void audioTaskAbortDelay(uint8_t channel);
 
@@ -53,6 +54,12 @@ class audio_channel {
 };
 
 struct audio_sample {
+	audio_sample(uint32_t length) : length(length) {
+		data = (int8_t *) PreferPSRAMAlloc(length);
+		if (!data) {
+			debug_log("audio_sample: failed to allocate %d bytes\n\r", length);
+		}
+	}
 	~audio_sample();
 	uint32_t		length = 0;			// Length of the sample in bytes
 	int8_t *		data = nullptr;		// Pointer to the sample data
@@ -217,8 +224,8 @@ void audio_channel::setWaveform(int8_t waveformType, std::shared_ptr<audio_chann
 				int8_t sampleNum = -waveformType - 1;
 				if (sampleNum >= 0 && sampleNum < MAX_AUDIO_SAMPLES) {
 					debug_log("audio_driver: using sample %d for waveform (%d)\n\r", waveformType, sampleNum);
-					auto sample = samples.at(sampleNum);
-					if (sample) {
+					if (samples.find(sampleNum) != samples.end()) {
+						auto sample = samples.at(sampleNum);
 						newWaveform = new EnhancedSamplesGenerator(sample);
 						// remove this channel from other samples
 						for (auto samplePair : samples) {
