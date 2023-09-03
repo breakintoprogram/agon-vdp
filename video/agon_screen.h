@@ -8,7 +8,6 @@ std::shared_ptr<fabgl::Canvas>	canvas;			// The canvas class
 std::shared_ptr<fabgl::VGABaseController>	_VGAController;		// Pointer to the current VGA controller class (one of the above)
 
 uint8_t			_VGAColourDepth = -1;			// Number of colours per pixel (2, 4, 8, 16 or 64)
-bool			doubleBuffered = false;			// Disable double buffering by default
 
 // Get controller
 // Parameters:
@@ -76,7 +75,7 @@ void setPaletteItem(uint8_t l, RGB888 c) {
 // - 1: Invalid # of colours
 // - 2: Not enough memory for mode
 //
-int8_t change_resolution(uint8_t colours, char * modeLine) {
+int8_t change_resolution(uint8_t colours, char * modeLine, bool doubleBuffered = false) {
 	auto controller = getVGAController(colours);
 
 	if (!controller) {								// If controller is null, then an invalid # of colours was passed
@@ -92,18 +91,14 @@ int8_t change_resolution(uint8_t colours, char * modeLine) {
 		_VGAController.reset();						// Delete the old controller
 		_VGAController = controller;				// Switch to the new controller
 		controller->begin();						// And spin it up
+		controller->enableBackgroundPrimitiveExecution(true);
+		controller->enableBackgroundPrimitiveTimeout(false);
 	}
 	if (modeLine) {									// If modeLine is not a null pointer then
-		if (doubleBuffered == true) {
-			controller->setResolution(modeLine, -1, -1, 1);
-		} else {
-			controller->setResolution(modeLine);	// Set the resolution
-		}
+		controller->setResolution(modeLine, -1, -1, doubleBuffered);	// Set the resolution
 	} else {
 		debug_log("change_resolution: modeLine is null\n\r");
 	}
-	controller->enableBackgroundPrimitiveExecution(true);
-	controller->enableBackgroundPrimitiveTimeout(false);
 
 	canvas = std::make_shared<fabgl::Canvas>(controller.get());		// Create the new canvas
 	debug_log("after change of canvas...\n\r");
@@ -121,10 +116,16 @@ int8_t change_resolution(uint8_t colours, char * modeLine) {
 	return 0;										// Return with no errors
 }
 
+// Ask our screen controller if we're double buffered
+//
+inline bool isDoubleBuffered() {
+	return _VGAController->isDoubleBuffered();
+}
+
 // Swap to other buffer if we're in a double-buffered mode
 //
 void switchBuffer() {
-	if (doubleBuffered == true) {
+	if (isDoubleBuffered()) {
 		canvas->swapBuffers();
 	}
 }
