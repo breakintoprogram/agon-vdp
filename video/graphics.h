@@ -24,22 +24,6 @@ bool			legacyModes = false;			// Default legacy modes being false
 uint8_t			palette[64];					// Storage for the palette
 
 
-// VDU 23, 0, &86: Send MODE information (screen details)
-//
-void sendModeInformation() {
-	uint8_t packet[] = {
-		canvasW & 0xFF,						// Width in pixels (L)
-		(canvasW >> 8) & 0xFF,				// Width in pixels (H)
-		canvasH & 0xFF,						// Height in pixels (L)
-		(canvasH >> 8) & 0xFF,				// Height in pixels (H)
-		canvasW / fontW,					// Width in characters (byte)
-		canvasH / fontH,					// Height in characters (byte)
-		getVGAColourDepth(),				// Colour depth
-		videoMode,							// The video mode number
-	};
-	send_packet(PACKET_MODE, sizeof packet, packet);
-}
-
 // Copy the AGON font data from Flash to RAM
 //
 void copy_font() {
@@ -539,7 +523,6 @@ int8_t change_mode(uint8_t mode) {
 		switchBuffer();
 		cls(false);
 	}
-	sendModeInformation();
 	debug_log("do_modeChange: canvas(%d,%d), scale(%f,%f), mode %d, videoMode %d\n\r", canvasW, canvasH, logicalScaleX, logicalScaleY, mode, videoMode);
 	return 0;
 }

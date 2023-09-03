@@ -52,18 +52,17 @@
 #define	DEBUG			1						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
 
-fabgl::Terminal				Terminal;			// Used for CP/M mode
-
 #include "agon.h"								// Configuration file
 #include "agon_keyboard.h"						// Keyboard support
+#include "agon_audio.h"							// Audio support
 #include "graphics.h"							// Graphics support
 #include "cursor.h"								// Cursor support
 #include "vdp_protocol.h"						// VDP Protocol
-#include "vdu.h"								// VDU functions
-#include "vdu_audio.h"							// Audio support
 #include "vdu_stream_processor.h"
 
-bool			terminalMode = false;			// Terminal mode
+bool					terminalMode = false;	// Terminal mode
+fabgl::Terminal			Terminal;				// Used for CP/M mode
+VDUStreamProcessor *	processor;				// VDU Stream Processor
 
 #if DEBUG == 1 || SERIALKB == 1
 HardwareSerial DBGSerial(0);
@@ -76,11 +75,13 @@ void setup() {
 	DBGSerial.begin(500000, SERIAL_8N1, 3, 1);
 	#endif 
 	setupVDPProtocol();
-	wait_eZ80();
+	processor = new VDUStreamProcessor(&VDPSerial);
+	processor->wait_eZ80();
 	setupKeyboard();
 	init_audio();
 	copy_font();
 	set_mode(1);
+	processor->sendModeInformation();
 	boot_screen();
 }
 
@@ -90,8 +91,6 @@ void loop() {
 	uint32_t count = 0;						// Generic counter, incremented every loop iteration
 	bool cursorVisible = false;
 	bool cursorState = false;
-
-	auto processor = VDUStreamProcessor(stream);
 
 	while (true) {
 		if (terminalMode) {
@@ -105,12 +104,12 @@ void loop() {
 		}
 		do_keyboard();
 
-		if (processor.byteAvailable()) {
+		if (processor->byteAvailable()) {
 			if (cursorState) {
 				cursorState = false;
 				do_cursor();
 			}
-			processor.processAllAvailable();
+			processor->processAllAvailable();
 		}
 		count++;
 	}
@@ -138,7 +137,7 @@ void do_keyboard() {
 			vk,
 			down,
 		};
-		send_packet(PACKET_KEYCODE, sizeof packet, packet);
+		processor->send_packet(PACKET_KEYCODE, sizeof packet, packet);
 	}
 }
 
@@ -148,13 +147,13 @@ void do_keyboard_terminal() {
 	uint8_t ascii;
 	if (getKeyboardKey(&ascii)) {
 		// send raw byte straight to z80
-		writeByte(ascii);
+		processor->writeByte(ascii);
 	}
 
 	// Write anything read from z80 to the screen
 	//
-	while (byteAvailable()) {
-		Terminal.write(readByte());
+	while (processor->byteAvailable()) {
+		Terminal.write(processor->readByte());
 	}
 }
 
@@ -199,7 +198,7 @@ void switchTerminalMode() {
 
 void print(char const * text) {
 	for (auto i = 0; i < strlen(text); i++) {
-		vdu(text[i]);
+		processor->vdu(text[i]);
 	}
 }
 

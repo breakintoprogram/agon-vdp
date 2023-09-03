@@ -1,5 +1,10 @@
-#include "vdu.h"
+#ifndef VDU_STREAM_PROCESSOR_H
+#define VDU_STREAM_PROCESSOR_H
 
+#include <memory>
+#include <Stream.h>
+
+#include "agon.h"
 
 class VDUStreamProcessor {
 	public:
@@ -13,24 +18,65 @@ class VDUStreamProcessor {
 		inline void writeByte(uint8_t b) {
 			stream->write(b);
 		}
-		int16_t readByte_t(uint16_t timeout);
-		uint32_t readWord_t(uint16_t timeout);
-		uint32_t read24_t(uint16_t timeout);
-        uint8_t readByte_b();
-        uint32_t readLong_b();
-		void discardBytes(uint32_t length);
 		void send_packet(uint8_t code, uint16_t len, uint8_t data[]);
 
 		void processAllAvailable();
-    private:
-        Stream * stream;
+
+		void vdu(uint8_t c);
+
+		void wait_eZ80();
+		void sendModeInformation();
+	private:
+		Stream * stream;
+
+		int16_t readByte_t(uint16_t timeout);
+		uint32_t readWord_t(uint16_t timeout);
+		uint32_t read24_t(uint16_t timeout);
+		uint8_t readByte_b();
+		uint32_t readLong_b();
+		void discardBytes(uint32_t length);
+
+		void vdu_colour();
+		void vdu_gcol();
+		void vdu_palette();
+		void vdu_mode();
+		void vdu_graphicsViewport();
+		void vdu_plot();
+		void vdu_resetViewports();
+		void vdu_textViewport();
+		void vdu_origin();
+		void vdu_cursorTab();
+
+		void vdu_sys();
+		void vdu_sys_video();
+		void sendGeneralPoll();
+		void vdu_sys_video_kblayout();
+		void sendCursorPosition();
+		void sendScreenChar(uint16_t x, uint16_t y);
+		void sendScreenPixel(uint16_t x, uint16_t y);
+		void sendTime();
+		void vdu_sys_video_time();
+		void sendKeyboardState();
+		void vdu_sys_keystate();
+		void vdu_sys_scroll();
+		void vdu_sys_cursorBehaviour();
+		void vdu_sys_udg(char c);
+
+		void vdu_sys_audio();
+		void sendAudioStatus(uint8_t channel, uint8_t status);
+		uint8_t loadSample(uint8_t sampleIndex, uint32_t length);
+		void setVolumeEnvelope(uint8_t channel, uint8_t type);
+		void setFrequencyEnvelope(uint8_t channel, uint8_t type);
+
+		void vdu_sys_sprites(void);
+		void receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height);
 };
 
 // Read an unsigned byte from the serial port, with a timeout
 // Returns:
 // - Byte value (0 to 255) if value read, otherwise -1
 //
-int16_t VDUStreamProcessor::readByte_t(uint16_t timeout = 1000) {
+int16_t VDUStreamProcessor::readByte_t(uint16_t timeout = COMMS_TIMEOUT) {
 	auto t = millis();
 
 	while (millis() - t <= timeout) {
@@ -45,10 +91,10 @@ int16_t VDUStreamProcessor::readByte_t(uint16_t timeout = 1000) {
 // Returns:
 // - Word value (0 to 65535) if 2 bytes read, otherwise -1
 //
-uint32_t VDUStreamProcessor::readWord_t(uint16_t timeout = 1000) {
-	auto l = readByte_t();
+uint32_t VDUStreamProcessor::readWord_t(uint16_t timeout = COMMS_TIMEOUT) {
+	auto l = readByte_t(timeout);
 	if (l >= 0) {
-		auto h = readByte_t();
+		auto h = readByte_t(timeout);
 		if (h >= 0) {
 			return (h << 8) | l;
 		}
@@ -60,12 +106,12 @@ uint32_t VDUStreamProcessor::readWord_t(uint16_t timeout = 1000) {
 // Returns:
 // - Value (0 to 16777215) if 3 bytes read, otherwise -1
 //
-uint32_t VDUStreamProcessor::read24_t(uint16_t timeout = 1000) {
-	auto l = readByte_t();
+uint32_t VDUStreamProcessor::read24_t(uint16_t timeout = COMMS_TIMEOUT) {
+	auto l = readByte_t(timeout);
 	if (l >= 0) {
-		auto m = readByte_t();
+		auto m = readByte_t(timeout);
 		if (m >= 0) {
-			auto h = readByte_t();
+			auto h = readByte_t(timeout);
 			if (h >= 0) {
 				return (h << 16) | (m << 8) | l;
 			}
@@ -77,8 +123,8 @@ uint32_t VDUStreamProcessor::read24_t(uint16_t timeout = 1000) {
 // Read an unsigned byte from the serial port (blocking)
 //
 uint8_t VDUStreamProcessor::readByte_b() {
-  	while (stream->available() == 0);
-  	return readByte();
+	while (stream->available() == 0);
+	return readByte();
 }
 
 // Read an unsigned word from the serial port (blocking)
@@ -118,3 +164,7 @@ void VDUStreamProcessor::processAllAvailable() {
 		vdu(readByte());
 	}
 }
+
+#include "vdu.h"
+
+#endif // VDU_STREAM_PROCESSOR_H

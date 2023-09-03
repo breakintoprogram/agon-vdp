@@ -4,7 +4,6 @@
 #include <fabgl.h>
 
 #include "agon.h"
-#include "vdp_protocol.h"
 
 fabgl::PS2Controller		_PS2Controller;		// The keyboard class
 
