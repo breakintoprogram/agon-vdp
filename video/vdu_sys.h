@@ -10,6 +10,7 @@
 #include "graphics.h"
 #include "vdu_audio.h"
 #include "vdu_sprites.h"
+#include "buffer_stream.h"
 
 extern void switchTerminalMode();				// Switch to terminal mode
 
@@ -57,6 +58,18 @@ void VDUStreamProcessor::vdu_sys() {
 					enableCursor((bool) b);
 				}
 			}	break;
+
+			case 0x02: {
+				// experimental buffer thing
+				auto expStream = make_unique_psram<BufferStream>(15);
+				auto expBuffer = expStream->getBuffer();
+				expStream->writeBuffer((uint8_t *)"Hello world!\n\r", 14);
+				expStream->writeBufferByte(0x07, 14);
+				expStream->incrementBufferByte(6, -32);	// capitalise W
+				auto expProcessor = make_unique_psram<VDUStreamProcessor>((Stream *)expStream.get());
+				expProcessor->processAllAvailable();
+			}	break;
+
 			case 0x07: {					// VDU 23, 7
 				vdu_sys_scroll();			// Scroll 
 			}	break;
