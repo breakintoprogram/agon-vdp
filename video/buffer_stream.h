@@ -19,6 +19,9 @@ class BufferStream : Stream {
 		inline uint8_t * getBuffer() {
 			return buffer.get();
 		}
+		inline uint32_t size() {
+			return bufferLength;
+		}
 		bool writeBuffer(uint8_t * data, uint32_t length, uint32_t offset);
 		void writeBufferByte(uint8_t data, uint32_t offset);
 		bool incrementBufferByte(uint32_t offset, int8_t by);

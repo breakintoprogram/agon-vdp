@@ -9,8 +9,8 @@
 #include "cursor.h"
 #include "graphics.h"
 #include "vdu_audio.h"
+#include "vdu_buffered.h"
 #include "vdu_sprites.h"
-#include "buffer_stream.h"
 
 extern void switchTerminalMode();				// Switch to terminal mode
 
@@ -58,18 +58,6 @@ void VDUStreamProcessor::vdu_sys() {
 					enableCursor((bool) b);
 				}
 			}	break;
-
-			case 0x02: {
-				// experimental buffer thing
-				auto expStream = make_unique_psram<BufferStream>(15);
-				auto expBuffer = expStream->getBuffer();
-				expStream->writeBuffer((uint8_t *)"Hello world!\n\r", 14);
-				expStream->writeBufferByte(0x07, 14);
-				expStream->incrementBufferByte(6, -32);	// capitalise W
-				auto expProcessor = make_unique_psram<VDUStreamProcessor>((Stream *)expStream.get());
-				expProcessor->processAllAvailable();
-			}	break;
-
 			case 0x07: {					// VDU 23, 7
 				vdu_sys_scroll();			// Scroll 
 			}	break;
@@ -128,6 +116,9 @@ void VDUStreamProcessor::vdu_sys_video() {
 		}	break;
 		case VDP_KEYSTATE: {			// VDU 23, 0, &88, repeatRate; repeatDelay; status
 			vdu_sys_keystate();
+		}	break;
+		case VDP_BUFFERED: {			// VDU 23, 0, &A0, bufferId, command, <args>
+			vdu_sys_buffered();
 		}	break;
 		case VDP_LOGICALCOORDS: {		// VDU 23, 0, &C0, n
 			auto b = readByte_t();		// Set logical coord mode
