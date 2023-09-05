@@ -10,12 +10,12 @@
 #include "multi_buffer_stream.h"
 #include "types.h"
 
-std::unordered_map<uint8_t, std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>>> buffers;
+std::unordered_map<uint16_t, std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>>> buffers;
 
-// VDU 23, 0, &A0, bufferId, command: Buffered command support
+// VDU 23, 0, &A0, bufferId; command: Buffered command support
 //
 void VDUStreamProcessor::vdu_sys_buffered() {
-	auto bufferId = readByte_t();
+	auto bufferId = readWord_t();
 	auto command = readByte_t();
 
 	switch (command) {
@@ -31,14 +31,17 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 		case BUFFERED_ADJUST: {
 			bufferAdjust(bufferId);
 		}	break;
+		default: {
+			debug_log("vdu_sys_buffered: unknown command %d, buffer %d\n\r", command, bufferId);
+		}	break;
 	}
 }
 
-// VDU 23, 0, &A0, bufferId, 0, length; data...: store stream into buffer
+// VDU 23, 0, &A0, bufferId; 0, length; data...: store stream into buffer
 // This adds a new stream to the given bufferId
 // allowing a single bufferId to store multiple streams of data
 //
-void VDUStreamProcessor::bufferWrite(uint8_t bufferId) {
+void VDUStreamProcessor::bufferWrite(uint16_t bufferId) {
 	auto length = readWord_t();
 	auto bufferStream = make_shared_psram<BufferStream>(length);
 
@@ -53,10 +56,10 @@ void VDUStreamProcessor::bufferWrite(uint8_t bufferId) {
 	debug_log("bufferWrite: stored stream in buffer %d, length %d, %d streams stored\n\r", bufferId, length, buffers[bufferId].size());
 }
 
-// VDU 23, 0, &A0, bufferId, 1: Call buffer
+// VDU 23, 0, &A0, bufferId; 1: Call buffer
 // Processes all commands from the streams stored against the given bufferId
 //
-void VDUStreamProcessor::bufferCall(uint8_t bufferId) {
+void VDUStreamProcessor::bufferCall(uint16_t bufferId) {
 	debug_log("bufferCall: buffer %d\n\r", bufferId);
 	if (buffers.find(bufferId) != buffers.end()) {
 		auto streams = buffers[bufferId];
@@ -68,11 +71,16 @@ void VDUStreamProcessor::bufferCall(uint8_t bufferId) {
 	}
 }
 
-// VDU 23, 0, &A0, bufferId, 2: Clear buffer
+// VDU 23, 0, &A0, bufferId; 2: Clear buffer
 // Removes all streams stored against the given bufferId
+// sending a bufferId of 65535 (i.e. -1) clears all buffers
 //
-void VDUStreamProcessor::bufferClear(uint8_t bufferId) {
+void VDUStreamProcessor::bufferClear(uint16_t bufferId) {
 	debug_log("bufferClear: buffer %d\n\r", bufferId);
+	if (bufferId == 65535) {
+		buffers.clear();
+		return;
+	}
 	if (buffers.find(bufferId) != buffers.end()) {
 		buffers.erase(bufferId);
 	} else {
@@ -80,10 +88,10 @@ void VDUStreamProcessor::bufferClear(uint8_t bufferId) {
 	}
 }
 
-// VDU 23, 0, &A0, bufferId, 3: Adjust buffer
+// VDU 23, 0, &A0, bufferId; 3: Adjust buffer
 // TODO...
 //
-void VDUStreamProcessor::bufferAdjust(uint8_t bufferId) {
+void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 	// TODO implement commands to adjust buffer contents
 	// ideas include:
 	// overwrite byte
@@ -100,8 +108,6 @@ void VDUStreamProcessor::bufferAdjust(uint8_t bufferId) {
 	//   and comparisons with words, longs, etc
 	// possibly jump to a given or relative buffer position
 	//   altho it may be more sensible to just encourage calling a different buffer
-
-	// there _may_ be value in increasing the size of our bufferId to 16bits
 }
 
 #endif // VDU_BUFFERED_H

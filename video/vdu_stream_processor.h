@@ -73,10 +73,10 @@ class VDUStreamProcessor {
 		void receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height);
 
 		void vdu_sys_buffered();
-		void bufferWrite(uint8_t bufferId);
-		void bufferCall(uint8_t bufferId);
-		void bufferClear(uint8_t bufferId);
-		void bufferAdjust(uint8_t bufferId);
+		void bufferWrite(uint16_t bufferId);
+		void bufferCall(uint16_t bufferId);
+		void bufferClear(uint16_t bufferId);
+		void bufferAdjust(uint16_t bufferId);
 };
 
 // Read an unsigned byte from the serial port, with a timeout

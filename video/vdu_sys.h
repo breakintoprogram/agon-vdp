@@ -117,7 +117,7 @@ void VDUStreamProcessor::vdu_sys_video() {
 		case VDP_KEYSTATE: {			// VDU 23, 0, &88, repeatRate; repeatDelay; status
 			vdu_sys_keystate();
 		}	break;
-		case VDP_BUFFERED: {			// VDU 23, 0, &A0, bufferId, command, <args>
+		case VDP_BUFFERED: {			// VDU 23, 0, &A0, bufferId; command, <args>
 			vdu_sys_buffered();
 		}	break;
 		case VDP_LOGICALCOORDS: {		// VDU 23, 0, &C0, n
