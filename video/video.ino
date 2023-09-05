@@ -839,8 +839,8 @@ void set_mode(int mode) {
 		debug_log("set_mode: error %d\n\r", errVal);
 		errVal = change_mode(videoMode);
 		if (errVal != 0) {
-			debug_log("set_mode: error %d restoring previous screen mode %d\n\r", errVal, videoMode);
 			videoMode = 1;
+			debug_log("set_mode: error %d defaulting to screen mode %d\n\r", errVal, videoMode);
 			change_mode(1);
 		}
 		return;
