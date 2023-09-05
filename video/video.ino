@@ -661,138 +661,136 @@ int change_mode(int mode) {
 	doubleBuffered = false;			// Default is to not double buffer the display
 
 	cls(true);
-	if(mode != videoMode) {
-		switch(mode) {
-			case 0:{
-					if (legacyModes == true) {
-						errVal = change_resolution(2, SVGA_1024x768_60Hz);
-					} else {
-						errVal = change_resolution(16, VGA_640x480_60Hz);	// VDP 1.03 Mode 3, VGA Mode 12h
-					}
+	switch(mode) {
+		case 0:{
+				if (legacyModes == true) {
+					errVal = change_resolution(2, SVGA_1024x768_60Hz);
+				} else {
+					errVal = change_resolution(16, VGA_640x480_60Hz);	// VDP 1.03 Mode 3, VGA Mode 12h
 				}
-				break;
-			case 1:{
-					if (legacyModes == true) {
-						errVal = change_resolution(16, VGA_512x384_60Hz);
-					} else {
-						errVal = change_resolution(4, VGA_640x480_60Hz);
-					}
+			}
+			break;
+		case 1:{
+				if (legacyModes == true) {
+					errVal = change_resolution(16, VGA_512x384_60Hz);
+				} else {
+					errVal = change_resolution(4, VGA_640x480_60Hz);
 				}
-				break;
-			case 2:{
-					if (legacyModes == true) {
-						errVal = change_resolution(64, VGA_320x200_75Hz);
-					} else {
-						errVal = change_resolution(2, VGA_640x480_60Hz);
-					}
+			}
+			break;
+		case 2:{
+				if (legacyModes == true) {
+					errVal = change_resolution(64, VGA_320x200_75Hz);
+				} else {
+					errVal = change_resolution(2, VGA_640x480_60Hz);
 				}
-				break;
-			case 3: {
-					if (legacyModes == true) {
-						errVal = change_resolution(16, VGA_640x480_60Hz);
-					} else {
-						errVal = change_resolution(64, VGA_640x240_60Hz);
-					}
+			}
+			break;
+		case 3: {
+				if (legacyModes == true) {
+					errVal = change_resolution(16, VGA_640x480_60Hz);
+				} else {
+					errVal = change_resolution(64, VGA_640x240_60Hz);
 				}
-				break;
-			case 4:
-				errVal = change_resolution(16, VGA_640x240_60Hz);
-				break;
-			case 5:
-				errVal = change_resolution(4, VGA_640x240_60Hz);
-				break;
-			case 6:
-				errVal = change_resolution(2, VGA_640x240_60Hz);
-				break;
-			case 8:
-				errVal = change_resolution(64, QVGA_320x240_60Hz);		// VGA "Mode X"
-				break;
-			case 9:
-				errVal = change_resolution(16, QVGA_320x240_60Hz);
-				break;
-			case 10:
-				errVal = change_resolution(4, QVGA_320x240_60Hz);
-				break;
-			case 11:
-				errVal = change_resolution(2, QVGA_320x240_60Hz);
-				break;
-			case 12:
-				errVal = change_resolution(64, VGA_320x200_70Hz);		// VGA Mode 13h
-				break;
-			case 13:
-				errVal = change_resolution(16, VGA_320x200_70Hz);
-				break;
-			case 14:
-				errVal = change_resolution(4, VGA_320x200_70Hz);
-				break;
-			case 15:
-				errVal = change_resolution(2, VGA_320x200_70Hz);
-				break;
-			case 16:
-				errVal = change_resolution(4, SVGA_800x600_60Hz);
-				break;
-			case 17:
-				errVal = change_resolution(2, SVGA_800x600_60Hz);
-				break;
-			case 18:
-				errVal = change_resolution(2, SVGA_1024x768_60Hz);		// VDP 1.03 Mode 0
-				break;
-			case 129:
-				doubleBuffered = true;
-				errVal = change_resolution(4, VGA_640x480_60Hz);
-				break;
-			case 130:
-				doubleBuffered = true;
-				errVal = change_resolution(2, VGA_640x480_60Hz);
-				break;
-			case 132:
-				doubleBuffered = true;
-				errVal = change_resolution(16, VGA_640x240_60Hz);
-				break;
-			case 133:
-				doubleBuffered = true;
-				errVal = change_resolution(4, VGA_640x240_60Hz);
-				break;
-			case 134:
-				doubleBuffered = true;
-				errVal = change_resolution(2, VGA_640x240_60Hz);
-				break;
-			case 136:
-				doubleBuffered = true;
-				errVal = change_resolution(64, QVGA_320x240_60Hz);		// VGA "Mode X"
-				break;
-			case 137:
-				doubleBuffered = true;
-				errVal = change_resolution(16, QVGA_320x240_60Hz);
-				break;
-			case 138:
-				doubleBuffered = true;
-				errVal = change_resolution(4, QVGA_320x240_60Hz);
-				break;	
-			case 139:
-				doubleBuffered = true;
-				errVal = change_resolution(2, QVGA_320x240_60Hz);
-				break;
-			case 140:
-				doubleBuffered = true;
-				errVal = change_resolution(64, VGA_320x200_70Hz);		// VGA Mode 13h
-				break;
-			case 141:
-				doubleBuffered = true;
-				errVal = change_resolution(16, VGA_320x200_70Hz);
-				break;
-			case 142:
-				doubleBuffered = true;
-				errVal = change_resolution(4, VGA_320x200_70Hz);
-				break;
-			case 143:
-				doubleBuffered = true;
-				errVal = change_resolution(2, VGA_320x200_70Hz);
-				break;									
-		}
-		if(errVal != 0) {
-			return errVal;
-		}
+			}
+			break;
+		case 4:
+			errVal = change_resolution(16, VGA_640x240_60Hz);
+			break;
+		case 5:
+			errVal = change_resolution(4, VGA_640x240_60Hz);
+			break;
+		case 6:
+			errVal = change_resolution(2, VGA_640x240_60Hz);
+			break;
+		case 8:
+			errVal = change_resolution(64, QVGA_320x240_60Hz);		// VGA "Mode X"
+			break;
+		case 9:
+			errVal = change_resolution(16, QVGA_320x240_60Hz);
+			break;
+		case 10:
+			errVal = change_resolution(4, QVGA_320x240_60Hz);
+			break;
+		case 11:
+			errVal = change_resolution(2, QVGA_320x240_60Hz);
+			break;
+		case 12:
+			errVal = change_resolution(64, VGA_320x200_70Hz);		// VGA Mode 13h
+			break;
+		case 13:
+			errVal = change_resolution(16, VGA_320x200_70Hz);
+			break;
+		case 14:
+			errVal = change_resolution(4, VGA_320x200_70Hz);
+			break;
+		case 15:
+			errVal = change_resolution(2, VGA_320x200_70Hz);
+			break;
+		case 16:
+			errVal = change_resolution(4, SVGA_800x600_60Hz);
+			break;
+		case 17:
+			errVal = change_resolution(2, SVGA_800x600_60Hz);
+			break;
+		case 18:
+			errVal = change_resolution(2, SVGA_1024x768_60Hz);		// VDP 1.03 Mode 0
+			break;
+		case 129:
+			doubleBuffered = true;
+			errVal = change_resolution(4, VGA_640x480_60Hz);
+			break;
+		case 130:
+			doubleBuffered = true;
+			errVal = change_resolution(2, VGA_640x480_60Hz);
+			break;
+		case 132:
+			doubleBuffered = true;
+			errVal = change_resolution(16, VGA_640x240_60Hz);
+			break;
+		case 133:
+			doubleBuffered = true;
+			errVal = change_resolution(4, VGA_640x240_60Hz);
+			break;
+		case 134:
+			doubleBuffered = true;
+			errVal = change_resolution(2, VGA_640x240_60Hz);
+			break;
+		case 136:
+			doubleBuffered = true;
+			errVal = change_resolution(64, QVGA_320x240_60Hz);		// VGA "Mode X"
+			break;
+		case 137:
+			doubleBuffered = true;
+			errVal = change_resolution(16, QVGA_320x240_60Hz);
+			break;
+		case 138:
+			doubleBuffered = true;
+			errVal = change_resolution(4, QVGA_320x240_60Hz);
+			break;	
+		case 139:
+			doubleBuffered = true;
+			errVal = change_resolution(2, QVGA_320x240_60Hz);
+			break;
+		case 140:
+			doubleBuffered = true;
+			errVal = change_resolution(64, VGA_320x200_70Hz);		// VGA Mode 13h
+			break;
+		case 141:
+			doubleBuffered = true;
+			errVal = change_resolution(16, VGA_320x200_70Hz);
+			break;
+		case 142:
+			doubleBuffered = true;
+			errVal = change_resolution(4, VGA_320x200_70Hz);
+			break;
+		case 143:
+			doubleBuffered = true;
+			errVal = change_resolution(2, VGA_320x200_70Hz);
+			break;									
+	}
+	if(errVal != 0) {
+		return errVal;
 	}
 	switch(VGAColourDepth) {
 		case  2: resetPalette(defaultPalette02); break;
@@ -822,9 +820,9 @@ int change_mode(int mode) {
 	logicalScaleY = LOGICAL_SCRH / (double)canvasH;
 	cursorEnabled = true;
 	cursorBehaviour = 0;
+	vdu_resetViewports();
 	activeCursor = &textCursor;
 	pagedMode = false;
-	vdu_resetViewports();
 	sendModeInformation();
 	debug_log("do_modeChange: canvas(%d,%d), scale(%f,%f)\n\r", canvasW, canvasH, logicalScaleX, logicalScaleY);
 	return 0;
@@ -839,7 +837,12 @@ void set_mode(int mode) {
 	int errVal = change_mode(mode);
 	if(errVal != 0) {
 		debug_log("set_mode: error %d\n\r", errVal);
-		change_mode(videoMode);
+		errVal = change_mode(videoMode);
+		if (errVal != 0) {
+			debug_log("set_mode: error %d restoring previous screen mode %d\n\r", errVal, videoMode);
+			videoMode = 1;
+			change_mode(1);
+		}
 		return;
 	}
 	videoMode = mode;
