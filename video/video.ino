@@ -95,7 +95,6 @@ bool			useViewports = false;			// Viewports are enabled
 bool			logicalCoords = true;			// Use BBC BASIC logical coordinates
 double			logicalScaleX;					// Scaling factor for logical coordinates
 double			logicalScaleY;
-int         	count = 0;						// Generic counter, incremented every iteration of loop
 uint8_t			numsprites = 0;					// Number of sprites on stage
 uint8_t 		current_sprite = 0; 			// Current sprite number
 uint8_t 		current_bitmap = 0;				// Current bitmap number
@@ -154,19 +153,19 @@ void setup() {
 // The main loop
 //
 void loop() {
-	bool cursorVisible = false;
-	bool cursorState = false;
+	bool drawCursor = false;
+	auto cursorTime = millis();
 
 	while(true) {
 		if(terminalMode) {
 			do_keyboard_terminal();
 			continue;
 		}
-    	cursorVisible = ((count & 0xFFFF) == 0);
-    	if(cursorVisible) {
-      		cursorState = !cursorState;
-      		do_cursor();
-    	}
+		if (millis() - cursorTime > CURSOR_PHASE) {
+			cursorTime = millis();
+			drawCursor = !drawCursor;
+			do_cursor();
+		}
     	do_keyboard();
     	if(ESPSerial.available() > 0) {
 			#if USE_HWFLOW == 0
@@ -174,8 +173,8 @@ void loop() {
 				setRTSStatus(false);		
 			}
 			#endif 
-      		if(cursorState) {
- 	    		cursorState = false;
+      		if (drawCursor) {
+ 	    		drawCursor = false;
         		do_cursor();
       		}
       		byte c = ESPSerial.read();
@@ -186,7 +185,6 @@ void loop() {
 			setRTSStatus(true);
 		}
 		#endif
-    	count++;
   	}
 }
 
