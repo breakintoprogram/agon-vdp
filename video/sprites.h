@@ -84,12 +84,11 @@ void activateSprites(uint8_t n) {
 	* Make sure all sprites have at least one frame attached to them
 	*/
 	numsprites = n;
-	auto controller = getVGAController();
 
 	if (numsprites) {
-		controller->setSprites(sprites, numsprites);
+		_VGAController->setSprites(sprites, numsprites);
 	} else {
-		controller->removeSprites();
+		_VGAController->removeSprites();
 	}
 	waitPlotCompletion();
 }
@@ -138,7 +137,7 @@ void moveSpriteBy(int x, int y) {
 
 void refreshSprites() {
 	if (numsprites) {
-		getVGAController()->refreshSprites();
+		_VGAController->refreshSprites();
 	}
 }
 
