@@ -56,7 +56,6 @@ fabgl::Terminal				Terminal;			// Used for CP/M mode
 
 #include "agon.h"								// Configuration file
 #include "agon_keyboard.h"						// Keyboard support
-#include "agon_screen.h"						// Screen support
 #include "graphics.h"							// Graphics support
 #include "cursor.h"								// Cursor support
 #include "vdp_protocol.h"						// VDP Protocol
@@ -188,8 +187,8 @@ void debug_log(const char *format, ...) {
 //
 void switchTerminalMode() {
 	cls(true);
-	delete canvas;
-	Terminal.begin(getVGAController());	
+	canvas.reset();
+	Terminal.begin(_VGAController.get());	
 	Terminal.connectSerialPort(VDPSerial);
 	Terminal.enableCursor(true);
 	terminalMode = true;
@@ -214,4 +213,3 @@ void printFmt(const char *format, ...) {
 	}
 	va_end(ap);
 }
-

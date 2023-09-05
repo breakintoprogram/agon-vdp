@@ -394,8 +394,6 @@ void clg() {
 int8_t change_mode(uint8_t mode) {
 	int8_t errVal = -1;
 
-	doubleBuffered = false;			// Default is to not double buffer the display
-
 	cls(true);
 	switch (mode) {
 		case 0:
@@ -469,56 +467,43 @@ int8_t change_mode(uint8_t mode) {
 			errVal = change_resolution(2, SVGA_1024x768_60Hz);		// VDP 1.03 Mode 0
 			break;
 		case 129:
-			doubleBuffered = true;
-			errVal = change_resolution(4, VGA_640x480_60Hz);
+			errVal = change_resolution(4, VGA_640x480_60Hz, true);
 			break;
 		case 130:
-			doubleBuffered = true;
-			errVal = change_resolution(2, VGA_640x480_60Hz);
+			errVal = change_resolution(2, VGA_640x480_60Hz, true);
 			break;
 		case 132:
-			doubleBuffered = true;
-			errVal = change_resolution(16, VGA_640x240_60Hz);
+			errVal = change_resolution(16, VGA_640x240_60Hz, true);
 			break;
 		case 133:
-			doubleBuffered = true;
-			errVal = change_resolution(4, VGA_640x240_60Hz);
+			errVal = change_resolution(4, VGA_640x240_60Hz, true);
 			break;
 		case 134:
-			doubleBuffered = true;
-			errVal = change_resolution(2, VGA_640x240_60Hz);
+			errVal = change_resolution(2, VGA_640x240_60Hz, true);
 			break;
 		case 136:
-			doubleBuffered = true;
-			errVal = change_resolution(64, QVGA_320x240_60Hz);		// VGA "Mode X"
+			errVal = change_resolution(64, QVGA_320x240_60Hz, true);		// VGA "Mode X"
 			break;
 		case 137:
-			doubleBuffered = true;
-			errVal = change_resolution(16, QVGA_320x240_60Hz);
+			errVal = change_resolution(16, QVGA_320x240_60Hz, true);
 			break;
 		case 138:
-			doubleBuffered = true;
-			errVal = change_resolution(4, QVGA_320x240_60Hz);
+			errVal = change_resolution(4, QVGA_320x240_60Hz, true);
 			break;	
 		case 139:
-			doubleBuffered = true;
-			errVal = change_resolution(2, QVGA_320x240_60Hz);
+			errVal = change_resolution(2, QVGA_320x240_60Hz, true);
 			break;
 		case 140:
-			doubleBuffered = true;
-			errVal = change_resolution(64, VGA_320x200_70Hz);		// VGA Mode 13h
+			errVal = change_resolution(64, VGA_320x200_70Hz, true);		// VGA Mode 13h
 			break;
 		case 141:
-			doubleBuffered = true;
-			errVal = change_resolution(16, VGA_320x200_70Hz);
+			errVal = change_resolution(16, VGA_320x200_70Hz, true);
 			break;
 		case 142:
-			doubleBuffered = true;
-			errVal = change_resolution(4, VGA_320x200_70Hz);
+			errVal = change_resolution(4, VGA_320x200_70Hz, true);
 			break;
 		case 143:
-			doubleBuffered = true;
-			errVal = change_resolution(2, VGA_320x200_70Hz);
+			errVal = change_resolution(2, VGA_320x200_70Hz, true);
 			break;									
 	}
 	if (errVal != 0) {
@@ -550,6 +535,10 @@ int8_t change_mode(uint8_t mode) {
 	viewportReset();
 	resetCursor();
 	homeCursor();
+	if (isDoubleBuffered()) {
+		switchBuffer();
+		cls(false);
+	}
 	sendModeInformation();
 	debug_log("do_modeChange: canvas(%d,%d), scale(%f,%f), mode %d, videoMode %d\n\r", canvasW, canvasH, logicalScaleX, logicalScaleY, mode, videoMode);
 	return 0;
