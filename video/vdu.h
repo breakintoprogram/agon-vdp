@@ -1,152 +1,15 @@
+#ifndef VDU_H
+#define VDU_H
+
 #include "agon.h"
 #include "cursor.h"
 #include "graphics.h"
 #include "vdu_audio.h"
 #include "vdu_sys.h"
 
-
-// VDU 17 Handle COLOUR
-// 
-void vdu_colour() {
-	auto colour = readByte_t();
-
-	setTextColour(colour);
-}
-
-// VDU 18 Handle GCOL
-// 
-void vdu_gcol() {
-	auto mode = readByte_t();
-	auto colour = readByte_t();
-
-	setGraphicsColour(mode, colour);
-}
-
-// VDU 19 Handle palette
-//
-void vdu_palette() {
-	auto l = readByte_t(); if (l == -1) return; // Logical colour
-	auto p = readByte_t(); if (p == -1) return; // Physical colour
-	auto r = readByte_t(); if (r == -1) return; // The red component
-	auto g = readByte_t(); if (g == -1) return; // The green component
-	auto b = readByte_t(); if (b == -1) return; // The blue component
-
-	setPalette(l, p, r, g, b);
-}
-
-// VDU 22 Handle MODE
-//
-void vdu_mode() {
-	auto mode = readByte_t();
-	debug_log("vdu_mode: %d\n\r", mode);
-	if (mode >= 0) {
-	  	set_mode(mode);
-	}
-}
-
-// VDU 24 Graphics viewport
-// Example: VDU 24,640;256;1152;896;
-//
-void vdu_graphicsViewport() {
-	auto x1 = readWord_t();			// Left
-	auto y2 = readWord_t();			// Bottom
-	auto x2 = readWord_t();			// Right
-	auto y1 = readWord_t();			// Top
-
-	if (setGraphicsViewport(x1, y1, x2, y2)) {
-		debug_log("vdu_graphicsViewport: OK %d,%d,%d,%d\n\r", x1, y1, x2, y2);
-	} else {
-		debug_log("vdu_graphicsViewport: Invalid Viewport %d,%d,%d,%d\n\r", x1, y1, x2, y2);
-	}
-}
-
-// VDU 25 Handle PLOT
-//
-void vdu_plot() {
-	auto mode = readByte_t(); if (mode == -1) return;
-
-	auto x = readWord_t(); if (x == -1) return; else x = (short)x;
-	auto y = readWord_t(); if (y == -1) return; else y = (short)y;
-
-	pushPoint(x, y);
-	setGraphicsOptions();
-
-	debug_log("vdu_plot: mode %d, (%d,%d) -> (%d,%d)\n\r", mode, x, y, p1.X, p1.Y);
-  	switch (mode) {
-		case 0x04: 			// Move
-			moveTo();
-			break;
-		case 0x05: 			// Line
-			plotLine();
-			break;
-		case 0x40 ... 0x47:	// Point
-			plotPoint();
-			break;
-		case 0x50 ... 0x57: // Triangle
-			plotTriangle(mode - 0x50);
-			break;
-		case 0x90 ... 0x97: // Circle
-			plotCircle(mode - 0x90);
-			break;
-	}
-	waitPlotCompletion();
-}
-
-// VDU 26 Reset graphics and text viewports
-//
-void vdu_resetViewports() {
-	viewportReset();
-	// reset cursors too (according to BBC BASIC manual)
-	cursorHome();
-	pushPoint(0, 0);
-	debug_log("vdu_resetViewport\n\r");
-}
-
-// VDU 28: text viewport
-// Example: VDU 28,20,23,34,4
-//
-void vdu_textViewport() {
-	auto x1 = readByte_t() * fontW;				// Left
-	auto y2 = (readByte_t() + 1) * fontH - 1;	// Bottom
-	auto x2 = (readByte_t() + 1) * fontW - 1;	// Right
-	auto y1 = readByte_t() * fontH;				// Top
-
-	if (setTextViewport(x1, y1, x2, y2)) {
-		ensureCursorInViewport(textViewport);
-		debug_log("vdu_textViewport: OK %d,%d,%d,%d\n\r", x1, y1, x2, y2);
-	} else {
-		debug_log("vdu_textViewport: Invalid Viewport %d,%d,%d,%d\n\r", x1, y1, x2, y2);
-	}
-}
-
-// Handle VDU 29
-//
-void vdu_origin() {
-	auto x = readWord_t();
-	if (x >= 0) {
-		auto y = readWord_t();
-		if (y >= 0) {
-			setOrigin(x, y);
-			debug_log("vdu_origin: %d,%d\n\r", x, y);
-		}
-	}
-}
-
-// VDU 30 TAB(x,y)
-//
-void vdu_cursorTab() {
-	auto x = readByte_t();
-	if (x >= 0) {
-		auto y = readByte_t();
-		if (y >= 0) {
-			cursorTab(x, y);
-		}
-	}
-}
-
 // Handle VDU commands
 //
-void vdu(uint8_t c) {
+void VDUStreamProcessor::vdu(uint8_t c) {
 	switch(c) {
 		case 0x04:	
 			// enable text cursor
@@ -234,3 +97,145 @@ void vdu(uint8_t c) {
 			break;
 	}
 }
+
+// VDU 17 Handle COLOUR
+// 
+void VDUStreamProcessor::vdu_colour() {
+	auto colour = readByte_t();
+
+	setTextColour(colour);
+}
+
+// VDU 18 Handle GCOL
+// 
+void VDUStreamProcessor::vdu_gcol() {
+	auto mode = readByte_t();
+	auto colour = readByte_t();
+
+	setGraphicsColour(mode, colour);
+}
+
+// VDU 19 Handle palette
+//
+void VDUStreamProcessor::vdu_palette() {
+	auto l = readByte_t(); if (l == -1) return; // Logical colour
+	auto p = readByte_t(); if (p == -1) return; // Physical colour
+	auto r = readByte_t(); if (r == -1) return; // The red component
+	auto g = readByte_t(); if (g == -1) return; // The green component
+	auto b = readByte_t(); if (b == -1) return; // The blue component
+
+	setPalette(l, p, r, g, b);
+}
+
+// VDU 22 Handle MODE
+//
+void VDUStreamProcessor::vdu_mode() {
+	auto mode = readByte_t();
+	debug_log("vdu_mode: %d\n\r", mode);
+	if (mode >= 0) {
+	  	set_mode(mode);
+		sendModeInformation();
+	}
+}
+
+// VDU 24 Graphics viewport
+// Example: VDU 24,640;256;1152;896;
+//
+void VDUStreamProcessor::vdu_graphicsViewport() {
+	auto x1 = readWord_t();			// Left
+	auto y2 = readWord_t();			// Bottom
+	auto x2 = readWord_t();			// Right
+	auto y1 = readWord_t();			// Top
+
+	if (setGraphicsViewport(x1, y1, x2, y2)) {
+		debug_log("vdu_graphicsViewport: OK %d,%d,%d,%d\n\r", x1, y1, x2, y2);
+	} else {
+		debug_log("vdu_graphicsViewport: Invalid Viewport %d,%d,%d,%d\n\r", x1, y1, x2, y2);
+	}
+}
+
+// VDU 25 Handle PLOT
+//
+void VDUStreamProcessor::vdu_plot() {
+	auto mode = readByte_t(); if (mode == -1) return;
+
+	auto x = readWord_t(); if (x == -1) return; else x = (short)x;
+	auto y = readWord_t(); if (y == -1) return; else y = (short)y;
+
+	pushPoint(x, y);
+	setGraphicsOptions();
+
+	debug_log("vdu_plot: mode %d, (%d,%d) -> (%d,%d)\n\r", mode, x, y, p1.X, p1.Y);
+  	switch (mode) {
+		case 0x04: 			// Move
+			moveTo();
+			break;
+		case 0x05: 			// Line
+			plotLine();
+			break;
+		case 0x40 ... 0x47:	// Point
+			plotPoint();
+			break;
+		case 0x50 ... 0x57: // Triangle
+			plotTriangle(mode - 0x50);
+			break;
+		case 0x90 ... 0x97: // Circle
+			plotCircle(mode - 0x90);
+			break;
+	}
+	waitPlotCompletion();
+}
+
+// VDU 26 Reset graphics and text viewports
+//
+void VDUStreamProcessor::vdu_resetViewports() {
+	viewportReset();
+	// reset cursors too (according to BBC BASIC manual)
+	cursorHome();
+	pushPoint(0, 0);
+	debug_log("vdu_resetViewport\n\r");
+}
+
+// VDU 28: text viewport
+// Example: VDU 28,20,23,34,4
+//
+void VDUStreamProcessor::vdu_textViewport() {
+	auto x1 = readByte_t() * fontW;				// Left
+	auto y2 = (readByte_t() + 1) * fontH - 1;	// Bottom
+	auto x2 = (readByte_t() + 1) * fontW - 1;	// Right
+	auto y1 = readByte_t() * fontH;				// Top
+
+	if (setTextViewport(x1, y1, x2, y2)) {
+		ensureCursorInViewport(textViewport);
+		debug_log("vdu_textViewport: OK %d,%d,%d,%d\n\r", x1, y1, x2, y2);
+	} else {
+		debug_log("vdu_textViewport: Invalid Viewport %d,%d,%d,%d\n\r", x1, y1, x2, y2);
+	}
+}
+
+// Handle VDU 29
+//
+void VDUStreamProcessor::vdu_origin() {
+	auto x = readWord_t();
+	if (x >= 0) {
+		auto y = readWord_t();
+		if (y >= 0) {
+			setOrigin(x, y);
+			debug_log("vdu_origin: %d,%d\n\r", x, y);
+		}
+	}
+}
+
+// VDU 30 TAB(x,y)
+//
+void VDUStreamProcessor::vdu_cursorTab() {
+	auto x = readByte_t();
+	if (x >= 0) {
+		auto y = readByte_t();
+		if (y >= 0) {
+			cursorTab(x, y);
+		}
+	}
+}
+
+#endif // VDU_H

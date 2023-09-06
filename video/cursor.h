@@ -4,9 +4,10 @@
 #include <fabgl.h>
 
 #include "agon_keyboard.h"
-#include "vdp_protocol.h"
 #include "graphics.h"
 #include "viewport.h"
+// TODO remove this, somehow
+#include "vdp_protocol.h"
 
 extern uint8_t	fontW;
 extern uint8_t	fontH;
@@ -82,6 +83,7 @@ void cursorDown() {
 					vk,
 					down,
 				};
+				// TODO replace this, somehow
 				send_packet(PACKET_KEYCODE, sizeof packet, packet);
 			}
 		}

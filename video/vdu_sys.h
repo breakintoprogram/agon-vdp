@@ -8,7 +8,6 @@
 #include "agon_keyboard.h"
 #include "cursor.h"
 #include "graphics.h"
-#include "vdp_protocol.h"
 #include "vdu_audio.h"
 #include "vdu_sprites.h"
 
@@ -17,135 +16,72 @@ extern void switchTerminalMode();				// Switch to terminal mode
 bool			initialised = false;			// Is the system initialised yet?
 ESP32Time		rtc(0);							// The RTC
 
-
-// VDU 23, 0, &80, <echo>: Send a general poll/echo byte back to MOS
+// Wait for eZ80 to initialise
 //
-void sendGeneralPoll() {
-	auto b = readByte_b();
-	uint8_t packet[] = {
-		b,
-	};
-	send_packet(PACKET_GP, sizeof packet, packet);
-	initialised = true;	
-}
-
-// VDU 23, 0, &81, <region>: Set the keyboard layout
-//
-void vdu_sys_video_kblayout() {
-	auto region = readByte_t();			// Fetch the region
-	setKeyboardLayout(region);
-}
-
-// VDU 23, 0, &82: Send the cursor position back to MOS
-//
-void sendCursorPosition() {
-	uint8_t packet[] = {
-		textCursor.X / fontW,
-		textCursor.Y / fontH,
-	};
-	send_packet(PACKET_CURSOR, sizeof packet, packet);	
-}
-	
-// VDU 23, 0, &83 Send a character back to MOS
-//
-void sendScreenChar(uint16_t x, uint16_t y) {
-	uint16_t px = x * fontW;
-	uint16_t py = y * fontH;
-	char c = getScreenChar(px, py);
-	uint8_t packet[] = {
-		c,
-	};
-	send_packet(PACKET_SCRCHAR, sizeof packet, packet);
-}
-
-// VDU 23, 0, &84: Send a pixel value back to MOS
-//
-void sendScreenPixel(uint16_t x, uint16_t y) {
-	RGB888 pixel = getPixel(x, y);
-	uint8_t pixelIndex = getPaletteIndex(pixel);
-	uint8_t packet[] = {
-		pixel.R,	// Send the colour components
-		pixel.G,
-		pixel.B,
-		pixelIndex,	// And the pixel index in the palette
-	};
-	send_packet(PACKET_SCRPIXEL, sizeof packet, packet);	
-}
-
-// Send TIME information (from ESP32 RTC)
-//
-void sendTime() {
-	uint8_t packet[] = {
-		rtc.getYear() - EPOCH_YEAR,			// 0 - 255
-		rtc.getMonth(),						// 0 - 11
-		rtc.getDay(),						// 1 - 31
-		rtc.getDayofYear(),					// 0 - 365
-		rtc.getDayofWeek(),					// 0 - 6
-		rtc.getHour(true),					// 0 - 23
-		rtc.getMinute(),					// 0 - 59
-		rtc.getSecond(),					// 0 - 59
-	};
-	send_packet(PACKET_RTC, sizeof packet, packet);
-}
-
-// VDU 23, 0, &87, <mode>, [args]: Handle time requests
-//
-void vdu_sys_video_time() {
-	auto mode = readByte_t();
-
-	if (mode == 0) {
-		sendTime();
-	}
-	else if (mode == 1) {
-		auto yr = readByte_t(); if (yr == -1) return;
-		auto mo = readByte_t(); if (mo == -1) return;
-		auto da = readByte_t(); if (da == -1) return;
-		auto ho = readByte_t(); if (ho == -1) return;	
-		auto mi = readByte_t(); if (mi == -1) return;
-		auto se = readByte_t(); if (se == -1) return;
-
-		yr = EPOCH_YEAR + (int8_t)yr;
-
-		if (yr >= 1970) {
-			rtc.setTime(se, mi, ho, da, mo, yr);
+void VDUStreamProcessor::wait_eZ80() {
+	debug_log("wait_eZ80: Start\n\r");
+	while (!initialised) {
+		if (byteAvailable()) {
+			auto c = readByte();	// Only handle VDU 23 packets
+			if (c == 23) {
+				vdu_sys();
+			}
 		}
 	}
+	debug_log("wait_eZ80: End\n\r");
 }
 
-// Send the keyboard state
+// Handle SYS
+// VDU 23,mode
 //
-void sendKeyboardState() {
-	uint16_t	delay;
-	uint16_t	rate;
-	uint8_t		ledState;
-	getKeyboardState(&delay, &rate, &ledState);
-	uint8_t		packet[] = {
-		delay & 0xFF,
-		(delay >> 8) & 0xFF,
-		rate & 0xFF,
-		(rate >> 8) & 0xFF,
-		ledState
-	};
-	send_packet(PACKET_KEYSTATE, sizeof packet, packet);
-}
+void VDUStreamProcessor::vdu_sys() {
+	auto mode = readByte_t();
 
-// VDU 23, 0, &88, delay; repeatRate; LEDs: Handle the keystate
-// Send 255 for LEDs to leave them unchanged
-//
-void vdu_sys_keystate() {
-	auto delay = readWord_t(); if (delay == -1) return;
-	auto rate = readWord_t(); if (rate == -1) return;
-	auto ledState = readByte_t(); if (ledState == -1) return;
-
-	setKeyboardState(delay, rate, ledState);
-	debug_log("vdu_sys_video: keystate: delay=%d, rate=%d, led=%d\n\r", kbRepeatDelay, kbRepeatRate, ledState);
-	sendKeyboardState();
+	//
+	// If mode is -1, then there's been a timeout
+	//
+	if (mode == -1) {
+		return;
+	}
+	//
+	// If mode < 32, then it's a system command
+	//
+	else if (mode < 32) {
+		switch (mode) {
+			case 0x00: {					// VDU 23, 0
+	  			vdu_sys_video();			// Video system control
+			}	break;
+			case 0x01: {					// VDU 23, 1
+				auto b = readByte_t();		// Cursor control
+				if (b >= 0) {
+					enableCursor((bool) b);
+				}
+			}	break;
+			case 0x07: {					// VDU 23, 7
+				vdu_sys_scroll();			// Scroll 
+			}	break;
+			case 0x10: {					// VDU 23, 16
+				vdu_sys_cursorBehaviour();	// Set cursor behaviour
+			}	break;
+			case 0x1B: {					// VDU 23, 27
+				vdu_sys_sprites();			// Sprite system control
+			}	break;
+		}
+	}
+	//
+	// Otherwise, do
+	// VDU 23,mode,n1,n2,n3,n4,n5,n6,n7,n8
+	// Redefine character with ASCII code mode
+	//
+	else {
+		vdu_sys_udg(mode);
+	}
 }
 
 // VDU 23,0: VDP control
 // These can send responses back; the response contains a packet # that matches the VDU command mode byte
 //
-void vdu_sys_video() {
+void VDUStreamProcessor::vdu_sys_video() {
 	auto mode = readByte_t();
 
 	switch (mode) {
@@ -201,9 +137,149 @@ void vdu_sys_video() {
   	}
 }
 
+// VDU 23, 0, &80, <echo>: Send a general poll/echo byte back to MOS
+//
+void VDUStreamProcessor::sendGeneralPoll() {
+	auto b = readByte_b();
+	uint8_t packet[] = {
+		b,
+	};
+	send_packet(PACKET_GP, sizeof packet, packet);
+	initialised = true;	
+}
+
+// VDU 23, 0, &81, <region>: Set the keyboard layout
+//
+void VDUStreamProcessor::vdu_sys_video_kblayout() {
+	auto region = readByte_t();			// Fetch the region
+	setKeyboardLayout(region);
+}
+
+// VDU 23, 0, &82: Send the cursor position back to MOS
+//
+void VDUStreamProcessor::sendCursorPosition() {
+	uint8_t packet[] = {
+		textCursor.X / fontW,
+		textCursor.Y / fontH,
+	};
+	send_packet(PACKET_CURSOR, sizeof packet, packet);	
+}
+	
+// VDU 23, 0, &83 Send a character back to MOS
+//
+void VDUStreamProcessor::sendScreenChar(uint16_t x, uint16_t y) {
+	uint16_t px = x * fontW;
+	uint16_t py = y * fontH;
+	char c = getScreenChar(px, py);
+	uint8_t packet[] = {
+		c,
+	};
+	send_packet(PACKET_SCRCHAR, sizeof packet, packet);
+}
+
+// VDU 23, 0, &84: Send a pixel value back to MOS
+//
+void VDUStreamProcessor::sendScreenPixel(uint16_t x, uint16_t y) {
+	RGB888 pixel = getPixel(x, y);
+	uint8_t pixelIndex = getPaletteIndex(pixel);
+	uint8_t packet[] = {
+		pixel.R,	// Send the colour components
+		pixel.G,
+		pixel.B,
+		pixelIndex,	// And the pixel index in the palette
+	};
+	send_packet(PACKET_SCRPIXEL, sizeof packet, packet);	
+}
+
+// VDU 23, 0, &87, 0: Send TIME information (from ESP32 RTC)
+//
+void VDUStreamProcessor::sendTime() {
+	uint8_t packet[] = {
+		rtc.getYear() - EPOCH_YEAR,			// 0 - 255
+		rtc.getMonth(),						// 0 - 11
+		rtc.getDay(),						// 1 - 31
+		rtc.getDayofYear(),					// 0 - 365
+		rtc.getDayofWeek(),					// 0 - 6
+		rtc.getHour(true),					// 0 - 23
+		rtc.getMinute(),					// 0 - 59
+		rtc.getSecond(),					// 0 - 59
+	};
+	send_packet(PACKET_RTC, sizeof packet, packet);
+}
+
+// VDU 23, 0, &86: Send MODE information (screen details)
+//
+void VDUStreamProcessor::sendModeInformation() {
+	uint8_t packet[] = {
+		canvasW & 0xFF,						// Width in pixels (L)
+		(canvasW >> 8) & 0xFF,				// Width in pixels (H)
+		canvasH & 0xFF,						// Height in pixels (L)
+		(canvasH >> 8) & 0xFF,				// Height in pixels (H)
+		canvasW / fontW,					// Width in characters (byte)
+		canvasH / fontH,					// Height in characters (byte)
+		getVGAColourDepth(),				// Colour depth
+		videoMode,							// The video mode number
+	};
+	send_packet(PACKET_MODE, sizeof packet, packet);
+}
+
+// VDU 23, 0, &87, <mode>, [args]: Handle time requests
+//
+void VDUStreamProcessor::vdu_sys_video_time() {
+	auto mode = readByte_t();
+
+	if (mode == 0) {
+		sendTime();
+	}
+	else if (mode == 1) {
+		auto yr = readByte_t(); if (yr == -1) return;
+		auto mo = readByte_t(); if (mo == -1) return;
+		auto da = readByte_t(); if (da == -1) return;
+		auto ho = readByte_t(); if (ho == -1) return;	
+		auto mi = readByte_t(); if (mi == -1) return;
+		auto se = readByte_t(); if (se == -1) return;
+
+		yr = EPOCH_YEAR + (int8_t)yr;
+
+		if (yr >= 1970) {
+			rtc.setTime(se, mi, ho, da, mo, yr);
+		}
+	}
+}
+
+// Send the keyboard state
+//
+void VDUStreamProcessor::sendKeyboardState() {
+	uint16_t	delay;
+	uint16_t	rate;
+	uint8_t		ledState;
+	getKeyboardState(&delay, &rate, &ledState);
+	uint8_t		packet[] = {
+		delay & 0xFF,
+		(delay >> 8) & 0xFF,
+		rate & 0xFF,
+		(rate >> 8) & 0xFF,
+		ledState
+	};
+	send_packet(PACKET_KEYSTATE, sizeof packet, packet);
+}
+
+// VDU 23, 0, &88, delay; repeatRate; LEDs: Handle the keystate
+// Send 255 for LEDs to leave them unchanged
+//
+void VDUStreamProcessor::vdu_sys_keystate() {
+	auto delay = readWord_t(); if (delay == -1) return;
+	auto rate = readWord_t(); if (rate == -1) return;
+	auto ledState = readByte_t(); if (ledState == -1) return;
+
+	setKeyboardState(delay, rate, ledState);
+	debug_log("vdu_sys_video: keystate: delay=%d, rate=%d, led=%d\n\r", kbRepeatDelay, kbRepeatRate, ledState);
+	sendKeyboardState();
+}
+
 // VDU 23,7: Scroll rectangle on screen
 //
-void vdu_sys_scroll() {
+void VDUStreamProcessor::vdu_sys_scroll() {
 	auto extent = readByte_t();		if (extent == -1) return;	// Extent (0 = text viewport, 1 = entire screen, 2 = graphics viewport)
 	auto direction = readByte_t();	if (direction == -1) return;	// Direction
 	auto movement = readByte_t();	if (movement == -1) return;	// Number of pixels to scroll
@@ -217,7 +293,7 @@ void vdu_sys_scroll() {
 
 // VDU 23,16: Set cursor behaviour
 // 
-void vdu_sys_cursorBehaviour() {
+void VDUStreamProcessor::vdu_sys_cursorBehaviour() {
 	auto setting = readByte_t();	if (setting == -1) return;
 	auto mask = readByte_t();		if (mask == -1) return;
 
@@ -228,7 +304,7 @@ void vdu_sys_cursorBehaviour() {
 // Parameters:
 // - c: The character to redefine
 //
-void vdu_sys_udg(char c) {
+void VDUStreamProcessor::vdu_sys_udg(char c) {
 	uint8_t		buffer[8];
 
 	for (uint8_t i = 0; i < 8; i++) {
@@ -240,69 +316,6 @@ void vdu_sys_udg(char c) {
 	}	
 
 	redefineCharacter(c, buffer);
-}
-
-
-// Handle SYS
-// VDU 23,mode
-//
-void vdu_sys() {
-	auto mode = readByte_t();
-
-	//
-	// If mode is -1, then there's been a timeout
-	//
-	if (mode == -1) {
-		return;
-	}
-	//
-	// If mode < 32, then it's a system command
-	//
-	else if (mode < 32) {
-		switch (mode) {
-			case 0x00: {					// VDU 23, 0
-	  			vdu_sys_video();			// Video system control
-			}	break;
-			case 0x01: {					// VDU 23, 1
-				auto b = readByte_t();		// Cursor control
-				if (b >= 0) {
-					enableCursor((bool) b);
-				}
-			}	break;
-			case 0x07: {					// VDU 23, 7
-				vdu_sys_scroll();			// Scroll 
-			}	break;
-			case 0x10: {					// VDU 23, 16
-				vdu_sys_cursorBehaviour();	// Set cursor behaviour
-			}	break;
-			case 0x1B: {					// VDU 23, 27
-				vdu_sys_sprites();			// Sprite system control
-			}	break;
-		}
-	}
-	//
-	// Otherwise, do
-	// VDU 23,mode,n1,n2,n3,n4,n5,n6,n7,n8
-	// Redefine character with ASCII code mode
-	//
-	else {
-		vdu_sys_udg(mode);
-	}
-}
-
-// Wait for eZ80 to initialise
-//
-void wait_eZ80() {
-	debug_log("wait_eZ80: Start\n\r");
-	while (!initialised) {
-		if (byteAvailable()) {
-			auto c = readByte();	// Only handle VDU 23 packets
-			if (c == 23) {
-				vdu_sys();
-			}
-		}
-	}
-	debug_log("wait_eZ80: End\n\r");
 }
 
 #endif // VDU_SYS_H

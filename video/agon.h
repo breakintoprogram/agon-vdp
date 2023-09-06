@@ -26,6 +26,8 @@
 #define UART_RTS				13		// The ESP32 RTS pin (eZ80 CTS)
 #define UART_CTS	 			14		// The ESP32 CTS pin (eZ80 RTS)
 
+#define COMMS_TIMEOUT			10		// Timeout for VDP commands (ms)
+
 #define UART_RX_SIZE			256		// The RX buffer size
 #define UART_RX_THRESH			128		// Point at which RTS is toggled
 

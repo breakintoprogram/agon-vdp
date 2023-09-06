@@ -4,58 +4,16 @@
 #include <fabgl.h>
 
 #include "sprites.h"
-#include "vdp_protocol.h"
 #include "types.h"
 
-void receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height) {
-	//
-	// Allocate new heap data
-	//
-	void * dataptr = PreferPSRAMAlloc(sizeof(uint32_t)*width*height);
-
-	if (dataptr != NULL) {                  
-		if (cmd == 1) {
-			//
-			// Read data to the new databuffer
-			//
-			for (auto n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = readLong_b();  
-			debug_log("vdu_sys_sprites: bitmap %d - data received - width %d, height %d\n\r", getCurrentBitmap(), width, height);
-		}
-		if (cmd == 2) {
-			uint32_t color = readLong_b();
-			//
-			// Define single color
-			//
-			for (auto n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = color;            
-			debug_log("vdu_sys_sprites: bitmap %d - set to solid color - width %d, height %d\n\r", getCurrentBitmap(), width, height);            
-		}
-		// Create bitmap structure
-		//
-		createBitmap(width, height, dataptr);
-	}
-	else { 
-		//
-		// Discard incoming serial data if failed to allocate memory
-		//
-		if (cmd == 1) {
-			discardBytes(4*width*height);
-		}
-		if (cmd == 2) {
-			discardBytes(4);
-		}
-		debug_log("vdu_sys_sprites: bitmap %d - data discarded, no memory available - width %d, height %d\n\r", getCurrentBitmap(), width, height);
-	}
-
-}
-
-// Sprite Engine
+// Sprite Engine, VDU command handler
 //
-void vdu_sys_sprites(void) {
+void VDUStreamProcessor::vdu_sys_sprites(void) {
 	auto cmd = readByte_t();
 
 	switch (cmd) {
 		case 0: {	// Select bitmap
-			auto	rb = readByte_t();
+			auto rb = readByte_t();
 			if (rb >= 0) {
 				setCurrentBitmap(rb);
 				debug_log("vdu_sys_sprites: bitmap %d selected\n\r", getCurrentBitmap());
@@ -72,7 +30,7 @@ void vdu_sys_sprites(void) {
 		}	break;
 
 		case 3: {	// Draw bitmap to screen (x,y)
-			auto	rx = readWord_t(); if (rx == -1) return;
+			auto rx = readWord_t(); if (rx == -1) return;
 			auto ry = readWord_t(); if (ry == -1) return;
 
 			drawBitmap(rx,ry);
@@ -166,6 +124,47 @@ void vdu_sys_sprites(void) {
 			debug_log("vdu_sys_sprites: reset\n\r");
 		}	break;
 	}
+}
+
+void VDUStreamProcessor::receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height) {
+	//
+	// Allocate new heap data
+	//
+	void * dataptr = PreferPSRAMAlloc(sizeof(uint32_t)*width*height);
+
+	if (dataptr != NULL) {                  
+		if (cmd == 1) {
+			//
+			// Read data to the new databuffer
+			//
+			for (auto n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = readLong_b();  
+			debug_log("vdu_sys_sprites: bitmap %d - data received - width %d, height %d\n\r", getCurrentBitmap(), width, height);
+		}
+		if (cmd == 2) {
+			uint32_t color = readLong_b();
+			//
+			// Define single color
+			//
+			for (auto n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = color;            
+			debug_log("vdu_sys_sprites: bitmap %d - set to solid color - width %d, height %d\n\r", getCurrentBitmap(), width, height);            
+		}
+		// Create bitmap structure
+		//
+		createBitmap(width, height, dataptr);
+	}
+	else { 
+		//
+		// Discard incoming serial data if failed to allocate memory
+		//
+		if (cmd == 1) {
+			discardBytes(4*width*height);
+		}
+		if (cmd == 2) {
+			discardBytes(4);
+		}
+		debug_log("vdu_sys_sprites: bitmap %d - data discarded, no memory available - width %d, height %d\n\r", getCurrentBitmap(), width, height);
+	}
+
 }
 
 #endif // _VDU_SPRITES_H_
