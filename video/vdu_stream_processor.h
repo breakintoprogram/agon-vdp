@@ -10,8 +10,8 @@ class VDUStreamProcessor {
 	public:
 		VDUStreamProcessor(std::shared_ptr<Stream> inputStream, std::shared_ptr<Stream> outputStream) :
 			inputStream(inputStream), outputStream(outputStream), originalOutputStream(outputStream) {}
-		VDUStreamProcessor(Stream *inputStream) :
-			inputStream(std::shared_ptr<Stream>(inputStream)), outputStream(inputStream), originalOutputStream(inputStream) {}
+		VDUStreamProcessor(Stream *input) :
+			inputStream(std::shared_ptr<Stream>(input)), outputStream(inputStream), originalOutputStream(inputStream) {}
 		inline bool byteAvailable() {
 			return inputStream->available() > 0;
 		}
