@@ -141,13 +141,18 @@ void VDUStreamProcessor::setOutputStream(uint16_t bufferId) {
 		return;
 	}
 	// bufferId of 0 resets output buffer to it's original value
-	// which will usually be ethe z80 serial port
+	// which will usually be the z80 serial port
 	if (bufferId == 0) {
 		outputStream = originalOutputStream;
 		return;
 	}
 	if (buffers.find(bufferId) != buffers.end()) {
-		outputStream = buffers[bufferId][0];
+		auto output = buffers[bufferId][0];
+		if (output->isWritable()) {
+			outputStream = output;
+		} else {
+			debug_log("setOutputStream: buffer %d is not writable\n\r", bufferId);
+		}
 	} else {
 		debug_log("setOutputStream: buffer %d not found\n\r", bufferId);
 	}

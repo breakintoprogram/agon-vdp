@@ -13,6 +13,9 @@ class BufferStream : public Stream {
 		int read();
 		int peek();
 		size_t write(uint8_t b);
+		virtual bool isWritable() {
+			return false;
+		}
 
 		void rewind() {
 			bufferPosition = 0;
@@ -100,6 +103,9 @@ class WritableBufferStream : public BufferStream {
 	public:
 		WritableBufferStream(uint32_t bufferLength) : BufferStream(bufferLength), bufferWritePosition(0) {};
 		size_t write(uint8_t b);
+		bool isWritable() override {
+			return true;
+		};
 
 		void rewindWrite() {
 			bufferWritePosition = 0;
