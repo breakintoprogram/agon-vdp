@@ -122,7 +122,10 @@
 #define BUFFERED_WRITE			0x00	// Write to a numbered buffer
 #define BUFFERED_CALL			0x01	// Call buffered commands
 #define BUFFERED_CLEAR			0x02	// Clear buffered commands
-#define BUFFERED_ADJUST			0x03	// Adjust buffered commands
+#define BUFFERED_CREATE			0x03	// Create a new empty buffer
+#define BUFFERED_SET_OUTPUT		0x04	// Set the output buffer
+#define BUFFERED_ADJUST			0x05	// Adjust buffered commands
+#define BUFFERED_DEBUG_INFO		0x10	// Get debug info about a buffer
 
 // Viewport definitions
 #define VIEWPORT_TEXT			0		// Text viewport

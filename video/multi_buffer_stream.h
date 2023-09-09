@@ -8,7 +8,7 @@
 #include "buffer_stream.h"
 #include "types.h"
 
-class MultiBufferStream : Stream {
+class MultiBufferStream : public Stream {
 	public:
 		MultiBufferStream(std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>> buffers);
 		int available();

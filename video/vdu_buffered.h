@@ -28,8 +28,25 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 		case BUFFERED_CLEAR: {
 			bufferClear(bufferId);
 		}	break;
+		case BUFFERED_CREATE: {
+			bufferCreate(bufferId);
+		}	break;
+		case BUFFERED_SET_OUTPUT: {
+			setOutputStream(bufferId);
+		}	break;
 		case BUFFERED_ADJUST: {
 			bufferAdjust(bufferId);
+		}	break;
+		case BUFFERED_DEBUG_INFO: {
+			debug_log("vdu_sys_buffered: buffer %d, %d streams stored\n\r", bufferId, buffers[bufferId].size());
+			// output contents of buffer stream 0
+			auto buffer = buffers[bufferId][0];
+			auto bufferLength = buffer->size();
+			for (auto i = 0; i < bufferLength; i++) {
+				auto data = buffer->getBuffer()[i];
+				debug_log("%02X ", data);
+			}
+			debug_log("\n\r");
 		}	break;
 		default: {
 			debug_log("vdu_sys_buffered: unknown command %d, buffer %d\n\r", command, bufferId);
@@ -64,7 +81,8 @@ void VDUStreamProcessor::bufferCall(uint16_t bufferId) {
 	if (buffers.find(bufferId) != buffers.end()) {
 		auto streams = buffers[bufferId];
 		auto multiBufferStream = make_shared_psram<MultiBufferStream>(streams);
-		auto streamProcessor = make_unique_psram<VDUStreamProcessor>((Stream *)multiBufferStream.get());
+		// TODO consider - should this use originalOutputStream?
+		auto streamProcessor = make_unique_psram<VDUStreamProcessor>(multiBufferStream, outputStream);
 		streamProcessor->processAllAvailable();
 	} else {
 		debug_log("bufferCall: buffer %d not found\n\r", bufferId);
@@ -88,7 +106,54 @@ void VDUStreamProcessor::bufferClear(uint16_t bufferId) {
 	}
 }
 
-// VDU 23, 0, &A0, bufferId; 3: Adjust buffer
+// VDU 23, 0, &A0, bufferId; 3, size; : Create a writeable buffer
+// This is used for creating buffers to redirect output to
+//
+void VDUStreamProcessor::bufferCreate(uint16_t bufferId) {
+	auto size = readWord_t();
+	if (size == -1) {
+		// timeout
+		return;
+	}
+	if (bufferId == 0) {
+		debug_log("bufferCreate: bufferId 0 is reserved\n\r");
+		return;
+	}
+	if (buffers.find(bufferId) != buffers.end()) {
+		debug_log("bufferCreate: buffer %d already exists\n\r", bufferId);
+		return;
+	}
+	auto buffer = make_shared_psram<WritableBufferStream>(size);
+	// Ensure buffer is empty
+	for (auto i = 0; i < size; i++) {
+		buffer->writeBufferByte(0, i);
+	}
+	buffers[bufferId].push_back(buffer);
+}
+
+// VDU 23, 0, &A0, bufferId; 4: Set output to buffer
+// use an ID of -1 (65535) to clear the output buffer (no output)
+// use an ID of 0 to reset the output buffer to it's original value
+//
+void VDUStreamProcessor::setOutputStream(uint16_t bufferId) {
+	if (bufferId == 65535) {
+		outputStream = nullptr;
+		return;
+	}
+	// bufferId of 0 resets output buffer to it's original value
+	// which will usually be ethe z80 serial port
+	if (bufferId == 0) {
+		outputStream = originalOutputStream;
+		return;
+	}
+	if (buffers.find(bufferId) != buffers.end()) {
+		outputStream = buffers[bufferId][0];
+	} else {
+		debug_log("setOutputStream: buffer %d not found\n\r", bufferId);
+	}
+}
+
+// VDU 23, 0, &A0, bufferId; 5: Adjust buffer
 // TODO...
 //
 void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
@@ -101,6 +166,8 @@ void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 	// increment with carry
 	// other maths/logic operations on bytes within buffer
 	// copy bytes from one buffer to another
+
+	// change buffer write offset
 
 	// then there is things like conditional call
 	//   based on a byte value within a given buffer

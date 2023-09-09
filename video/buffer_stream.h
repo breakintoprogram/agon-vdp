@@ -6,7 +6,7 @@
 
 #include "types.h"
 
-class BufferStream : Stream {
+class BufferStream : public Stream {
 	public:
 		BufferStream(uint32_t bufferLength);
 		int available();
@@ -14,7 +14,9 @@ class BufferStream : Stream {
 		int peek();
 		size_t write(uint8_t b);
 
-		void rewind();
+		void rewind() {
+			bufferPosition = 0;
+		}
 
 		inline uint8_t * getBuffer() {
 			return buffer.get();
@@ -25,15 +27,14 @@ class BufferStream : Stream {
 		bool writeBuffer(uint8_t * data, uint32_t length, uint32_t offset);
 		void writeBufferByte(uint8_t data, uint32_t offset);
 		bool incrementBufferByte(uint32_t offset, int8_t by);
-	private:
+	protected:
 		std::unique_ptr<uint8_t[]> buffer;
 		uint32_t bufferLength;
 		uint32_t bufferPosition;
 };
 
-BufferStream::BufferStream(uint32_t bufferLength) : bufferLength(bufferLength) {
+BufferStream::BufferStream(uint32_t bufferLength) : bufferLength(bufferLength), bufferPosition(0) {
 	buffer = make_unique_psram_array<uint8_t>(bufferLength);
-	rewind();
 }
 
 int BufferStream::available() {
@@ -52,10 +53,6 @@ int BufferStream::peek() {
 		return buffer[bufferPosition];
 	}
 	return -1;
-}
-
-void BufferStream::rewind() {
-	bufferPosition = 0;
 }
 
 size_t BufferStream::write(uint8_t b) {
@@ -97,6 +94,29 @@ bool BufferStream::incrementBufferByte(uint32_t offset = 0, int8_t by = 1) {
 		}
 	}
 	return false;
+}
+
+class WritableBufferStream : public BufferStream {
+	public:
+		WritableBufferStream(uint32_t bufferLength) : BufferStream(bufferLength), bufferWritePosition(0) {};
+		size_t write(uint8_t b);
+
+		void rewindWrite() {
+			bufferWritePosition = 0;
+		}
+
+	private:
+		uint32_t bufferWritePosition;
+
+};
+
+size_t WritableBufferStream::write(uint8_t b) {
+	if (bufferWritePosition < bufferLength) {
+		buffer[bufferWritePosition++] = b;
+		return 1;
+	}
+	debug_log("WritableBufferStream::write: buffer overflow\n\r");
+	return 0;
 }
 
 #endif // BUFFER_STREAM_H
