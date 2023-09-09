@@ -18,6 +18,7 @@ class MultiBufferStream : public Stream {
 	private:
 		std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>> buffers;
 		std::shared_ptr<BufferStream> getBuffer();
+		size_t currentBufferIndex = 0;
 };
 
 MultiBufferStream::MultiBufferStream(std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>> buffers) : buffers(buffers) {
@@ -25,6 +26,7 @@ MultiBufferStream::MultiBufferStream(std::vector<std::shared_ptr<BufferStream>, 
 	for (auto buffer : buffers) {
 		buffer->rewind();
 	}
+	currentBufferIndex = 0;
 }
 
 int MultiBufferStream::available() {
@@ -50,15 +52,14 @@ size_t MultiBufferStream::write(uint8_t b) {
 	return 0;
 }
 
-std::shared_ptr<BufferStream> MultiBufferStream::getBuffer() {
-	// iterate thru buffers until we find one that has data
-	for (auto buffer : buffers) {
-		bool available = buffer->available();
-		if (available) {
-			return buffer;
-		}
+inline std::shared_ptr<BufferStream> MultiBufferStream::getBuffer() {
+	while (currentBufferIndex < buffers.size() && !buffers[currentBufferIndex]->available()) {
+		currentBufferIndex++;
 	}
-	return nullptr;
+	if (currentBufferIndex >= buffers.size()) {
+		return nullptr;
+	}
+	return buffers[currentBufferIndex];
 }
 
 #endif // MULTI_BUFFER_STREAM_H
