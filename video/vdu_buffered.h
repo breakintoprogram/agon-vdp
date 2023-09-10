@@ -37,6 +37,9 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 		case BUFFERED_ADJUST: {
 			bufferAdjust(bufferId);
 		}	break;
+		case BUFFERED_CONDITIONAL: {
+			bufferConditionalCall(bufferId);
+		}	break;
 		case BUFFERED_DEBUG_INFO: {
 			debug_log("vdu_sys_buffered: buffer %d, %d streams stored\n\r", bufferId, buffers[bufferId].size());
 			// output contents of buffer stream 0
@@ -195,11 +198,11 @@ bool VDUStreamProcessor::setBufferByte(uint8_t value, uint16_t bufferId, uint32_
 	return false;
 }
 
-// VDU 23, 0, &A0, bufferId; 5, command, offset; [count;] [operand]: Adjust buffer
+// VDU 23, 0, &A0, bufferId; 5, operation, offset; [count;] [operand]: Adjust buffer
 // This is used for adjusting the contents of a buffer
 // It can be used to overwrite bytes, insert bytes, increment bytes, etc
-// Basic commands are add, add-with-carry, and, or, xor, set, not, neg
-// Upper bits of command byte are used to indicate:
+// Basic operation are add, add-with-carry, and, or, xor, set, not, neg
+// Upper bits of operation byte are used to indicate:
 // - whether to use a long offset (24-bit) or short offset (16-bit)
 // - whether the operand is a buffer-originated value or an immediate value
 // - whether to adjust a single target or multiple targets
@@ -237,6 +240,7 @@ void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 	auto sourceValue = 0;
 	auto operandValue = 0;
 	auto carryValue = 0;
+	bool usingCarry = false;
 
 	// if useMultiTarget is set, the we're updating multiple source values
 	// if useMultiOperand is also set, we get multiple operand values
@@ -279,6 +283,7 @@ void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 			case ADJUST_ADD_CARRY: {
 				// byte-wise add with carry
 				// bytes are treated as being in little-endian order
+				usingCarry = true;
 				sourceValue = sourceValue + operandValue + carryValue;
 				if (sourceValue > 255) {
 					carryValue = 1;
@@ -322,26 +327,99 @@ void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 			return;
 		}
 	}
+	if (usingCarry) {
+		// if we were using carry, store the final carry value
+		if (!setBufferByte(carryValue, bufferId, offset + count)) {
+			debug_log("bufferAdjust: failed to set carry value %d at offset %d\n\r", carryValue, offset + count);
+			return;
+		}
+	}
 
 	debug_log("bufferAdjust: result %d\n\r", sourceValue);
 }
 
-// VDU 23, 0, &A0, bufferId; 6, command, checkBufferId; offset; [operand]  : Conditional call
-//
-// To consider
-// for most conditionals, we need to compare two values
-// and indicate the bufferId we're calling,
-// and bufferId and offset of the value to compare
-// and the value to compare with (operand)
-//
-// this is broadly similar to adjust
-//
-// then there is things like conditional call
-//   based on a byte value within a given buffer
-//   consider different comparisons (==, !=, <, >, <=, >=)
-//   and comparisons with words, longs, etc
-// possibly jump to a given or relative buffer position
-//   altho it may be more sensible to just encourage calling a different buffer
+// VDU 23, 0, &A0, bufferId; 6, operation, checkBufferId; offset; [operand]  : Conditional call
+// Call the given bufferId if the condition operation check passes
+// This works in a similar manner to bufferAdjust
+// for now, this only supports single-byte comparisons
+// as multi-byte comparisons are a bit more complex
+// 
+void VDUStreamProcessor::bufferConditionalCall(uint16_t bufferId) {
+	auto command = readByte_t();
+	auto checkBufferId = readWord_t();
 
+	bool use24bitOffsets = command & COND_24BIT_OFFSETS;
+	bool useBufferValue = command & COND_BUFFER_VALUE;
+	uint8_t op = command & COND_OP_MASK;
+	// conditional operators that are greater than NOT_EXISTS require an operand
+	bool hasOperand = op > COND_NOT_EXISTS;
+
+	auto offset = use24bitOffsets ? read24_t() : readWord_t();
+	auto operandBufferId = 0;
+	auto operandOffset = 0;
+
+	if (useBufferValue) {
+		operandBufferId = readWord_t();
+		operandOffset = use24bitOffsets ? read24_t() : readWord_t();
+	}
+
+	if (command == -1 || checkBufferId == -1 || offset == -1 || operandBufferId == -1 || operandOffset == -1) {
+		debug_log("bufferConditionalCall: invalid command, checkBufferId, offset or operand value\n\r");
+		return;
+	}
+
+	auto sourceValue = getBufferByte(checkBufferId, offset);
+	uint16_t operandValue = 0;
+	if (hasOperand) {
+		operandValue = useBufferValue ? getBufferByte(operandBufferId, operandOffset) : readByte_t();
+	}
+
+	debug_log("bufferConditionalCall: command %d, checkBufferId %d, offset %d, operandBufferId %d, operandOffset %d, sourceValue %d, operandValue %d\n\r", command, checkBufferId, offset, operandBufferId, operandOffset, sourceValue, operandValue);
+
+	if (sourceValue == -1 || operandValue == -1) {
+		debug_log("bufferConditionalCall: invalid source or operand value\n\r");
+		return;
+	}
+
+	bool shouldCall = false;
+
+	switch (op) {
+		case COND_EXISTS: {
+			shouldCall = sourceValue != 0;
+		}	break;
+		case COND_NOT_EXISTS: {
+			shouldCall = sourceValue == 0;
+		}	break;
+		case COND_EQUAL: {
+			shouldCall = sourceValue == operandValue;
+		}	break;
+		case COND_NOT_EQUAL: {
+			shouldCall = sourceValue != operandValue;
+		}	break;
+		case COND_LESS: {
+			shouldCall = sourceValue < operandValue;
+		}	break;
+		case COND_GREATER: {
+			shouldCall = sourceValue > operandValue;
+		}	break;
+		case COND_LESS_EQUAL: {
+			shouldCall = sourceValue <= operandValue;
+		}	break;
+		case COND_GREATER_EQUAL: {
+			shouldCall = sourceValue >= operandValue;
+		}	break;
+		case COND_AND: {
+			shouldCall = sourceValue && operandValue;
+		}	break;
+		case COND_OR: {
+			shouldCall = sourceValue || operandValue;
+		}	break;
+	}
+
+	if (shouldCall) {
+		debug_log("bufferConditionalCall: calling buffer %d\n\r", bufferId);
+		bufferCall(bufferId);
+	}
+}
 
 #endif // VDU_BUFFERED_H

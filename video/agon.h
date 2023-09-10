@@ -140,28 +140,26 @@
 
 // Adjust operation flags
 #define ADJUST_OP_MASK			0x0F	// operation code mask
-#define ADJUST_24BIT_OFFSETS		0x10	// offset values are 24-bit
+#define ADJUST_24BIT_OFFSETS	0x10	// offset values are 24-bit
 #define ADJUST_BUFFER_VALUE		0x20	// operand is a buffer fetched value
 #define ADJUST_MULTI_TARGET		0x40	// multiple target values will be adjusted
 #define ADJUST_MULTI_OPERAND	0x80	// multiple operand values used for adjustments
 
 // Conditional operation codes
-#define COND_EQUAL				0x00	// Conditional: equal
-#define COND_NOT_EQUAL			0x01	// Conditional: not equal
-#define COND_LESS				0x02	// Conditional: less than
-#define COND_GREATER			0x03	// Conditional: greater than
-#define COND_LESS_EQUAL			0x04	// Conditional: less than or equal
-#define COND_GREATER_EQUAL		0x05	// Conditional: greater than or equal
-#define COND_AND				0x06	// Conditional: AND
-#define COND_OR					0x07	// Conditional: OR
-#define COND_XOR				0x08	// Conditional: XOR
-// exists and not-exists are equals and not-equals with a zero value
-// #define COND_EXISTS				0x09	// Conditional: exists (non-zero value)
-// #define COND_NOT				0x0A	// Conditional: NOT exists (zero value)
+#define COND_EXISTS				0x00	// Conditional: exists (non-zero value)
+#define COND_NOT_EXISTS			0x01	// Conditional: NOT exists (zero value)
+#define COND_EQUAL				0x02	// Conditional: equal
+#define COND_NOT_EQUAL			0x03	// Conditional: not equal
+#define COND_LESS				0x04	// Conditional: less than
+#define COND_GREATER			0x05	// Conditional: greater than
+#define COND_LESS_EQUAL			0x06	// Conditional: less than or equal
+#define COND_GREATER_EQUAL		0x07	// Conditional: greater than or equal
+#define COND_AND				0x08	// Conditional: AND
+#define COND_OR					0x09	// Conditional: OR
 
 // Conditional operation flags
 #define COND_OP_MASK			0x0F	// conditional operation code mask
-#define COND_LONG_OFFSETS		0x10	// offset values are 24-bit
+#define COND_24BIT_OFFSETS		0x10	// offset values are 24-bit
 #define COND_BUFFER_VALUE		0x20	// value to compare is a buffer-fetched value
 
 // Viewport definitions
