@@ -137,6 +137,7 @@ void VDUStreamProcessor::bufferCreate(uint16_t bufferId) {
 // use an ID of -1 (65535) to clear the output buffer (no output)
 // use an ID of 0 to reset the output buffer to it's original value
 //
+// TODO add a variant/command to adjust offset inside output stream
 void VDUStreamProcessor::setOutputStream(uint16_t bufferId) {
 	if (bufferId == 65535) {
 		outputStream = nullptr;
@@ -194,114 +195,153 @@ bool VDUStreamProcessor::setBufferByte(uint8_t value, uint16_t bufferId, uint32_
 	return false;
 }
 
-// VDU 23, 0, &A0, bufferId; 5: Adjust buffer
-// Format of command:
-// VDU 23, 0, &A0, bufferId; 5, command, offset; [count;] [operand]
-// operand will vary depending on higher bits set in command
-// if it's a buffer-originated value it will be a buffer ID and offset
-// otherwise it will be an immediate value
-// count will only be present if MULTI_SRC or MULTI_DST bit is set
-// NB command only supports 16-bit offset values (for now)
-// we could consider supporting 24-bit offsets in future,
-// either by using another bit in command, or re-purposing the ADJUST_16 bit
+// VDU 23, 0, &A0, bufferId; 5, command, offset; [count;] [operand]: Adjust buffer
+// This is used for adjusting the contents of a buffer
+// It can be used to overwrite bytes, insert bytes, increment bytes, etc
+// Basic commands are add, add-with-carry, and, or, xor, set, not, neg
+// Upper bits of command byte are used to indicate:
+// - whether to use a long offset (24-bit) or short offset (16-bit)
+// - whether the operand is a buffer-originated value or an immediate value
+// - whether to adjust a single target or multiple targets
+// - whether to use a single operand or multiple operands
+//
 void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 	auto command = readByte_t();
-	auto offset = readWord_t();
 
-	// bool use16Bit = command & ADJUST_16;
+	bool use24bitOffsets = command & ADJUST_24BIT_OFFSETS;
 	bool useBufferValue = command & ADJUST_BUFFER_VALUE;
-	bool useMultiDestination = command & ADJUST_MULTI_DST;
-	bool useMultiSource = command & ADJUST_MULTI_SRC;
+	bool useMultiTarget = command & ADJUST_MULTI_TARGET;
+	bool useMultiOperand = command & ADJUST_MULTI_OPERAND;
 	uint8_t op = command & ADJUST_OP_MASK;
 	// Operators that are NOT or greater do not have an operand value
 	bool hasOperand = op < ADJUST_NOT;
 
-	auto operandBufferId = -1;
+	auto offset = use24bitOffsets ? read24_t() : readWord_t();
+	auto operandBufferId = 0;
 	auto operandOffset = 0;
 	auto count = 1;
 
-	if (useMultiDestination | useMultiSource) {
-		count = readWord_t();
+	if (useMultiTarget | useMultiOperand) {
+		count = use24bitOffsets ? read24_t() : readWord_t();
 	}
 	if (useBufferValue && hasOperand) {
 		operandBufferId = readWord_t();
-		operandOffset = readWord_t();
+		operandOffset = use24bitOffsets ? read24_t() : readWord_t();
 	}
 
-	// destination = destination <operator> [operand]
-	//
-	// All operators are 1 byte (command)
-	// Not all operators require an operand - NOT and SET do not
-
-	switch (op) {
-		case ADJUST_ADD: {
-			auto sourceValue = getBufferByte(bufferId, offset);
-			auto operandValue = useBufferValue ? getBufferByte(operandBufferId, operandOffset) : readByte_t();
-			if (sourceValue == -1 || operandValue == -1) {
-				debug_log("bufferAdjust: invalid source or operand value\n\r");
-				return;
-			}
-			auto result = sourceValue + operandValue;
-			if (setBufferByte(result, bufferId, offset)) {
-				debug_log("bufferAdjust: add %d to %d at offset %d\n\r", operandValue, sourceValue, offset);
-			} else {
-				debug_log("bufferAdjust: failed to set result %d at offset %d\n\r", result, offset);
-			}
-		}	break;
-		case ADJUST_ADD_CARRY: {
-			// iterate thru count
-			// store carry value in next byte
-
-		}	break;
-		case ADJUST_AND: {
-
-		}	break;
-		case ADJUST_OR: {
-
-		}	break;
-		case ADJUST_XOR: {
-
-		}	break;
-		case ADJUST_SET: {
-			auto operandValue = useBufferValue ? getBufferByte(operandBufferId, operandOffset) : readByte_t();
-			if (operandValue == -1) {
-				debug_log("bufferAdjust: set value invalid operand value\n\r");
-				return;
-			}
-			if (!setBufferByte(operandValue, bufferId, offset)) {
-				debug_log("bufferAdjust: failed to set value %d in buffer %d at offset %d\n\r", operandValue, bufferId, offset);
-			}
-		}	break;
-		case ADJUST_NOT: {
-			auto sourceValue = getBufferByte(bufferId, offset);
-			if (sourceValue == -1) {
-				debug_log("bufferAdjust: invalid source value\n\r");
-				return;
-			}
-			uint8_t result = ~(uint8_t)sourceValue;
-			debug_log("bufferAdjust: NOT %X at offset %d = %X\n\r", sourceValue, offset, result);
-			setBufferByte(result, bufferId, offset);
-		}	break;
+	if (command == -1 || count == -1 || offset == -1 || operandBufferId == -1 || operandOffset == -1) {
+		debug_log("bufferAdjust: invalid command, count, offset or operand value\n\r");
+		return;
 	}
 
-	// TODO implement commands to adjust buffer contents
-	// ideas include:
-	// overwrite byte
-	// overwrite multiple bytes
-	// insert byte(s)
-	// increment by amount
-	// increment with carry
-	// other maths/logic operations on bytes within buffer
-	// copy bytes from one buffer to another
+	auto sourceValue = 0;
+	auto operandValue = 0;
+	auto carryValue = 0;
 
-	// change buffer write offset
+	// if useMultiTarget is set, the we're updating multiple source values
+	// if useMultiOperand is also set, we get multiple operand values
+	// so...
+	// if both useMultiTarget and useMultiOperand are false we're updating a single source value with a single operand
+	// if useMultiTarget is false and useMultiOperand is true we're adding all operand values to the same source value
+	// if useMultiTarget is true and useMultiOperand is false we're adding the same operand to all source values
+	// if both useMultiTarget and useMultiOperand are true we're adding each operand value to the corresponding source value
 
-	// then there is things like conditional call
-	//   based on a byte value within a given buffer
-	//   consider different comparisons (==, !=, <, >, <=, >=)
-	//   and comparisons with words, longs, etc
-	// possibly jump to a given or relative buffer position
-	//   altho it may be more sensible to just encourage calling a different buffer
+	if (!useMultiTarget) {
+		// we have a singular source value
+		sourceValue = getBufferByte(bufferId, offset);
+	}
+	if (hasOperand && !useMultiOperand) {
+		// we have a singular operand value
+		operandValue = useBufferValue ? getBufferByte(operandBufferId, operandOffset) : readByte_t();
+	}
+
+	debug_log("bufferAdjust: command %d, offset %d, count %d, operandBufferId %d, operandOffset %d, sourceValue %d, operandValue %d\n\r", command, offset, count, operandBufferId, operandOffset, sourceValue, operandValue);
+	debug_log("useMultiTarget %d, useMultiOperand %d, use24bitOffsets %d, useBufferValue %d\n\r", useMultiTarget, useMultiOperand, use24bitOffsets, useBufferValue);
+
+	for (auto i = 0; i < count; i++) {
+		if (useMultiTarget) {
+			// multiple source values will change
+			sourceValue = getBufferByte(bufferId, offset + i);
+		}
+		if (hasOperand && useMultiOperand) {
+			operandValue = useBufferValue ? getBufferByte(operandBufferId, operandOffset + i) : readByte_t();
+		}
+		if (sourceValue == -1 || operandValue == -1) {
+			debug_log("bufferAdjust: invalid source or operand value\n\r");
+			return;
+		}
+
+		switch (op) {
+			case ADJUST_ADD: {
+				// byte-wise add - no carry, so bytes may overflow
+				sourceValue = sourceValue + operandValue;
+			}	break;
+			case ADJUST_ADD_CARRY: {
+				// byte-wise add with carry
+				// bytes are treated as being in little-endian order
+				sourceValue = sourceValue + operandValue + carryValue;
+				if (sourceValue > 255) {
+					carryValue = 1;
+					sourceValue -= 256;
+				} else {
+					carryValue = 0;
+				}
+			}	break;
+			case ADJUST_AND: {
+				sourceValue = sourceValue & operandValue;
+			}	break;
+			case ADJUST_OR: {
+				sourceValue = sourceValue | operandValue;
+			}	break;
+			case ADJUST_XOR: {
+				sourceValue = sourceValue ^ operandValue;
+			}	break;
+			case ADJUST_SET: {
+				sourceValue = operandValue;
+			}	break;
+			case ADJUST_NOT: {
+				sourceValue = ~sourceValue;
+			}	break;
+			case ADJUST_NEG: {
+				sourceValue = -sourceValue;
+			}	break;
+		}
+
+		if (useMultiTarget) {
+			// multiple source/target values updating, so store inside loop
+			if (!setBufferByte(sourceValue, bufferId, offset + i)) {
+				debug_log("bufferAdjust: failed to set result %d at offset %d\n\r", sourceValue, offset + i);
+				return;
+			}
+		}
+	}
+	if (!useMultiTarget) {
+		// single source/target value updating, so store outside loop
+		if (!setBufferByte(sourceValue, bufferId, offset)) {
+			debug_log("bufferAdjust: failed to set result %d at offset %d\n\r", sourceValue, offset);
+			return;
+		}
+	}
+
+	debug_log("bufferAdjust: result %d\n\r", sourceValue);
 }
+
+// VDU 23, 0, &A0, bufferId; 6, command, checkBufferId; offset; [operand]  : Conditional call
+//
+// To consider
+// for most conditionals, we need to compare two values
+// and indicate the bufferId we're calling,
+// and bufferId and offset of the value to compare
+// and the value to compare with (operand)
+//
+// this is broadly similar to adjust
+//
+// then there is things like conditional call
+//   based on a byte value within a given buffer
+//   consider different comparisons (==, !=, <, >, <=, >=)
+//   and comparisons with words, longs, etc
+// possibly jump to a given or relative buffer position
+//   altho it may be more sensible to just encourage calling a different buffer
+
 
 #endif // VDU_BUFFERED_H
