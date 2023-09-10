@@ -125,7 +125,44 @@
 #define BUFFERED_CREATE			0x03	// Create a new empty buffer
 #define BUFFERED_SET_OUTPUT		0x04	// Set the output buffer
 #define BUFFERED_ADJUST			0x05	// Adjust buffered commands
+#define BUFFERED_CONDITIONAL	0x06	// Conditionally call a buffer
 #define BUFFERED_DEBUG_INFO		0x10	// Get debug info about a buffer
+
+// Adjust operation codes
+#define ADJUST_ADD				0x00	// Adjust: add
+#define ADJUST_ADD_CARRY		0x01	// Adjust: add with carry
+#define ADJUST_AND				0x02	// Adjust: AND
+#define ADJUST_OR				0x03	// Adjust: OR
+#define ADJUST_XOR				0x04	// Adjust: XOR
+#define ADJUST_SET				0x05	// Adjust: set new value (replace)
+#define ADJUST_NOT				0x06	// Adjust: NOT
+#define ADJUST_NEG				0x07	// Adjust: Negative
+
+// Adjust operation flags
+#define ADJUST_OP_MASK			0x0F	// operation code mask
+#define ADJUST_16				0x10	// values to adjust are 16-bits values
+#define ADJUST_BUFFER_VALUE		0x20	// operand is a buffer fetched value
+#define ADJUST_MULTI_DST		0x40	// multiple destination values will be adjusted
+#define ADJUST_MULTI_SRC		0x80	// multiple source values used for adjustments
+
+// Conditional operation codes
+#define COND_EXISTS				0x00	// Conditional: exists (non-zero value)
+#define COND_EQUAL				0x01	// Conditional: equal
+#define COND_NOT_EQUAL			0x02	// Conditional: not equal
+#define COND_LESS				0x03	// Conditional: less than
+#define COND_GREATER			0x04	// Conditional: greater than
+#define COND_LESS_EQUAL			0x05	// Conditional: less than or equal
+#define COND_GREATER_EQUAL		0x06	// Conditional: greater than or equal
+#define COND_AND				0x07	// Conditional: AND
+#define COND_OR					0x08	// Conditional: OR
+#define COND_XOR				0x09	// Conditional: XOR
+#define COND_NOT				0x0A	// Conditional: NOT
+
+// Conditional operation flags
+#define COND_BASE				0x00	// value to compare is 8-bits
+#define COND_16					0x10	// value to compare is 16-bits
+#define COND_BUFFER_VALUE		0x20	// value to compare is a buffer-fetched value
+// #define COND_BUFFER_16			0x30	// value to compare is a buffer 16-bit value
 
 // Viewport definitions
 #define VIEWPORT_TEXT			0		// Text viewport

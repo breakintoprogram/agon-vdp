@@ -101,6 +101,7 @@ void VDUStreamProcessor::bufferClear(uint16_t bufferId) {
 	}
 	if (buffers.find(bufferId) != buffers.end()) {
 		buffers.erase(bufferId);
+		debug_log("bufferClear: cleared buffer %d\n\r", bufferId);
 	} else {
 		debug_log("bufferClear: buffer %d not found\n\r", bufferId);
 	}
@@ -129,6 +130,7 @@ void VDUStreamProcessor::bufferCreate(uint16_t bufferId) {
 		buffer->writeBufferByte(0, i);
 	}
 	buffers[bufferId].push_back(buffer);
+	debug_log("bufferCreate: created buffer %d, size %d\n\r", bufferId, size);
 }
 
 // VDU 23, 0, &A0, bufferId; 4: Set output to buffer
@@ -158,10 +160,130 @@ void VDUStreamProcessor::setOutputStream(uint16_t bufferId) {
 	}
 }
 
+uint16_t VDUStreamProcessor::getBufferByte(uint16_t bufferId, uint32_t offset) {
+	if (buffers.find(bufferId) != buffers.end()) {
+		// buffer ID exists
+		// loop thru buffers stored against this ID to find data at offset
+		uint32_t value = 0;
+		auto currentOffset = offset;
+		for (auto buffer : buffers[bufferId]) {
+			auto bufferLength = buffer->size();
+			if (currentOffset < bufferLength) {
+				return buffer->getBuffer()[currentOffset];
+			}
+			currentOffset -= bufferLength;
+		}
+	}
+	return -1;
+}
+
+bool VDUStreamProcessor::setBufferByte(uint8_t value, uint16_t bufferId, uint32_t offset) {
+	if (buffers.find(bufferId) != buffers.end()) {
+		// buffer ID exists
+		// find the buffer containing the offset
+		auto currentOffset = offset;
+		for (auto buffer : buffers[bufferId]) {
+			auto bufferLength = buffer->size();
+			if (currentOffset < bufferLength) {
+				buffer->writeBufferByte(value, currentOffset);
+				return true;
+			}
+			currentOffset -= bufferLength;
+		}
+	}
+	return false;
+}
+
 // VDU 23, 0, &A0, bufferId; 5: Adjust buffer
-// TODO...
-//
+// Format of command:
+// VDU 23, 0, &A0, bufferId; 5, command, offset; [count;] [operand]
+// operand will vary depending on higher bits set in command
+// if it's a buffer-originated value it will be a buffer ID and offset
+// otherwise it will be an immediate value
+// count will only be present if MULTI_SRC or MULTI_DST bit is set
+// NB command only supports 16-bit offset values (for now)
+// we could consider supporting 24-bit offsets in future,
+// either by using another bit in command, or re-purposing the ADJUST_16 bit
 void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
+	auto command = readByte_t();
+	auto offset = readWord_t();
+
+	// bool use16Bit = command & ADJUST_16;
+	bool useBufferValue = command & ADJUST_BUFFER_VALUE;
+	bool useMultiDestination = command & ADJUST_MULTI_DST;
+	bool useMultiSource = command & ADJUST_MULTI_SRC;
+	uint8_t op = command & ADJUST_OP_MASK;
+	// Operators that are NOT or greater do not have an operand value
+	bool hasOperand = op < ADJUST_NOT;
+
+	auto operandBufferId = -1;
+	auto operandOffset = 0;
+	auto count = 1;
+
+	if (useMultiDestination | useMultiSource) {
+		count = readWord_t();
+	}
+	if (useBufferValue && hasOperand) {
+		operandBufferId = readWord_t();
+		operandOffset = readWord_t();
+	}
+
+	// destination = destination <operator> [operand]
+	//
+	// All operators are 1 byte (command)
+	// Not all operators require an operand - NOT and SET do not
+
+	switch (op) {
+		case ADJUST_ADD: {
+			auto sourceValue = getBufferByte(bufferId, offset);
+			auto operandValue = useBufferValue ? getBufferByte(operandBufferId, operandOffset) : readByte_t();
+			if (sourceValue == -1 || operandValue == -1) {
+				debug_log("bufferAdjust: invalid source or operand value\n\r");
+				return;
+			}
+			auto result = sourceValue + operandValue;
+			if (setBufferByte(result, bufferId, offset)) {
+				debug_log("bufferAdjust: add %d to %d at offset %d\n\r", operandValue, sourceValue, offset);
+			} else {
+				debug_log("bufferAdjust: failed to set result %d at offset %d\n\r", result, offset);
+			}
+		}	break;
+		case ADJUST_ADD_CARRY: {
+			// iterate thru count
+			// store carry value in next byte
+
+		}	break;
+		case ADJUST_AND: {
+
+		}	break;
+		case ADJUST_OR: {
+
+		}	break;
+		case ADJUST_XOR: {
+
+		}	break;
+		case ADJUST_SET: {
+			auto operandValue = useBufferValue ? getBufferByte(operandBufferId, operandOffset) : readByte_t();
+			if (operandValue == -1) {
+				debug_log("bufferAdjust: set value invalid operand value\n\r");
+				return;
+			}
+			if (!setBufferByte(operandValue, bufferId, offset)) {
+				debug_log("bufferAdjust: failed to set value %d in buffer %d at offset %d\n\r", operandValue, bufferId, offset);
+			}
+		}	break;
+		case ADJUST_NOT: {
+			auto sourceValue = getBufferByte(bufferId, offset);
+			if (sourceValue == -1) {
+				debug_log("bufferAdjust: invalid source value\n\r");
+				return;
+			}
+			uint8_t result = ~(uint8_t)sourceValue;
+			debug_log("bufferAdjust: NOT %X at offset %d = %X\n\r", sourceValue, offset, result);
+			setBufferByte(result, bufferId, offset);
+		}	break;
+	}
+
 	// TODO implement commands to adjust buffer contents
 	// ideas include:
 	// overwrite byte
