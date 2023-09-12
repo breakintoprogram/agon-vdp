@@ -46,7 +46,7 @@ void setActiveViewport(uint8_t type) {
 
 // Translate a point relative to the graphics viewport
 //
-Point translateViewport(uint16_t X, uint16_t Y) {
+Point translateViewport(int16_t X, int16_t Y) {
 	if (logicalCoords) {
 		return Point(graphicsViewport.X1 + (origin.X + X), graphicsViewport.Y2 - (origin.Y + Y));
 	}
@@ -58,7 +58,7 @@ Point translateViewport(Point p) {
 
 // Scale a point
 //
-Point scale(uint16_t X, uint16_t Y) {
+Point scale(int16_t X, int16_t Y) {
 	if (logicalCoords) {
 		return Point((double)X / logicalScaleX, (double)Y / logicalScaleY);
 	}
@@ -70,7 +70,7 @@ Point scale(Point p) {
 
 // Translate a point relative to the canvas
 //
-Point translateCanvas(uint16_t X, uint16_t Y) {
+Point translateCanvas(int16_t X, int16_t Y) {
 	if (logicalCoords) {
 		return Point(origin.X + X, (canvasH - 1) - (origin.Y + Y));
 	}
