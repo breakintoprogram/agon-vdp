@@ -21,6 +21,7 @@ class VDUStreamProcessor {
 		void send_packet(uint8_t code, uint16_t len, uint8_t data[]);
 
 		void processAllAvailable();
+		void processNext();
 
 		void vdu(uint8_t c);
 
@@ -161,6 +162,14 @@ void VDUStreamProcessor::send_packet(uint8_t code, uint16_t len, uint8_t data[])
 //
 void VDUStreamProcessor::processAllAvailable() {
 	while (byteAvailable()) {
+		vdu(readByte());
+	}
+}
+
+// Process next command from the stream
+//
+void VDUStreamProcessor::processNext() {
+	if (byteAvailable()) {
 		vdu(readByte());
 	}
 }

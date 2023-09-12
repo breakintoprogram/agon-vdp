@@ -110,7 +110,7 @@ void loop() {
 				cursorState = false;
 				do_cursor();
 			}
-			processor->processAllAvailable();
+			processor->processNext();
 		}
 		count++;
 	}
