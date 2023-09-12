@@ -224,14 +224,12 @@ void VDUStreamProcessor::vdu_plot() {
 					plotTriangle();
 					break;
 				case 0x60:	// rectangle fill
-					// TODO
-					// setGraphicsFill(mode);
-					// plotRectangle();
+					setGraphicsFill(mode);
+					plotRectangle();
 					break;
 				case 0x70:	// parallelogram fill
-					// TODO
-					// setGraphicsFill(mode);
-					// plotParallelogram();
+					setGraphicsFill(mode);
+					plotParallelogram();
 					break;
 				case 0x80:	// flood to non-bg
 				case 0x88:	// flood to fg

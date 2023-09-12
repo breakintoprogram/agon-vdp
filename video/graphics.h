@@ -324,6 +324,24 @@ void plotTriangle() {
 	canvas->fillPath(p, 3);
 }
 
+// Rectangle plot
+//
+void plotRectangle() {
+	canvas->fillRectangle(p2.X, p2.Y, p1.X, p1.Y);
+}
+
+// Parallelogram plot
+//
+void plotParallelogram() {
+	Point p[4] = {
+		p3,
+		p2,
+		p1,
+		Point(p1.X + (p3.X - p2.X), p1.Y + (p3.Y - p2.Y)),
+	};
+	canvas->fillPath(p, 4);
+}
+
 // Circle plot
 //
 void plotCircle(bool filled = false) {
