@@ -4,9 +4,9 @@
 // Contributors:	Jeroen Venema (Sprite Code, VGA Mode Switching)
 //					Damien Guard (Fonts)
 //					Igor Chaves Cananea (vdp-gl maintenance)
-//					Steve Sims (Audio enhancements)
+//					Steve Sims (Audio enhancements, refactoring, bug fixes)
 // Created:			22/03/2022
-// Last Updated:	05/09/2023
+// Last Updated:	12/09/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -42,6 +42,7 @@
 // 30/06/2023:					+ Fixed vdu_sys_sprites to correctly discard serial input if bitmap allocation fails
 // 13/08/2023:					+ New video modes, mode change resets page mode
 // 05/09/2023:					+ New audio enhancements, improved mode change code
+// 12/09/2023:					+ Refactored
 
 #include <HardwareSerial.h>
 #include <fabgl.h>
