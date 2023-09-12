@@ -245,16 +245,15 @@ void VDUStreamProcessor::vdu_plot() {
 				case 0xA0:	// circular arc
 				case 0xA8:	// circular segment
 				case 0xB0:	// circular sector
-					// TODO
+					// fab-gl has no arc or segment operations, only simple ellipse (squashable circle)
 					debug_log("plot circular arc/segment/sector not implemented\n\r");
 					break;
 				case 0xB8:	// copy/move
-					// TODO
-					// plotCopyMove(mode);
+					plotCopyMove(mode);
 					break;
 				case 0xC0:	// ellipse outline
 				case 0xC8:	// ellipse fill
-					// TODO
+					// fab-gl's ellipse isn't compatible with BBC BASIC
 					debug_log("plot ellipse not implemented\n\r");
 					break;
 			}

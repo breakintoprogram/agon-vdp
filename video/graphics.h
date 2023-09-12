@@ -353,6 +353,60 @@ void plotCircle(bool filled = false) {
 	}
 }
 
+// Copy or move a rectangle
+//
+void plotCopyMove(uint8_t mode) {
+	uint16_t x = p1.X;
+	uint16_t y = p1.Y;
+	uint16_t width = abs(p3.X - p2.X) + 1;
+	uint16_t height = abs(p3.Y - p2.Y) + 1;
+	uint16_t sourceX = p3.X < p2.X ? p3.X : p2.X;
+	uint16_t sourceY = p3.Y < p2.Y ? p3.Y : p2.Y;
+
+	debug_log("plotCopyMove: mode %d, (%d,%d) -> (%d,%d), width: %d, height: %d\n\r", mode, sourceX, sourceY, x, y, width, height);
+	canvas->copyRect(sourceX, sourceY, x, y - height, width, height);
+	if (mode == 1 || mode == 5) {
+		// move rectangle needs to clear source rectangle
+		// being careful not to clear the destination rectangle
+		canvas->setBrushColor(gbg);
+		Rect sourceRect = Rect(sourceX, sourceY, sourceX + width, sourceY + height);
+		Rect destRect = Rect(x, y - height, x + width, y);
+		if (sourceRect.intersects(destRect)) {
+			// we can use clipping rects to block out parts of the screen
+			// the areas above, below, left, and right of the destination rectangle
+			// and then draw rectangles over our source rectangle
+			auto intersection = sourceRect.intersection(destRect);
+
+			if (intersection.X1 > sourceRect.X1) {
+				// fill in source area to the left of destination
+				debug_log("clearing left of destination\n\r");
+				canvas->setClippingRect(Rect(sourceRect.X1, sourceRect.Y1, intersection.X1 - 1, sourceRect.Y2));
+				canvas->fillRectangle(sourceRect);
+			}
+			if (intersection.X2 < sourceRect.X2) {
+				// fill in source area to the right of destination
+				debug_log("clearing right of destination\n\r");
+				canvas->setClippingRect(Rect(intersection.X2, sourceRect.Y1, sourceRect.X2, sourceRect.Y2));
+				canvas->fillRectangle(sourceRect);
+			}
+			if (intersection.Y1 > sourceRect.Y1) {
+				// fill in source area above destination
+				debug_log("clearing above destination\n\r");
+				canvas->setClippingRect(Rect(sourceRect.X1, sourceRect.Y1, sourceRect.X2, intersection.Y1 - 1));
+				canvas->fillRectangle(sourceRect);
+			}
+			if (intersection.Y2 < sourceRect.Y2) {
+				// fill in source area below destination
+				debug_log("clearing below destination\n\r");
+				canvas->setClippingRect(Rect(sourceRect.X1, intersection.Y2, sourceRect.X2, sourceRect.Y2));
+				canvas->fillRectangle(sourceRect);
+			}
+		} else {
+			canvas->fillRectangle(sourceRect);
+		}
+	}
+}
+
 // Character plot
 //
 void plotCharacter(char c) {
