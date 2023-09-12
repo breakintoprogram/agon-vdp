@@ -15,6 +15,7 @@ fabgl::PaintOptions			gpo;				// Graphics paint options
 fabgl::PaintOptions			tpo;				// Text paint options
 
 Point			p1, p2, p3;						// Coordinate store for plot
+Point			rp1, rp2, rp3;					// Relative coordinates store for plot
 RGB888			gfg, gbg;						// Graphics foreground and background colour
 RGB888			tfg, tbg;						// Text foreground and background colour
 uint8_t			fontW;							// Font width
@@ -219,12 +220,19 @@ void clearViewport(Rect * viewport) {
 // Push point to list
 //
 void pushPoint(Point p) {
+	rp3 = rp2;
+	rp2 = rp1;
+	rp1 = Point(p.X - p1.X, p.Y - p1.Y);
 	p3 = p2;
 	p2 = p1;
 	p1 = p;
 }
 void pushPoint(uint16_t x, uint16_t y) {
 	pushPoint(translateViewport(scale(x, y)));
+}
+void pushPointRelative(int16_t x, int16_t y) {
+	auto scaledPoint = scale(x, y);
+	pushPoint(Point(p1.X + scaledPoint.X, p1.Y + (logicalCoords ? -scaledPoint.Y : scaledPoint.Y)));
 }
 
 // get graphics cursor
@@ -235,10 +243,42 @@ Point * getGraphicsCursor() {
 
 // Set up canvas for drawing graphics
 //
-void setGraphicsOptions() {
+void setGraphicsOptions(uint8_t mode) {
+	auto colourMode = mode & 0x03;
 	canvas->setClippingRect(graphicsViewport);
-	canvas->setPenColor(gfg);
+	switch (colourMode) {
+		case 0: break;	// move command
+		case 1: {
+			// use fg colour
+			canvas->setPenColor(gfg);
+			canvas->setBrushColor(gfg);
+		} break;
+		case 2: break;	// logical inverse colour (not suported)
+		case 3: {
+			// use bg colour
+			canvas->setPenColor(gbg);
+			canvas->setBrushColor(gbg);
+		} break;
+	}
 	canvas->setPaintOptions(gpo);
+}
+
+// Set up canvas for drawing filled graphics
+//
+void setGraphicsFill(uint8_t mode) {
+	auto colourMode = mode & 0x03;
+	switch (colourMode) {
+		case 0: break;	// move command
+		case 1: {
+			// use fg colour
+			canvas->setBrushColor(gfg);
+		} break;
+		case 2: break;	// logical inverse colour (not suported)
+		case 3: {
+			// use bg colour
+			canvas->setBrushColor(gbg);
+		} break;
+	}
 }
 
 // Move to
@@ -249,8 +289,22 @@ void moveTo() {
 
 // Line plot
 //
-void plotLine() {
+void plotLine(bool omitFirstPoint = false, bool omitLastPoint = false) {
+	RGB888 firstPixelColour;
+	RGB888 lastPixelColour;
+	if (omitFirstPoint) {
+		firstPixelColour = canvas->getPixel(p2.X, p2.Y);
+	}
+	if (omitLastPoint) {
+		lastPixelColour = canvas->getPixel(p1.X, p1.Y);
+	}
 	canvas->lineTo(p1.X, p1.Y);
+	if (omitFirstPoint) {
+		canvas->setPixel(p2, firstPixelColour);
+	}
+	if (omitLastPoint) {
+		canvas->setPixel(p1, lastPixelColour);
+	}
 }
 
 // Point point
@@ -261,31 +315,23 @@ void plotPoint() {
 
 // Triangle plot
 //
-void plotTriangle(uint8_t mode) {
+void plotTriangle() {
 	Point p[3] = {
 		p3,
 		p2,
 		p1, 
 	};
-	canvas->setBrushColor(gfg);
 	canvas->fillPath(p, 3);
-	canvas->setBrushColor(tbg);
 }
 
 // Circle plot
 //
-void plotCircle(uint8_t mode) {
-	switch (mode) {
-		case 0x00 ... 0x03: { // Circle
-			auto r = 2 * (p1.X + p1.Y);
-			canvas->drawEllipse(p2.X, p2.Y, r, r);
-		} break;
-		case 0x04 ... 0x07: { // Circle
-			auto a = p2.X - p1.X;
-			auto b = p2.Y - p1.Y;
-			auto r = 2 * sqrt(a * a + b * b);
-			canvas->drawEllipse(p2.X, p2.Y, r, r);
-		} break;
+void plotCircle(bool filled = false) {
+	auto size = 2 * sqrt(rp1.X * rp1.X + rp1.Y * rp1.Y);
+	if (filled) {
+		canvas->fillEllipse(p2.X, p2.Y, size, size);
+	} else {
+		canvas->drawEllipse(p2.X, p2.Y, size, size);
 	}
 }
 
