@@ -627,14 +627,15 @@ int8_t change_mode(uint8_t mode) {
 	canvas->selectFont(&fabgl::FONT_AGON);
 	setCharacterOverwrite(true);
 	canvas->setPenWidth(1);
-	setOrigin(0,0);
-	pushPoint(0,0);
-	pushPoint(0,0);
-	pushPoint(0,0);
 	setCanvasWH(canvas->getWidth(), canvas->getHeight());
 	fontW = canvas->getFontInfo()->width;
 	fontH = canvas->getFontInfo()->height;
 	viewportReset();
+	setOrigin(0,0);
+	pushPoint(0,0);
+	pushPoint(0,0);
+	pushPoint(0,0);
+	moveTo();
 	resetCursor();
 	homeCursor();
 	if (isDoubleBuffered()) {
