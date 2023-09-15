@@ -174,11 +174,10 @@ void VDUStreamProcessor::setOutputStream(uint16_t bufferId) {
 	}
 }
 
-uint16_t VDUStreamProcessor::getBufferByte(uint16_t bufferId, uint32_t offset) {
+int16_t VDUStreamProcessor::getBufferByte(uint16_t bufferId, uint32_t offset) {
 	if (buffers.find(bufferId) != buffers.end()) {
 		// buffer ID exists
 		// loop thru buffers stored against this ID to find data at offset
-		uint32_t value = 0;
 		auto currentOffset = offset;
 		for (auto buffer : buffers[bufferId]) {
 			auto bufferLength = buffer->size();
@@ -379,7 +378,7 @@ void VDUStreamProcessor::bufferConditionalCall(uint16_t bufferId) {
 	}
 
 	auto sourceValue = getBufferByte(checkBufferId, offset);
-	uint16_t operandValue = 0;
+	int16_t operandValue = 0;
 	if (hasOperand) {
 		operandValue = useBufferValue ? getBufferByte(operandBufferId, operandOffset) : readByte_t();
 	}
