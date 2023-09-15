@@ -163,8 +163,8 @@ void VDUStreamProcessor::vdu_sys_video_kblayout() {
 //
 void VDUStreamProcessor::sendCursorPosition() {
 	uint8_t packet[] = {
-		textCursor.X / fontW,
-		textCursor.Y / fontH,
+		(uint8_t) (textCursor.X / fontW),
+		(uint8_t) (textCursor.Y / fontH),
 	};
 	send_packet(PACKET_CURSOR, sizeof packet, packet);	
 }
@@ -199,14 +199,14 @@ void VDUStreamProcessor::sendScreenPixel(uint16_t x, uint16_t y) {
 //
 void VDUStreamProcessor::sendTime() {
 	uint8_t packet[] = {
-		rtc.getYear() - EPOCH_YEAR,			// 0 - 255
-		rtc.getMonth(),						// 0 - 11
-		rtc.getDay(),						// 1 - 31
-		rtc.getDayofYear(),					// 0 - 365
-		rtc.getDayofWeek(),					// 0 - 6
-		rtc.getHour(true),					// 0 - 23
-		rtc.getMinute(),					// 0 - 59
-		rtc.getSecond(),					// 0 - 59
+		(uint8_t) (rtc.getYear() - EPOCH_YEAR),	// 0 - 255
+		(uint8_t) rtc.getMonth(),			// 0 - 11
+		(uint8_t) rtc.getDay(),				// 1 - 31
+		rtc.getDayofYear(),		// 0 - 365 - TODO this is a bug as it won't fit in 8 bits
+		(uint8_t) rtc.getDayofWeek(),		// 0 - 6
+		(uint8_t) rtc.getHour(true),		// 0 - 23
+		(uint8_t) rtc.getMinute(),			// 0 - 59
+		(uint8_t) rtc.getSecond(),			// 0 - 59
 	};
 	send_packet(PACKET_RTC, sizeof packet, packet);
 }
@@ -215,12 +215,12 @@ void VDUStreamProcessor::sendTime() {
 //
 void VDUStreamProcessor::sendModeInformation() {
 	uint8_t packet[] = {
-		canvasW & 0xFF,						// Width in pixels (L)
-		(canvasW >> 8) & 0xFF,				// Width in pixels (H)
-		canvasH & 0xFF,						// Height in pixels (L)
-		(canvasH >> 8) & 0xFF,				// Height in pixels (H)
-		canvasW / fontW,					// Width in characters (byte)
-		canvasH / fontH,					// Height in characters (byte)
+		(uint8_t) (canvasW & 0xFF),			// Width in pixels (L)
+		(uint8_t) ((canvasW >> 8) & 0xFF),	// Width in pixels (H)
+		(uint8_t) (canvasH & 0xFF),			// Height in pixels (L)
+		(uint8_t) ((canvasH >> 8) & 0xFF),	// Height in pixels (H)
+		(uint8_t) (canvasW / fontW),		// Width in characters (byte)
+		(uint8_t) (canvasH / fontH),		// Height in characters (byte)
 		getVGAColourDepth(),				// Colour depth
 		videoMode,							// The video mode number
 	};
@@ -259,10 +259,10 @@ void VDUStreamProcessor::sendKeyboardState() {
 	uint8_t		ledState;
 	getKeyboardState(&delay, &rate, &ledState);
 	uint8_t		packet[] = {
-		delay & 0xFF,
-		(delay >> 8) & 0xFF,
-		rate & 0xFF,
-		(rate >> 8) & 0xFF,
+		(uint8_t) (delay & 0xFF),
+		(uint8_t) ((delay >> 8) & 0xFF),
+		(uint8_t) (rate & 0xFF),
+		(uint8_t) ((rate >> 8) & 0xFF),
 		ledState
 	};
 	send_packet(PACKET_KEYSTATE, sizeof packet, packet);

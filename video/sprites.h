@@ -48,7 +48,7 @@ void drawBitmap(uint16_t x, uint16_t y) {
 }
 
 void resetBitmaps() {
-	for (uint8_t n = 0; n < MAX_BITMAPS; n++) {
+	for (auto n = 0; n < MAX_BITMAPS; n++) {
 		clearBitmap(n);
 	}
 	waitPlotCompletion();
@@ -142,7 +142,7 @@ void refreshSprites() {
 }
 
 void resetSprites() {
-	for (uint8_t n = 0; n < MAX_SPRITES; n++) {
+	for (auto n = 0; n < MAX_SPRITES; n++) {
 		clearSpriteFrames(n);
 	}
 	waitPlotCompletion();

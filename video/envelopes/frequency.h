@@ -66,7 +66,7 @@ uint16_t SteppedFrequencyEnvelope::getFrequency(uint16_t baseFrequency, uint32_t
 	}
 
 	// otherwise we need to calculate the frequency
-	auto frequency = baseFrequency;
+	int32_t frequency = baseFrequency;
 
 	if (_cumulative) {
 		frequency += (loopCount * _totalAdjustment);

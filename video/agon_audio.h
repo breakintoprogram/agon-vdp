@@ -80,7 +80,7 @@ void init_audio() {
 // Channel enabled?
 //
 bool channelEnabled(uint8_t channel) {
-	return channel >= 0 && channel < MAX_AUDIO_CHANNELS && audio_channels[channel];
+	return channel < MAX_AUDIO_CHANNELS && audio_channels[channel];
 }
 
 // Play a note
@@ -130,7 +130,7 @@ void setWaveform(uint8_t channel, int8_t waveformType) {
 //
 uint8_t clearSample(uint8_t sampleIndex) {
 	debug_log("clearSample: sample %d\n\r", sampleIndex);
-	if (sampleIndex >= 0 && sampleIndex < MAX_AUDIO_SAMPLES) {
+	if (sampleIndex < MAX_AUDIO_SAMPLES) {
 		if (samples.find(sampleIndex) == samples.end()) {
 			debug_log("clearSample: sample %d not found\n\r", sampleIndex);
 			return 0;

@@ -51,7 +51,7 @@ uint8_t ADSRVolumeEnvelope::getVolume(uint8_t baseVolume, uint32_t elapsed, int3
 		return map(phaseTime, 0, this->_decay, baseVolume, sustainVolume);
 	}
 	phaseTime -= this->_decay;
-	auto sustainDuration = duration < 0 ? elapsed : duration - (this->_attack + this->_decay);
+	int32_t sustainDuration = duration < 0 ? elapsed : duration - (this->_attack + this->_decay);
 	if (sustainDuration < 0) sustainDuration = 0;
 	if (phaseTime < sustainDuration) {
 		return sustainVolume;

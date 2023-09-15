@@ -38,8 +38,8 @@ class VDUStreamProcessor {
 		std::shared_ptr<Stream> originalOutputStream;
 
 		int16_t readByte_t(uint16_t timeout);
-		uint32_t readWord_t(uint16_t timeout);
-		uint32_t read24_t(uint16_t timeout);
+		int32_t readWord_t(uint16_t timeout);
+		int32_t read24_t(uint16_t timeout);
 		uint8_t readByte_b();
 		uint32_t readLong_b();
 		void discardBytes(uint32_t length);
@@ -110,7 +110,7 @@ int16_t VDUStreamProcessor::readByte_t(uint16_t timeout = COMMS_TIMEOUT) {
 // Returns:
 // - Word value (0 to 65535) if 2 bytes read, otherwise -1
 //
-uint32_t VDUStreamProcessor::readWord_t(uint16_t timeout = COMMS_TIMEOUT) {
+int32_t VDUStreamProcessor::readWord_t(uint16_t timeout = COMMS_TIMEOUT) {
 	auto l = readByte_t(timeout);
 	if (l >= 0) {
 		auto h = readByte_t(timeout);
@@ -125,7 +125,7 @@ uint32_t VDUStreamProcessor::readWord_t(uint16_t timeout = COMMS_TIMEOUT) {
 // Returns:
 // - Value (0 to 16777215) if 3 bytes read, otherwise -1
 //
-uint32_t VDUStreamProcessor::read24_t(uint16_t timeout = COMMS_TIMEOUT) {
+int32_t VDUStreamProcessor::read24_t(uint16_t timeout = COMMS_TIMEOUT) {
 	auto l = readByte_t(timeout);
 	if (l >= 0) {
 		auto m = readByte_t(timeout);
