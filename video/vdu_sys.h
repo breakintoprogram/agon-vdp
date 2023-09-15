@@ -9,6 +9,7 @@
 #include "cursor.h"
 #include "graphics.h"
 #include "vdu_audio.h"
+#include "vdu_buffered.h"
 #include "vdu_sprites.h"
 
 extern void switchTerminalMode();				// Switch to terminal mode
@@ -115,6 +116,9 @@ void VDUStreamProcessor::vdu_sys_video() {
 		}	break;
 		case VDP_KEYSTATE: {			// VDU 23, 0, &88, repeatRate; repeatDelay; status
 			vdu_sys_keystate();
+		}	break;
+		case VDP_BUFFERED: {			// VDU 23, 0, &A0, bufferId; command, <args>
+			vdu_sys_buffered();
 		}	break;
 		case VDP_LOGICALCOORDS: {		// VDU 23, 0, &C0, n
 			auto b = readByte_t();		// Set logical coord mode

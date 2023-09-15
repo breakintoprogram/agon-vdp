@@ -8,15 +8,20 @@
 
 class VDUStreamProcessor {
 	public:
-		VDUStreamProcessor(Stream * stream) : stream(stream) {}
+		VDUStreamProcessor(std::shared_ptr<Stream> inputStream, std::shared_ptr<Stream> outputStream) :
+			inputStream(inputStream), outputStream(outputStream), originalOutputStream(outputStream) {}
+		VDUStreamProcessor(Stream *input) :
+			inputStream(std::shared_ptr<Stream>(input)), outputStream(inputStream), originalOutputStream(inputStream) {}
 		inline bool byteAvailable() {
-			return stream->available() > 0;
+			return inputStream->available() > 0;
 		}
 		inline uint8_t readByte() {
-			return stream->read();
+			return inputStream->read();
 		}
 		inline void writeByte(uint8_t b) {
-			stream->write(b);
+			if (outputStream) {
+				outputStream->write(b);
+			}
 		}
 		void send_packet(uint8_t code, uint16_t len, uint8_t data[]);
 
@@ -28,7 +33,9 @@ class VDUStreamProcessor {
 		void wait_eZ80();
 		void sendModeInformation();
 	private:
-		Stream * stream;
+		std::shared_ptr<Stream> inputStream;
+		std::shared_ptr<Stream> outputStream;
+		std::shared_ptr<Stream> originalOutputStream;
 
 		int16_t readByte_t(uint16_t timeout);
 		uint32_t readWord_t(uint16_t timeout);
@@ -71,6 +78,17 @@ class VDUStreamProcessor {
 
 		void vdu_sys_sprites(void);
 		void receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height);
+
+		void vdu_sys_buffered();
+		void bufferWrite(uint16_t bufferId);
+		void bufferCall(uint16_t bufferId);
+		void bufferClear(uint16_t bufferId);
+		void bufferCreate(uint16_t bufferId);
+		void setOutputStream(uint16_t bufferId);
+		uint16_t getBufferByte(uint16_t bufferId, uint32_t offset);
+		bool setBufferByte(uint8_t value, uint16_t bufferId, uint32_t offset);
+		void bufferAdjust(uint16_t bufferId);
+		void bufferConditionalCall(uint16_t bufferId);
 };
 
 // Read an unsigned byte from the serial port, with a timeout
@@ -124,7 +142,7 @@ uint32_t VDUStreamProcessor::read24_t(uint16_t timeout = COMMS_TIMEOUT) {
 // Read an unsigned byte from the serial port (blocking)
 //
 uint8_t VDUStreamProcessor::readByte_b() {
-	while (stream->available() == 0);
+	while (inputStream->available() == 0);
 	return readByte();
 }
 

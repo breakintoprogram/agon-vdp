@@ -44,6 +44,7 @@
 #define VDP_MODE				0x86	// Get screen dimensions
 #define VDP_RTC					0x87	// RTC
 #define VDP_KEYSTATE			0x88	// Keyboard repeat rate and LED status
+#define VDP_BUFFERED			0xA0	// Buffered commands
 #define VDP_LOGICALCOORDS		0xC0	// Switch BBC Micro style logical coords on and off
 #define VDP_LEGACYMODES			0xC1	// Switch VDP 1.03 compatible modes on and off
 #define VDP_SWITCHBUFFER		0xC3	// Double buffering control
@@ -116,6 +117,50 @@
 #define AUDIO_STATE_PLAY_LOOP	3		// Channel is in active note playing loop
 #define AUDIO_STATE_RELEASE		4		// Channel is releasing a note
 #define AUDIO_STATE_ABORT		5		// Channel is aborting a note
+
+// Buffered commands
+#define BUFFERED_WRITE			0x00	// Write to a numbered buffer
+#define BUFFERED_CALL			0x01	// Call buffered commands
+#define BUFFERED_CLEAR			0x02	// Clear buffered commands
+#define BUFFERED_CREATE			0x03	// Create a new empty buffer
+#define BUFFERED_SET_OUTPUT		0x04	// Set the output buffer
+#define BUFFERED_ADJUST			0x05	// Adjust buffered commands
+#define BUFFERED_CONDITIONAL	0x06	// Conditionally call a buffer
+#define BUFFERED_DEBUG_INFO		0x10	// Get debug info about a buffer
+
+// Adjust operation codes
+#define ADJUST_ADD				0x00	// Adjust: add
+#define ADJUST_ADD_CARRY		0x01	// Adjust: add with carry
+#define ADJUST_AND				0x02	// Adjust: AND
+#define ADJUST_OR				0x03	// Adjust: OR
+#define ADJUST_XOR				0x04	// Adjust: XOR
+#define ADJUST_SET				0x05	// Adjust: set new value (replace)
+#define ADJUST_NOT				0x06	// Adjust: NOT
+#define ADJUST_NEG				0x07	// Adjust: Negative
+
+// Adjust operation flags
+#define ADJUST_OP_MASK			0x0F	// operation code mask
+#define ADJUST_24BIT_OFFSETS	0x10	// offset values are 24-bit
+#define ADJUST_BUFFER_VALUE		0x20	// operand is a buffer fetched value
+#define ADJUST_MULTI_TARGET		0x40	// multiple target values will be adjusted
+#define ADJUST_MULTI_OPERAND	0x80	// multiple operand values used for adjustments
+
+// Conditional operation codes
+#define COND_EXISTS				0x00	// Conditional: exists (non-zero value)
+#define COND_NOT_EXISTS			0x01	// Conditional: NOT exists (zero value)
+#define COND_EQUAL				0x02	// Conditional: equal
+#define COND_NOT_EQUAL			0x03	// Conditional: not equal
+#define COND_LESS				0x04	// Conditional: less than
+#define COND_GREATER			0x05	// Conditional: greater than
+#define COND_LESS_EQUAL			0x06	// Conditional: less than or equal
+#define COND_GREATER_EQUAL		0x07	// Conditional: greater than or equal
+#define COND_AND				0x08	// Conditional: AND
+#define COND_OR					0x09	// Conditional: OR
+
+// Conditional operation flags
+#define COND_OP_MASK			0x0F	// conditional operation code mask
+#define COND_24BIT_OFFSETS		0x10	// offset values are 24-bit
+#define COND_BUFFER_VALUE		0x20	// value to compare is a buffer-fetched value
 
 // Viewport definitions
 #define VIEWPORT_TEXT			0		// Text viewport
