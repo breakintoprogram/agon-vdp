@@ -142,7 +142,7 @@ void VDUStreamProcessor::sendAudioStatus(uint8_t channel, uint8_t status) {
 //
 uint8_t VDUStreamProcessor::loadSample(uint8_t sampleIndex, uint32_t length) {
 	debug_log("free mem: %d\n\r", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-	if (sampleIndex >= 0 && sampleIndex < MAX_AUDIO_SAMPLES) {
+	if (sampleIndex < MAX_AUDIO_SAMPLES) {
 		debug_log("loadSample: sample %d - length %d\n\r", sampleIndex, length);
 		// Clear out existing sample
 		clearSample(sampleIndex);

@@ -82,6 +82,7 @@ void VDUStreamProcessor::vdu(uint8_t c) {
 			break;
 		case 0x1D:	// VDU_29
 			vdu_origin();
+			break;
 		case 0x1E:	// Move cursor to top left of the viewport
 			cursorHome();
 			break;

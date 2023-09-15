@@ -57,7 +57,7 @@ char getScreenChar(uint16_t px, uint16_t py) {
 
 	// Do some bounds checking first
 	//
-	if (px < 0 || py < 0 || px >= canvasW - 8 || py >= canvasH - 8) {
+	if (px >= canvasW - 8 || py >= canvasH - 8) {
 		return 0;
 	}
 
@@ -76,7 +76,7 @@ char getScreenChar(uint16_t px, uint16_t py) {
 	//
 	// Finally try and match with the character set array
 	//
-	for (uint8_t i = 32; i <= 255; i++) {
+	for (auto i = 32; i <= 255; i++) {
 		if (cmpChar(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {	
 			return i;		
 		}
@@ -164,7 +164,7 @@ fabgl::PaintOptions getPaintOptions(uint8_t mode, fabgl::PaintOptions priorPaint
 void setTextColour(uint8_t colour) {
 	uint8_t c = palette[colour % getVGAColourDepth()];
 
-	if (colour >= 0 && colour < 64) {
+	if (colour < 64) {
 		tfg = colourLookup[c];
 		debug_log("vdu_colour: tfg %d = %02X : %02X,%02X,%02X\n\r", colour, c, tfg.R, tfg.G, tfg.B);
 	}
@@ -182,8 +182,8 @@ void setTextColour(uint8_t colour) {
 void setGraphicsColour(uint8_t mode, uint8_t colour) {
 	uint8_t c = palette[colour % getVGAColourDepth()];
 
-	if (mode >= 0 && mode <= 6) {
-		if (colour >= 0 && colour < 64) {
+	if (mode <= 6) {
+		if (colour < 64) {
 			gfg = colourLookup[c];
 			debug_log("vdu_gcol: mode %d, gfg %d = %02X : %02X,%02X,%02X\n\r", mode, colour, c, gfg.R, gfg.G, gfg.B);
 		}

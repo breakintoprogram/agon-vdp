@@ -99,7 +99,7 @@ bool setTextViewport(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
 	if (x2 >= canvasW) x2 = canvasW - 1;
 	if (y2 >= canvasH) y2 = canvasH - 1;
 
-	if (x1 >= 0 && y1 >= 0 && x2 > x1 && y2 > y1) {
+	if (x2 > x1 && y2 > y1) {
 		textViewport = Rect(x1, y1, x2, y2);
 		useViewports = true;
 		return true;

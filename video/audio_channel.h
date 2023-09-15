@@ -135,8 +135,8 @@ void audio_channel::setWaveform(int8_t waveformType, std::shared_ptr<audio_chann
 		default:
 			// negative values indicate a sample number
 			if (waveformType < 0) {
-				int8_t sampleNum = -waveformType - 1;
-				if (sampleNum >= 0 && sampleNum < MAX_AUDIO_SAMPLES) {
+				uint8_t sampleNum = -waveformType - 1;
+				if (sampleNum < MAX_AUDIO_SAMPLES) {
 					debug_log("audio_driver: using sample %d for waveform (%d)\n\r", waveformType, sampleNum);
 					if (samples.find(sampleNum) != samples.end()) {
 						auto sample = samples.at(sampleNum);
