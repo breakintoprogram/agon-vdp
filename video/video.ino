@@ -43,6 +43,7 @@
 // 13/08/2023:					+ New video modes, mode change resets page mode
 // 05/09/2023:					+ New audio enhancements, improved mode change code
 // 12/09/2023:					+ Refactored
+// 17/09/2023:					+ Added ZDI mode
 
 #include <HardwareSerial.h>
 #include <fabgl.h>
@@ -53,6 +54,11 @@
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
+#define ZDI				1
+
+#if DEBUG == 1 || SERIALKB == 1 || ZDI == 1
+HardwareSerial DBGSerial(0);
+#endif 
 
 #include "agon.h"								// Configuration file
 #include "agon_keyboard.h"						// Keyboard support
@@ -65,16 +71,15 @@
 bool					terminalMode = false;	// Terminal mode
 fabgl::Terminal			Terminal;				// Used for CP/M mode
 VDUStreamProcessor *	processor;				// VDU Stream Processor
-
-#if DEBUG == 1 || SERIALKB == 1
-HardwareSerial DBGSerial(0);
-#endif 
+#if ZDI==1
+	#include "zdi.h"
+#endif
 
 void setup() {
 	disableCore0WDT(); delay(200);				// Disable the watchdog timers
 	disableCore1WDT(); delay(200);
-	#if DEBUG == 1 || SERIALKB == 1
-	DBGSerial.begin(500000, SERIAL_8N1, 3, 1);
+	#if DEBUG == 1 || SERIALKB == 1 || ZDI == 1
+	DBGSerial.begin(460800, SERIAL_8N1, 3, 1); // not stable at 500000
 	#endif 
 	setupVDPProtocol();
 	processor = new VDUStreamProcessor(&VDPSerial);
@@ -202,6 +207,10 @@ void print(char const * text) {
 	for (auto i = 0; i < strlen(text); i++) {
 		processor->vdu(text[i]);
 	}
+	#if ZDI==1
+		// echo ESP32 characters to the debug host
+		DBGSerial.print(text);
+	#endif
 }
 
 void printFmt(const char *format, ...) {

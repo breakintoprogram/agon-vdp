@@ -46,6 +46,13 @@ void setKeyboardLayout(uint8_t region) {
 	}
 }
 
+#if ZDI==1
+// forward declarations
+bool zdi_mode ();
+void zdi_enter ();
+void zdi_process_cmd (uint8_t key);
+#endif 
+
 // Get keyboard key presses
 // returns true only if there's a new keypress update
 //
@@ -53,14 +60,34 @@ bool getKeyboardKey(uint8_t *keycode, uint8_t *modifiers, uint8_t *vk, uint8_t *
 	auto kb = getKeyboard();
 	fabgl::VirtualKeyItem item;
 
-	#if SERIALKB == 1
+	#if SERIALKB == 1 || ZDI == 1
 	if (DBGSerial.available()) {
 		_keycode = DBGSerial.read();
-		*keycode = _keycode;
-		*modifiers = 0;
-		*vk = 0;
-		*down = 0;
-		return true;
+		#if ZDI == 1
+		if (!zdi_mode() && _keycode==0x1a) 
+        {
+            // CTRL-Z?
+            zdi_enter();
+        }
+        else
+        {
+            if (zdi_mode()) {
+                // handle keys on the ESP32
+                zdi_process_cmd (_keycode);
+				return false;
+			}
+            else
+            {
+		#endif
+                *keycode = _keycode;
+				*modifiers = 0;
+				*vk = 0;
+				*down = 1;
+				return true;
+		#if ZDI == 1
+            }
+        }
+		#endif
 	}
 	#endif
 	
