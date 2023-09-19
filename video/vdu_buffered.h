@@ -201,7 +201,7 @@ bool VDUStreamProcessor::setBufferByte(uint8_t value, uint16_t bufferId, uint32_
 // VDU 23, 0, &A0, bufferId; 5, operation, offset; [count;] [operand]: Adjust buffer
 // This is used for adjusting the contents of a buffer
 // It can be used to overwrite bytes, insert bytes, increment bytes, etc
-// Basic operation are add, add-with-carry, and, or, xor, set, not, neg
+// Basic operation are not, neg, set, add, add-with-carry, and, or, xor
 // Upper bits of operation byte are used to indicate:
 // - whether to use a long offset (24-bit) or short offset (16-bit)
 // - whether the operand is a buffer-originated value or an immediate value
@@ -216,8 +216,8 @@ void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 	bool useMultiTarget = command & ADJUST_MULTI_TARGET;
 	bool useMultiOperand = command & ADJUST_MULTI_OPERAND;
 	uint8_t op = command & ADJUST_OP_MASK;
-	// Operators that are NOT or greater do not have an operand value
-	bool hasOperand = op < ADJUST_NOT;
+	// Operators that are greater than NEG have an operand value
+	bool hasOperand = op > ADJUST_NEG;
 
 	auto offset = use24bitOffsets ? read24_t() : readWord_t();
 	auto operandBufferId = 0;
@@ -276,6 +276,15 @@ void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 		}
 
 		switch (op) {
+			case ADJUST_NOT: {
+				sourceValue = ~sourceValue;
+			}	break;
+			case ADJUST_NEG: {
+				sourceValue = -sourceValue;
+			}	break;
+			case ADJUST_SET: {
+				sourceValue = operandValue;
+			}	break;
 			case ADJUST_ADD: {
 				// byte-wise add - no carry, so bytes may overflow
 				sourceValue = sourceValue + operandValue;
@@ -300,15 +309,6 @@ void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 			}	break;
 			case ADJUST_XOR: {
 				sourceValue = sourceValue ^ operandValue;
-			}	break;
-			case ADJUST_SET: {
-				sourceValue = operandValue;
-			}	break;
-			case ADJUST_NOT: {
-				sourceValue = ~sourceValue;
-			}	break;
-			case ADJUST_NEG: {
-				sourceValue = -sourceValue;
 			}	break;
 		}
 
