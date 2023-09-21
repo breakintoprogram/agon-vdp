@@ -67,6 +67,9 @@ void VDUStreamProcessor::vdu_sys() {
 			case 0x1B: {					// VDU 23, 27
 				vdu_sys_sprites();			// Sprite system control
 			}	break;
+			case 0x1C: {					// VDU 23, 28
+				vdu_sys_hexload();
+			}	break;
 		}
 	}
 	//

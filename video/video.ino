@@ -53,6 +53,7 @@
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
+#define SERIALBAUDRATE 115200
 
 #include "agon.h"								// Configuration file
 #include "agon_keyboard.h"						// Keyboard support
@@ -61,21 +62,18 @@
 #include "cursor.h"								// Cursor support
 #include "vdp_protocol.h"						// VDP Protocol
 #include "vdu_stream_processor.h"
+#include "hexload.h"
 
 bool					terminalMode = false;	// Terminal mode
 fabgl::Terminal			Terminal;				// Used for CP/M mode
 VDUStreamProcessor *	processor;				// VDU Stream Processor
 
-#if DEBUG == 1 || SERIALKB == 1
 HardwareSerial DBGSerial(0);
-#endif 
 
 void setup() {
 	disableCore0WDT(); delay(200);				// Disable the watchdog timers
 	disableCore1WDT(); delay(200);
-	#if DEBUG == 1 || SERIALKB == 1
-	DBGSerial.begin(500000, SERIAL_8N1, 3, 1);
-	#endif 
+	DBGSerial.begin(SERIALBAUDRATE, SERIAL_8N1, 3, 1);
 	setupVDPProtocol();
 	processor = new VDUStreamProcessor(&VDPSerial);
 	processor->wait_eZ80();
