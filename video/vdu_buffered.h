@@ -81,11 +81,21 @@ void VDUStreamProcessor::bufferWrite(uint16_t bufferId) {
 //
 void VDUStreamProcessor::bufferCall(uint16_t bufferId) {
 	debug_log("bufferCall: buffer %d\n\r", bufferId);
+	if (bufferId == 65535) {
+		// buffer ID of -1 (65535) is used as a "null output" stream
+		return;
+	}
+	if (bufferId == id) {
+		// this is our current buffer ID, so rewind the stream
+		debug_log("bufferCall: rewinding stream\n\r");
+		((MultiBufferStream *)inputStream.get())->rewind();
+		return;
+	}
 	if (buffers.find(bufferId) != buffers.end()) {
 		auto streams = buffers[bufferId];
 		auto multiBufferStream = make_shared_psram<MultiBufferStream>(streams);
 		// TODO consider - should this use originalOutputStream?
-		auto streamProcessor = make_unique_psram<VDUStreamProcessor>(multiBufferStream, outputStream);
+		auto streamProcessor = make_unique_psram<VDUStreamProcessor>(multiBufferStream, outputStream, bufferId);
 		streamProcessor->processAllAvailable();
 	} else {
 		debug_log("bufferCall: buffer %d not found\n\r", bufferId);
@@ -119,8 +129,8 @@ void VDUStreamProcessor::bufferCreate(uint16_t bufferId) {
 		// timeout
 		return;
 	}
-	if (bufferId == 0) {
-		debug_log("bufferCreate: bufferId 0 is reserved\n\r");
+	if (bufferId == 0 || bufferId == 65535) {
+		debug_log("bufferCreate: bufferId %d is reserved\n\r", bufferId);
 		return;
 	}
 	if (buffers.find(bufferId) != buffers.end()) {
