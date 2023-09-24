@@ -15,6 +15,7 @@ class MultiBufferStream : public Stream {
 		int read();
 		int peek();
 		size_t write(uint8_t b);
+		void rewind();
 	private:
 		std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>> buffers;
 		std::shared_ptr<BufferStream> getBuffer();
@@ -23,10 +24,7 @@ class MultiBufferStream : public Stream {
 
 MultiBufferStream::MultiBufferStream(std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>> buffers) : buffers(buffers) {
 	// rewind all buffers, in case they've been used before
-	for (auto buffer : buffers) {
-		buffer->rewind();
-	}
-	currentBufferIndex = 0;
+	rewind();
 }
 
 int MultiBufferStream::available() {
@@ -50,6 +48,13 @@ int MultiBufferStream::peek() {
 size_t MultiBufferStream::write(uint8_t b) {
 	// write is not supported
 	return 0;
+}
+
+void MultiBufferStream::rewind() {
+	for (auto buffer : buffers) {
+		buffer->rewind();
+	}
+	currentBufferIndex = 0;
 }
 
 inline std::shared_ptr<BufferStream> MultiBufferStream::getBuffer() {

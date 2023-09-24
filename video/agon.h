@@ -129,14 +129,14 @@
 #define BUFFERED_DEBUG_INFO		0x10	// Get debug info about a buffer
 
 // Adjust operation codes
-#define ADJUST_ADD				0x00	// Adjust: add
-#define ADJUST_ADD_CARRY		0x01	// Adjust: add with carry
-#define ADJUST_AND				0x02	// Adjust: AND
-#define ADJUST_OR				0x03	// Adjust: OR
-#define ADJUST_XOR				0x04	// Adjust: XOR
-#define ADJUST_SET				0x05	// Adjust: set new value (replace)
-#define ADJUST_NOT				0x06	// Adjust: NOT
-#define ADJUST_NEG				0x07	// Adjust: Negative
+#define ADJUST_NOT				0x00	// Adjust: NOT
+#define ADJUST_NEG				0x01	// Adjust: Negative
+#define ADJUST_SET				0x02	// Adjust: set new value (replace)
+#define ADJUST_ADD				0x03	// Adjust: add
+#define ADJUST_ADD_CARRY		0x04	// Adjust: add with carry
+#define ADJUST_AND				0x05	// Adjust: AND
+#define ADJUST_OR				0x06	// Adjust: OR
+#define ADJUST_XOR				0x07	// Adjust: XOR
 
 // Adjust operation flags
 #define ADJUST_OP_MASK			0x0F	// operation code mask

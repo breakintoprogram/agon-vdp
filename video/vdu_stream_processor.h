@@ -8,8 +8,8 @@
 
 class VDUStreamProcessor {
 	public:
-		VDUStreamProcessor(std::shared_ptr<Stream> inputStream, std::shared_ptr<Stream> outputStream) :
-			inputStream(inputStream), outputStream(outputStream), originalOutputStream(outputStream) {}
+		VDUStreamProcessor(std::shared_ptr<Stream> inputStream, std::shared_ptr<Stream> outputStream, uint16_t bufferId) :
+			inputStream(inputStream), outputStream(outputStream), originalOutputStream(outputStream), id(bufferId) {}
 		VDUStreamProcessor(Stream *input) :
 			inputStream(std::shared_ptr<Stream>(input)), outputStream(inputStream), originalOutputStream(inputStream) {}
 		inline bool byteAvailable() {
@@ -32,6 +32,8 @@ class VDUStreamProcessor {
 
 		void wait_eZ80();
 		void sendModeInformation();
+
+		uint16_t id = 65535;
 	private:
 		std::shared_ptr<Stream> inputStream;
 		std::shared_ptr<Stream> outputStream;
@@ -160,9 +162,8 @@ uint32_t VDUStreamProcessor::readLong_b() {
 // Discard a given number of bytes from input stream
 //
 void VDUStreamProcessor::discardBytes(uint32_t length) {
-	while (length > 0) {
-		readByte_t(0);
-		length--;
+	for (uint32_t i = 0; i < length; i++) {
+		readByte_b();
 	}
 }
 
