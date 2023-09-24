@@ -132,10 +132,13 @@ inline bool isDoubleBuffered() {
 }
 
 // Swap to other buffer if we're in a double-buffered mode
+// Always waits for VSYNC
 //
 void switchBuffer() {
 	if (isDoubleBuffered()) {
 		canvas->swapBuffers();
+	} else {
+		waitPlotCompletion(true);
 	}
 }
 
