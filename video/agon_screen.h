@@ -131,6 +131,12 @@ inline bool isDoubleBuffered() {
 	return _VGAController->isDoubleBuffered();
 }
 
+// Wait for plot completion
+//
+inline void waitPlotCompletion(bool waitForVSync = false) {
+	canvas->waitCompletion(waitForVSync);
+}
+
 // Swap to other buffer if we're in a double-buffered mode
 // Always waits for VSYNC
 //
@@ -140,12 +146,6 @@ void switchBuffer() {
 	} else {
 		waitPlotCompletion(true);
 	}
-}
-
-// Wait for plot completion
-//
-inline void waitPlotCompletion(bool waitForVSync = false) {
-	canvas->waitCompletion(waitForVSync);
 }
 
 #endif // AGON_SCREEN_H
