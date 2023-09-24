@@ -151,12 +151,10 @@ uint8_t VDUStreamProcessor::readByte_b() {
 // Read an unsigned word from the serial port (blocking)
 //
 uint32_t VDUStreamProcessor::readLong_b() {
-  uint32_t temp;
-  temp  =  readByte_b();		// LSB;
-  temp |= (readByte_b() << 8);
-  temp |= (readByte_b() << 16);
-  temp |= (readByte_b() << 24);
-  return temp;
+	uint32_t result;
+	while(inputStream->available() < sizeof(uint32_t));
+	inputStream->readBytes((uint8_t*)&result, sizeof(uint32_t));
+  	return result;
 }
 
 // Discard a given number of bytes from input stream
