@@ -22,6 +22,7 @@ uint8_t			fontW;							// Font width
 uint8_t			fontH;							// Font height
 uint8_t			videoMode;						// Current video mode
 bool			legacyModes = false;			// Default legacy modes being false
+bool			rectangularPixels = false;		// Pixels are square by default
 uint8_t			palette[64];					// Storage for the palette
 
 
@@ -251,13 +252,11 @@ void setGraphicsOptions(uint8_t mode) {
 		case 1: {
 			// use fg colour
 			canvas->setPenColor(gfg);
-			canvas->setBrushColor(gfg);
 		} break;
 		case 2: break;	// logical inverse colour (not suported)
 		case 3: {
 			// use bg colour
 			canvas->setPenColor(gbg);
-			canvas->setBrushColor(gbg);
 		} break;
 	}
 	canvas->setPaintOptions(gpo);
@@ -345,11 +344,11 @@ void plotParallelogram() {
 // Circle plot
 //
 void plotCircle(bool filled = false) {
-	auto size = 2 * sqrt(rp1.X * rp1.X + rp1.Y * rp1.Y);
+	auto size = 2 * sqrt(rp1.X * rp1.X + (rp1.Y * rp1.Y * (rectangularPixels ? 4 : 1)));
 	if (filled) {
-		canvas->fillEllipse(p2.X, p2.Y, size, size);
+		canvas->fillEllipse(p2.X, p2.Y, size, rectangularPixels ? size / 2 : size);
 	} else {
-		canvas->drawEllipse(p2.X, p2.Y, size, size);
+		canvas->drawEllipse(p2.X, p2.Y, size, rectangularPixels ? size / 2 : size);
 	}
 }
 
@@ -628,6 +627,8 @@ int8_t change_mode(uint8_t mode) {
 	setCharacterOverwrite(true);
 	canvas->setPenWidth(1);
 	setCanvasWH(canvas->getWidth(), canvas->getHeight());
+	// simple heuristic to determine rectangular pixels
+	rectangularPixels = ((float)canvasW / (float)canvasH) > 2;
 	fontW = canvas->getFontInfo()->width;
 	fontH = canvas->getFontInfo()->height;
 	viewportReset();
