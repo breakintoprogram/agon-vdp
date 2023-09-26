@@ -17,6 +17,22 @@ extern void switchTerminalMode();				// Switch to terminal mode
 bool			initialised = false;			// Is the system initialised yet?
 ESP32Time		rtc(0);							// The RTC
 
+// Buffer for serialised time
+//
+typedef union {
+	struct {
+		uint32_t month : 4;
+		uint32_t day : 5;
+		uint32_t dayOfWeek : 3;
+		uint32_t dayOfYear : 9;
+		uint32_t hour : 5;
+		uint32_t minute : 6;
+		uint8_t  second;
+		uint8_t  year;
+	};
+	uint8_t packet[6];
+} vdp_time_t;
+
 // Wait for eZ80 to initialise
 //
 void VDUStreamProcessor::wait_eZ80() {
@@ -198,17 +214,18 @@ void VDUStreamProcessor::sendScreenPixel(uint16_t x, uint16_t y) {
 // VDU 23, 0, &87, 0: Send TIME information (from ESP32 RTC)
 //
 void VDUStreamProcessor::sendTime() {
-	uint8_t packet[] = {
-		(uint8_t) (rtc.getYear() - EPOCH_YEAR),	// 0 - 255
-		(uint8_t) rtc.getMonth(),			// 0 - 11
-		(uint8_t) rtc.getDay(),				// 1 - 31
-		rtc.getDayofYear(),		// 0 - 365 - TODO this is a bug as it won't fit in 8 bits
-		(uint8_t) rtc.getDayofWeek(),		// 0 - 6
-		(uint8_t) rtc.getHour(true),		// 0 - 23
-		(uint8_t) rtc.getMinute(),			// 0 - 59
-		(uint8_t) rtc.getSecond(),			// 0 - 59
-	};
-	send_packet(PACKET_RTC, sizeof packet, packet);
+	vdp_time_t	time;
+
+	time.year = rtc.getYear() - EPOCH_YEAR;	// 0 - 255
+	time.month = rtc.getMonth();			// 0 - 11
+	time.day = rtc.getDay();				// 1 - 31
+	time.dayOfYear = rtc.getDayofYear();	// 0 - 365
+	time.dayOfWeek = rtc.getDayofWeek();	// 0 - 6
+	time.hour = rtc.getHour(true);			// 0 - 23
+	time.minute = rtc.getMinute();			// 0 - 59
+	time.second = rtc.getSecond();			// 0 - 59
+
+	send_packet(PACKET_RTC, sizeof time.packet, time.packet);
 }
 
 // VDU 23, 0, &86: Send MODE information (screen details)
