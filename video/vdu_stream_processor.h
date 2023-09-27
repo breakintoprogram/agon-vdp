@@ -87,7 +87,7 @@ class VDUStreamProcessor {
 		void bufferClear(uint16_t bufferId);
 		void bufferCreate(uint16_t bufferId);
 		void setOutputStream(uint16_t bufferId);
-		uint16_t getBufferByte(uint16_t bufferId, uint32_t offset);
+		int16_t getBufferByte(uint16_t bufferId, uint32_t offset);
 		bool setBufferByte(uint8_t value, uint16_t bufferId, uint32_t offset);
 		void bufferAdjust(uint16_t bufferId);
 		void bufferConditionalCall(uint16_t bufferId);
