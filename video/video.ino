@@ -53,7 +53,7 @@
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
-#define SERIALBAUDRATE 115200
+#define SERIALBAUDRATE	115200
 
 #include "agon.h"								// Configuration file
 #include "agon_keyboard.h"						// Keyboard support
