@@ -67,9 +67,11 @@ void VDUStreamProcessor::bufferWrite(uint16_t bufferId) {
 
 	debug_log("bufferWrite: storing stream into buffer %d, length %d\n\r", bufferId, length);
 
-	for (auto i = 0; i < length; i++) {
-		auto data = readByte_b();
-		bufferStream->writeBufferByte(data, i);
+	auto remaining = readIntoBuffer(bufferStream->getBuffer(), length);
+	if (remaining > 0) {
+		// NB this discards the data we just read
+		debug_log("bufferWrite: timed out write for buffer %d (%d bytes remaining)\n\r", bufferId, remaining);
+		return;
 	}
 
 	buffers[bufferId].push_back(std::move(bufferStream));

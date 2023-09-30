@@ -43,7 +43,7 @@ class VDUStreamProcessor {
 		int32_t readWord_t(uint16_t timeout);
 		int32_t read24_t(uint16_t timeout);
 		uint8_t readByte_b();
-		uint32_t readLong_b();
+		uint32_t readIntoBuffer(uint8_t * buffer, uint32_t length, uint16_t timeout);
 		void discardBytes(uint32_t length);
 
 		void vdu_colour();
@@ -151,18 +151,43 @@ uint8_t VDUStreamProcessor::readByte_b() {
 	return readByte();
 }
 
-// Read an unsigned word from the serial port (blocking)
+// Read a given number of bytes from the serial port into a buffer
+// Returns number of remaining bytes
+// which should be zero if all bytes were read
+// but will be non-zero if the read timed out
 //
-uint32_t VDUStreamProcessor::readLong_b() {
-	uint32_t result;
-	while(inputStream->available() < sizeof(uint32_t));
-	inputStream->readBytes((uint8_t*)&result, sizeof(uint32_t));
-  	return result;
+uint32_t VDUStreamProcessor::readIntoBuffer(uint8_t * buffer, uint32_t length, uint16_t timeout = COMMS_TIMEOUT) {
+	uint32_t remaining = length;
+	auto t = xTaskGetTickCountFromISR();
+	auto now = t;
+	auto timeCheck = pdMS_TO_TICKS(timeout);
+
+	while (remaining > 0) {
+		now = xTaskGetTickCountFromISR();
+		if (now - t > timeCheck) {
+			debug_log("readIntoBuffer: timed out\n\r");
+			return remaining;
+		}
+		auto available = inputStream->available();
+		if (available > 0) {
+			if (available > remaining) {
+				available = remaining;
+			}
+			// debug_log("readIntoBuffer: reading %d bytes\n\r", available);
+			inputStream->readBytes(buffer, available);
+			buffer += available;
+			remaining -= available;
+			t = now;
+		}
+	}
+	return remaining;
 }
 
 // Discard a given number of bytes from input stream
 //
 void VDUStreamProcessor::discardBytes(uint32_t length) {
+	// TODO replace this with a non-blocking (timeout) version
+	// and return the number of bytes we failed to discard
 	for (uint32_t i = 0; i < length; i++) {
 		readByte_b();
 	}

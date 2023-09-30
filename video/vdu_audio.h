@@ -152,7 +152,12 @@ uint8_t VDUStreamProcessor::loadSample(uint8_t sampleIndex, uint32_t length) {
 
 		if (data) {
 			// read data into buffer
-			for (auto n = 0; n < length; n++) sample->data[n] = readByte_b();
+			auto remaining = readIntoBuffer((uint8_t *)data, length);
+			if (remaining != 0) {
+				// Failed to read all data
+				debug_log("vdu_sys_audio: sample %d - data discarded, failed to read all data\n\r", sampleIndex);
+				return 0;
+			}
 			samples[sampleIndex] = sample;
 			debug_log("vdu_sys_audio: sample %d - data loaded, length %d\n\r", sampleIndex, sample->length);
 			return 1;
