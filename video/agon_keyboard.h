@@ -60,10 +60,20 @@ bool getKeyboardKey(uint8_t *keycode, uint8_t *modifiers, uint8_t *vk, uint8_t *
 	auto kb = getKeyboard();
 	fabgl::VirtualKeyItem item;
 
-	#if SERIALKB == 1 || ZDI == 1
+	#if SERIALKB == 1
 	if (DBGSerial.available()) {
 		_keycode = DBGSerial.read();
-		#if ZDI == 1
+		*keycode = _keycode;
+		*modifiers = 0;
+		*vk = 0;
+		*down = 1;
+		return true;
+	}
+	#endif
+
+	#if ZDI == 1
+	if (DBGSerial.available()) {
+		_keycode = DBGSerial.read();
 		if (!zdi_mode() && _keycode==0x1a) 
         {
             // CTRL-Z?
@@ -78,19 +88,16 @@ bool getKeyboardKey(uint8_t *keycode, uint8_t *modifiers, uint8_t *vk, uint8_t *
 			}
             else
             {
-		#endif
                 *keycode = _keycode;
 				*modifiers = 0;
 				*vk = 0;
 				*down = 1;
 				return true;
-		#if ZDI == 1
             }
         }
-		#endif
 	}
 	#endif
-	
+
 	if (kb->getNextVirtualKey(&item, 0)) {
 		if (item.down) {
 			switch (item.vk) {

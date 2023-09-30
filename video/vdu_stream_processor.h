@@ -189,10 +189,6 @@ void VDUStreamProcessor::processAllAvailable() {
 void VDUStreamProcessor::processNext() {
 	if (byteAvailable()) {
 		char ch = readByte();
-		#if ZDI==1 || SERIALKB == 1
-			// echo EZ80 characters to the debug host
-			DBGSerial.print (ch);
-		#endif
 		vdu(ch);
 	}
 }

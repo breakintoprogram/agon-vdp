@@ -56,6 +56,8 @@
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
 #define ZDI				1
 
+#define DEBUG_SERIAL_BAUDRATE 460800			// or 500000
+
 #if DEBUG == 1 || SERIALKB == 1 || ZDI == 1
 HardwareSerial DBGSerial(0);
 #endif 
@@ -79,7 +81,7 @@ void setup() {
 	disableCore0WDT(); delay(200);				// Disable the watchdog timers
 	disableCore1WDT(); delay(200);
 	#if DEBUG == 1 || SERIALKB == 1 || ZDI == 1
-	DBGSerial.begin(460800, SERIAL_8N1, 3, 1); // not stable at 500000
+	DBGSerial.begin(DEBUG_SERIAL_BAUDRATE, SERIAL_8N1, 3, 1); 
 	#endif 
 	setupVDPProtocol();
 	processor = new VDUStreamProcessor(&VDPSerial);
@@ -207,10 +209,6 @@ void print(char const * text) {
 	for (auto i = 0; i < strlen(text); i++) {
 		processor->vdu(text[i]);
 	}
-	#if ZDI==1
-		// echo ESP32 characters to the debug host
-		DBGSerial.print(text);
-	#endif
 }
 
 void printFmt(const char *format, ...) {
