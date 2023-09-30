@@ -56,7 +56,7 @@
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
 #define ZDI				1
 
-#define DEBUG_SERIAL_BAUDRATE 460800			// or 500000
+#define SERIALBAUDRATE 460800			// or 500000
 
 #if DEBUG == 1 || SERIALKB == 1 || ZDI == 1
 HardwareSerial DBGSerial(0);
@@ -81,7 +81,7 @@ void setup() {
 	disableCore0WDT(); delay(200);				// Disable the watchdog timers
 	disableCore1WDT(); delay(200);
 	#if DEBUG == 1 || SERIALKB == 1 || ZDI == 1
-	DBGSerial.begin(DEBUG_SERIAL_BAUDRATE, SERIAL_8N1, 3, 1); 
+	DBGSerial.begin(SERIALBAUDRATE, SERIAL_8N1, 3, 1); 
 	#endif 
 	setupVDPProtocol();
 	processor = new VDUStreamProcessor(&VDPSerial);
