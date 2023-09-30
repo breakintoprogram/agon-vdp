@@ -131,18 +131,28 @@ void VDUStreamProcessor::receiveBitmap(uint8_t cmd, uint16_t width, uint16_t hei
 	//
 	// Allocate new heap data
 	//
-	void * dataptr = PreferPSRAMAlloc(sizeof(uint32_t)*width*height);
+	uint32_t size = sizeof(uint32_t) * width * height;
+	void * dataptr = PreferPSRAMAlloc(size);
 
 	if (dataptr != NULL) {                  
 		if (cmd == 1) {
 			//
 			// Read data to the new databuffer
 			//
-			for (auto n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = readLong_b();  
+			auto remaining = readIntoBuffer((uint8_t *)dataptr, size);
+			if (remaining > 0) {
+				debug_log("vdu_sys_sprites: bitmap %d - failed to receive all bitmap data (%d remaining)\n\r", getCurrentBitmap(), remaining);
+				return;
+			}
 			debug_log("vdu_sys_sprites: bitmap %d - data received - width %d, height %d\n\r", getCurrentBitmap(), width, height);
 		}
 		if (cmd == 2) {
-			uint32_t color = readLong_b();
+			uint32_t color;
+			auto remaining = readIntoBuffer((uint8_t *)&color, sizeof(uint32_t));
+			if (remaining > 0) {
+				debug_log("vdu_sys_sprites: failed to receive color data\n\r");
+				return;
+			}
 			//
 			// Define single color
 			//

@@ -163,9 +163,13 @@ void VDUStreamProcessor::vdu_sys_video() {
 // VDU 23, 0, &80, <echo>: Send a general poll/echo byte back to MOS
 //
 void VDUStreamProcessor::sendGeneralPoll() {
-	auto b = readByte_b();
+	auto b = readByte_t();
+	if (b == -1) {
+		debug_log("sendGeneralPoll: Timeout\n\r");
+		return;
+	}
 	uint8_t packet[] = {
-		b,
+		(uint8_t) (b & 0xFF),
 	};
 	send_packet(PACKET_GP, sizeof packet, packet);
 	initialised = true;	
