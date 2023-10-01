@@ -5,6 +5,7 @@
 #include <Stream.h>
 
 #include "agon.h"
+#include "types.h"
 
 class VDUStreamProcessor {
 	public:
@@ -44,7 +45,7 @@ class VDUStreamProcessor {
 		int32_t read24_t(uint16_t timeout);
 		uint8_t readByte_b();
 		uint32_t readIntoBuffer(uint8_t * buffer, uint32_t length, uint16_t timeout);
-		void discardBytes(uint32_t length);
+		uint32_t discardBytes(uint32_t length, uint16_t timeout);
 
 		void vdu_colour();
 		void vdu_gcol();
@@ -184,13 +185,25 @@ uint32_t VDUStreamProcessor::readIntoBuffer(uint8_t * buffer, uint32_t length, u
 }
 
 // Discard a given number of bytes from input stream
+// Returns 0 on success, or the number of bytes remaining if timed out
 //
-void VDUStreamProcessor::discardBytes(uint32_t length) {
-	// TODO replace this with a non-blocking (timeout) version
-	// and return the number of bytes we failed to discard
-	for (uint32_t i = 0; i < length; i++) {
-		readByte_b();
+uint32_t VDUStreamProcessor::discardBytes(uint32_t length, uint16_t timeout = COMMS_TIMEOUT) {
+	uint32_t remaining = length;
+	auto bufferSize = 64;
+	auto readSize = bufferSize;
+	auto buffer = make_unique_psram_array<uint8_t>(bufferSize);
+
+	while (remaining > 0) {
+		if (remaining < readSize) {
+			readSize = remaining;
+		}
+		if (readIntoBuffer(buffer.get(), readSize, timeout) != 0) {
+			// timed out
+			return remaining;
+		}
+		remaining -= readSize;
 	}
+	return remaining;
 }
 
 // Send a packet of data to the MOS
