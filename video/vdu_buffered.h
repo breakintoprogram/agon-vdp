@@ -20,7 +20,8 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 
 	switch (command) {
 		case BUFFERED_WRITE: {
-			bufferWrite(bufferId);
+			auto length = readWord_t(); if (length == -1) return;
+			bufferWrite(bufferId, length);
 		}	break;
 		case BUFFERED_CALL: {
 			bufferCall(bufferId);
@@ -29,7 +30,8 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 			bufferClear(bufferId);
 		}	break;
 		case BUFFERED_CREATE: {
-			bufferCreate(bufferId);
+			auto size = readWord_t(); if (size == -1) return;
+			bufferCreate(bufferId, size);
 		}	break;
 		case BUFFERED_SET_OUTPUT: {
 			setOutputStream(bufferId);
@@ -37,8 +39,34 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 		case BUFFERED_ADJUST: {
 			bufferAdjust(bufferId);
 		}	break;
-		case BUFFERED_CONDITIONAL: {
-			bufferConditionalCall(bufferId);
+		case BUFFERED_COND_CALL: {
+			// VDU 23, 0, &A0, bufferId; 6, <conditional arguments>  : Conditional call
+			if (bufferConditional()) {
+				bufferCall(bufferId);
+			}
+		}	break;
+		case BUFFERED_JUMP: {
+			bufferJump(bufferId);
+		}	break;
+		case BUFFERED_COND_JUMP: {
+			// VDU 23, 0, &A0, bufferId; 9, <conditional arguments>  : Conditional jump
+			if (bufferConditional()) {
+				bufferJump(bufferId);
+			}
+		}	break;
+		case BUFFERED_OFFSET_JUMP: {
+			// TODO implement
+			debug_log("vdu_sys_buffered: offset jump not implemented\n\r");
+		}	break;
+		case BUFFERED_OFFSET_COND_JUMP: {
+			// TODO implement
+			debug_log("vdu_sys_buffered: offset conditional jump not implemented\n\r");
+		}	break;
+		case BUFFERED_COPY: {
+			bufferCopy(bufferId);
+		}	break;
+		case BUFFERED_CONSOLIDATE: {
+			bufferConsolidate(bufferId);
 		}	break;
 		case BUFFERED_DEBUG_INFO: {
 			debug_log("vdu_sys_buffered: buffer %d, %d streams stored\n\r", bufferId, buffers[bufferId].size());
@@ -61,8 +89,7 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 // This adds a new stream to the given bufferId
 // allowing a single bufferId to store multiple streams of data
 //
-void VDUStreamProcessor::bufferWrite(uint16_t bufferId) {
-	auto length = readWord_t();
+void VDUStreamProcessor::bufferWrite(uint16_t bufferId, uint32_t length) {
 	auto bufferStream = make_shared_psram<BufferStream>(length);
 
 	debug_log("bufferWrite: storing stream into buffer %d, length %d\n\r", bufferId, length);
@@ -96,6 +123,7 @@ void VDUStreamProcessor::bufferCall(uint16_t bufferId) {
 	if (buffers.find(bufferId) != buffers.end()) {
 		auto streams = buffers[bufferId];
 		auto multiBufferStream = make_shared_psram<MultiBufferStream>(streams);
+		debug_log("bufferCall: processing %d streams\n\r", streams.size());
 		// TODO consider - should this use originalOutputStream?
 		auto streamProcessor = make_unique_psram<VDUStreamProcessor>(multiBufferStream, outputStream, bufferId);
 		streamProcessor->processAllAvailable();
@@ -125,12 +153,7 @@ void VDUStreamProcessor::bufferClear(uint16_t bufferId) {
 // VDU 23, 0, &A0, bufferId; 3, size; : Create a writeable buffer
 // This is used for creating buffers to redirect output to
 //
-void VDUStreamProcessor::bufferCreate(uint16_t bufferId) {
-	auto size = readWord_t();
-	if (size == -1) {
-		// timeout
-		return;
-	}
+void VDUStreamProcessor::bufferCreate(uint16_t bufferId, uint32_t size) {
 	if (bufferId == 0 || bufferId == 65535) {
 		debug_log("bufferCreate: bufferId %d is reserved\n\r", bufferId);
 		return;
@@ -349,13 +372,14 @@ void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 	debug_log("bufferAdjust: result %d\n\r", sourceValue);
 }
 
-// VDU 23, 0, &A0, bufferId; 6, operation, checkBufferId; offset; [operand]  : Conditional call
-// Call the given bufferId if the condition operation check passes
+// returns true or false depending on whether conditions are met
+// Will read the following arguments from the stream
+// operation, checkBufferId; offset; [operand]
 // This works in a similar manner to bufferAdjust
 // for now, this only supports single-byte comparisons
 // as multi-byte comparisons are a bit more complex
 // 
-void VDUStreamProcessor::bufferConditionalCall(uint16_t bufferId) {
+bool VDUStreamProcessor::bufferConditional() {
 	auto command = readByte_t();
 	auto checkBufferId = readWord_t();
 
@@ -375,8 +399,8 @@ void VDUStreamProcessor::bufferConditionalCall(uint16_t bufferId) {
 	}
 
 	if (command == -1 || checkBufferId == -1 || offset == -1 || operandBufferId == -1 || operandOffset == -1) {
-		debug_log("bufferConditionalCall: invalid command, checkBufferId, offset or operand value\n\r");
-		return;
+		debug_log("bufferConditional: invalid command, checkBufferId, offset or operand value\n\r");
+		return false;
 	}
 
 	auto sourceValue = getBufferByte(checkBufferId, offset);
@@ -385,11 +409,11 @@ void VDUStreamProcessor::bufferConditionalCall(uint16_t bufferId) {
 		operandValue = useBufferValue ? getBufferByte(operandBufferId, operandOffset) : readByte_t();
 	}
 
-	debug_log("bufferConditionalCall: command %d, checkBufferId %d, offset %d, operandBufferId %d, operandOffset %d, sourceValue %d, operandValue %d\n\r", command, checkBufferId, offset, operandBufferId, operandOffset, sourceValue, operandValue);
+	debug_log("bufferConditional: command %d, checkBufferId %d, offset %d, operandBufferId %d, operandOffset %d, sourceValue %d, operandValue %d\n\r", command, checkBufferId, offset, operandBufferId, operandOffset, sourceValue, operandValue);
 
 	if (sourceValue == -1 || operandValue == -1) {
-		debug_log("bufferConditionalCall: invalid source or operand value\n\r");
-		return;
+		debug_log("bufferConditional: invalid source or operand value\n\r");
+		return false;
 	}
 
 	bool shouldCall = false;
@@ -427,9 +451,112 @@ void VDUStreamProcessor::bufferConditionalCall(uint16_t bufferId) {
 		}	break;
 	}
 
-	if (shouldCall) {
-		debug_log("bufferConditionalCall: calling buffer %d\n\r", bufferId);
+	debug_log("bufferConditional: evaluated as %s\n\r", shouldCall ? "true" : "false");
+
+	return shouldCall;
+}
+
+// VDU 23, 0, &A0, bufferId; 7: Jump to a buffer
+// Change execution to given buffer (from beginning)
+//
+void VDUStreamProcessor::bufferJump(uint16_t bufferId) {
+	debug_log("bufferJump: buffer %d\n\r", bufferId);
+	if (bufferId == 65535) {
+		// buffer ID of -1 (65535) is used as a "null output" stream
+		return;
+	}
+	if (id == 65535) {
+		// we're currently the top-level stream, so we can't jump
+		// so have to call instead
 		bufferCall(bufferId);
+		return;
+	}
+	if (bufferId == id) {
+		// this is our current buffer ID, so rewind the stream
+		debug_log("bufferJump: rewinding stream\n\r");
+		((MultiBufferStream *)inputStream.get())->rewind();
+		return;
+	}
+	if (buffers.find(bufferId) != buffers.end()) {
+		auto streams = buffers[bufferId];
+		// replace our input stream with a new one
+		auto multiBufferStream = make_shared_psram<MultiBufferStream>(streams);
+		inputStream = multiBufferStream;
+	} else {
+		debug_log("bufferJump: buffer %d not found\n\r", bufferId);
+	}
+}
+
+// VDU 23, 0, &A0, bufferId; &0B, sourceBufferId; sourceBufferId; ...; : Copy buffers
+// Copy a list of buffers into a new buffer
+// list is terminated with a bufferId of 65535 (-1)
+// Replaces the target buffer with the new one
+// This is useful to construct a single buffer from multiple buffers
+// which can be used to construct more complex commands
+// Target buffer ID can be included in the source list
+//
+void VDUStreamProcessor::bufferCopy(uint16_t bufferId) {
+	// read list of source buffer IDs
+	std::vector<uint16_t> sourceBufferIds;
+	auto sourceBufferId = readWord_t();
+	while (sourceBufferId != 65535) {
+		if (sourceBufferId == -1) return;	// timed out
+		sourceBufferIds.push_back(sourceBufferId);
+		sourceBufferId = readWord_t();
+	}
+	// prepare a vector for storing our buffers
+	std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>> streams;
+	// loop thru buffer IDs
+	for (auto sourceId : sourceBufferIds) {
+		if (buffers.find(sourceId) != buffers.end()) {
+			// buffer ID exists
+			// loop thru buffers stored against this ID
+			for (auto buffer : buffers[sourceId]) {
+				// push a copy of the buffer into our vector
+				auto bufferStream = make_shared_psram<BufferStream>(buffer->size());
+				bufferStream->writeBuffer(buffer->getBuffer(), buffer->size());
+				streams.push_back(bufferStream);
+			}
+		} else {
+			debug_log("bufferCopy: buffer %d not found\n\r", sourceId);
+		}
+	}
+	// replace buffer with new one
+	buffers[bufferId].clear();
+	for (auto buffer : streams) {
+		debug_log("bufferCopy: copying stream %d bytes\n\r", buffer->size());
+		buffers[bufferId].push_back(buffer);
+	}
+	debug_log("bufferCopy: copied %d streams into buffer %d (%d)\n\r", streams.size(), bufferId, buffers[bufferId].size());
+}
+
+// VDU 23, 0, &A0, bufferId; &0C : Consolidate blocks within buffer
+// Consolidate multiple streams/blocks into a single block
+// This is useful for using bitmaps sent in multiple blocks
+//
+void VDUStreamProcessor::bufferConsolidate(uint16_t bufferId) {
+	// Create a new stream big enough to contain all streams in the given buffer
+	// Copy all streams into the new stream
+	// Replace the given buffer with the new stream	
+	if (buffers.find(bufferId) != buffers.end()) {
+		// buffer ID exists
+		// work out total length of buffer
+		uint32_t length = 0;
+		for (auto buffer : buffers[bufferId]) {
+			length += buffer->size();
+		}
+		auto bufferStream = make_shared_psram<BufferStream>(length);
+		auto offset = 0;
+		for (auto buffer : buffers[bufferId]) {
+			auto bufferLength = buffer->size();
+			memcpy(bufferStream->getBuffer() + offset, buffer->getBuffer(), bufferLength);
+			offset += bufferLength;
+		}
+		buffers[bufferId].clear();
+		buffers[bufferId].push_back(bufferStream);
+		debug_log("bufferConsolidate: consolidated %d streams into buffer %d\n\r", buffers[bufferId].size(), bufferId);
+	} else {
+		debug_log("bufferConsolidate: buffer %d not found\n\r", bufferId);
 	}
 }
 

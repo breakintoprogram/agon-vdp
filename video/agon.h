@@ -125,7 +125,14 @@
 #define BUFFERED_CREATE			0x03	// Create a new empty buffer
 #define BUFFERED_SET_OUTPUT		0x04	// Set the output buffer
 #define BUFFERED_ADJUST			0x05	// Adjust buffered commands
-#define BUFFERED_CONDITIONAL	0x06	// Conditionally call a buffer
+#define BUFFERED_COND_CALL		0x06	// Conditionally call a buffer
+#define BUFFERED_JUMP			0x07	// Jump to a buffer
+#define BUFFERED_COND_JUMP		0x08	// Conditionally jump to a buffer
+#define BUFFERED_OFFSET_JUMP	0x09	// Jump to a buffer with an offset
+#define BUFFERED_OFFSET_COND_JUMP	0x0A	// Conditionally jump to a buffer with an offset
+#define BUFFERED_COPY			0x0B	// Copy buffers (raw)
+#define BUFFERED_CONSOLIDATE	0x0C	// Consolidate buffers into one
+
 #define BUFFERED_DEBUG_INFO		0x10	// Get debug info about a buffer
 
 // Adjust operation codes
