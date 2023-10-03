@@ -92,7 +92,7 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 // This adds a new stream to the given bufferId
 // allowing a single bufferId to store multiple streams of data
 //
-void VDUStreamProcessor::bufferWrite(uint16_t bufferId, uint32_t length) {
+uint32_t VDUStreamProcessor::bufferWrite(uint16_t bufferId, uint32_t length) {
 	auto bufferStream = make_shared_psram<BufferStream>(length);
 
 	debug_log("bufferWrite: storing stream into buffer %d, length %d\n\r", bufferId, length);
@@ -101,11 +101,12 @@ void VDUStreamProcessor::bufferWrite(uint16_t bufferId, uint32_t length) {
 	if (remaining > 0) {
 		// NB this discards the data we just read
 		debug_log("bufferWrite: timed out write for buffer %d (%d bytes remaining)\n\r", bufferId, remaining);
-		return;
+		return remaining;
 	}
 
 	buffers[bufferId].push_back(std::move(bufferStream));
 	debug_log("bufferWrite: stored stream in buffer %d, length %d, %d streams stored\n\r", bufferId, length, buffers[bufferId].size());
+	return remaining;
 }
 
 // VDU 23, 0, &A0, bufferId; 1: Call buffer
@@ -156,22 +157,27 @@ void VDUStreamProcessor::bufferClear(uint16_t bufferId) {
 // VDU 23, 0, &A0, bufferId; 3, size; : Create a writeable buffer
 // This is used for creating buffers to redirect output to
 //
-void VDUStreamProcessor::bufferCreate(uint16_t bufferId, uint32_t size) {
+std::shared_ptr<WritableBufferStream> VDUStreamProcessor::bufferCreate(uint16_t bufferId, uint32_t size) {
 	if (bufferId == 0 || bufferId == 65535) {
 		debug_log("bufferCreate: bufferId %d is reserved\n\r", bufferId);
-		return;
+		return nullptr;
 	}
 	if (buffers.find(bufferId) != buffers.end()) {
 		debug_log("bufferCreate: buffer %d already exists\n\r", bufferId);
-		return;
+		return nullptr;
 	}
 	auto buffer = make_shared_psram<WritableBufferStream>(size);
+	if (!buffer) {
+		debug_log("bufferCreate: failed to create buffer %d\n\r", bufferId);
+		return nullptr;
+	}
 	// Ensure buffer is empty
 	for (auto i = 0; i < size; i++) {
 		buffer->writeBufferByte(0, i);
 	}
 	buffers[bufferId].push_back(buffer);
 	debug_log("bufferCreate: created buffer %d, size %d\n\r", bufferId, size);
+	return buffer;
 }
 
 // VDU 23, 0, &A0, bufferId; 4: Set output to buffer

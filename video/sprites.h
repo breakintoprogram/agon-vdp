@@ -9,28 +9,20 @@
 #include "agon.h"
 #include "agon_screen.h"
 
+uint16_t		currentBitmap = 0;				// Current bitmap ID
+std::unordered_map<uint16_t, std::shared_ptr<Bitmap>> bitmaps;	// Storage for our bitmaps
 uint8_t			numsprites = 0;					// Number of sprites on stage
 uint8_t			current_sprite = 0;				// Current sprite number
-uint8_t			current_bitmap = 0;				// Current bitmap number
-uint16_t		currentBitmap = 0;				// Current bitmap ID
-Bitmap			bitmaps[MAX_BITMAPS];			// Bitmap object storage
 Sprite			sprites[MAX_SPRITES];			// Sprite object storage
 
-std::unordered_map<uint16_t, std::shared_ptr<Bitmap>> zbitmaps;
-
-Bitmap * getBitmap(uint8_t b = current_bitmap) {
-	return &bitmaps[b];
-}
-
-std::shared_ptr<Bitmap> getBitmap(uint16_t id) {
-	if (zbitmaps.find(id) != zbitmaps.end()) {
-		return zbitmaps[id];
+std::shared_ptr<Bitmap> getBitmap(uint16_t id = currentBitmap) {
+	if (bitmaps.find(id) != bitmaps.end()) {
+		return bitmaps[id];
 	}
 	return nullptr;
 }
 
 inline void setCurrentBitmap(uint8_t b) {
-	current_bitmap = b;
 	currentBitmap = b + BUFFERED_BITMAP_BASEID;
 }
 
@@ -38,48 +30,29 @@ inline void setCurrentBitmap(uint16_t b) {
 	currentBitmap = b;
 }
 
-inline uint8_t getCurrentBitmap() {
-	return current_bitmap;
+inline uint16_t getCurrentBitmapId() {
+	return currentBitmap;
 }
 
-void clearBitmap(uint8_t b = current_bitmap) {
-	auto bitmap = getBitmap(b);
-	if (bitmap->data) {
-		free(bitmap->data);
-		bitmap->data = nullptr;
+void clearBitmap(uint16_t b = currentBitmap) {
+	if (bitmaps.find(b) == bitmaps.end()) {
+		return;
 	}
-	bitmap->dataAllocated = false;
-}
-
-void createBitmap(uint16_t width, uint16_t height, void * data, PixelFormat format = PixelFormat::RGBA8888) {
-	clearBitmap();
-	bitmaps[current_bitmap] = Bitmap(width, height, (uint8_t *)data, format);
-	bitmaps[current_bitmap].dataAllocated = false;
+	bitmaps.erase(b);
 }
 
 void drawBitmap(uint16_t x, uint16_t y) {
-	auto bitmap = getBitmap(current_bitmap);
-	if (bitmap->data) {
-		canvas->drawBitmap(x, y, bitmap);
-		waitPlotCompletion();
-	}
-}
-
-void drawBitmapZ(uint16_t x, uint16_t y) {
-	auto bitmap = getBitmap(currentBitmap);
+	auto bitmap = getBitmap();
 	if (bitmap) {
 		canvas->drawBitmap(x, y, bitmap.get());
 		waitPlotCompletion();
 	} else {
-		debug_log("drawBitmapZ: bitmap %d not found\n\r", currentBitmap);
+		debug_log("drawBitmap: bitmap %d not found\n\r", currentBitmap);
 	}
 }
 
 void resetBitmaps() {
-	for (auto n = 0; n < MAX_BITMAPS; n++) {
-		clearBitmap(n);
-	}
-	waitPlotCompletion();
+	bitmaps.clear();
 }
 
 Sprite * getSprite(uint8_t sprite = current_sprite) {
@@ -101,9 +74,15 @@ void clearSpriteFrames(uint8_t s = current_sprite) {
 	sprite->clearBitmaps();
 }
 
-void addSpriteFrame(uint8_t bitmap) {
+void addSpriteFrame(uint8_t bitmapId) {
 	auto sprite = getSprite();
-	sprite->addBitmap(getBitmap(bitmap));
+	auto bitmap = getBitmap(bitmapId + BUFFERED_BITMAP_BASEID);
+	if (!bitmap) {
+		debug_log("addSpriteFrame: bitmap %d not found\n\r", bitmapId);
+		return;
+	}
+	// TODO track that we're using this bitmap for a sprite
+	sprite->addBitmap(bitmap.get());
 }
 
 void activateSprites(uint8_t n) {

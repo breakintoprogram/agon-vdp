@@ -5,6 +5,7 @@
 #include <Stream.h>
 
 #include "agon.h"
+#include "buffer_stream.h"
 #include "types.h"
 
 class VDUStreamProcessor {
@@ -87,10 +88,10 @@ class VDUStreamProcessor {
 		void sendKeycodeByte(uint8_t b, bool waitack);
 
 		void vdu_sys_buffered();
-		void bufferWrite(uint16_t bufferId, uint32_t size);
+		uint32_t bufferWrite(uint16_t bufferId, uint32_t size);
 		void bufferCall(uint16_t bufferId);
 		void bufferClear(uint16_t bufferId);
-		void bufferCreate(uint16_t bufferId, uint32_t size);
+		std::shared_ptr<WritableBufferStream> bufferCreate(uint16_t bufferId, uint32_t size);
 		void setOutputStream(uint16_t bufferId);
 		int16_t getBufferByte(uint16_t bufferId, uint32_t offset);
 		bool setBufferByte(uint8_t value, uint16_t bufferId, uint32_t offset);
@@ -163,6 +164,10 @@ uint8_t VDUStreamProcessor::readByte_b() {
 //
 uint32_t VDUStreamProcessor::readIntoBuffer(uint8_t * buffer, uint32_t length, uint16_t timeout = COMMS_TIMEOUT) {
 	uint32_t remaining = length;
+	if (buffer == nullptr) {
+		debug_log("readIntoBuffer: buffer is null\n\r");
+		return remaining;
+	}
 	auto t = xTaskGetTickCountFromISR();
 	auto now = t;
 	auto timeCheck = pdMS_TO_TICKS(timeout);

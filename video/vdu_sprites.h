@@ -18,7 +18,7 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 			auto rb = readByte_t();
 			if (rb >= 0) {
 				setCurrentBitmap((uint8_t) rb);
-				debug_log("vdu_sys_sprites: bitmap %d selected\n\r", getCurrentBitmap());
+				debug_log("vdu_sys_sprites: bitmap %d selected\n\r", getCurrentBitmapId());
 			}
 		}	break;
 
@@ -35,7 +35,7 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 			auto ry = readWord_t(); if (ry == -1) return;
 
 			drawBitmap(rx,ry);
-			debug_log("vdu_sys_sprites: bitmap %d draw command\n\r", getCurrentBitmap());
+			debug_log("vdu_sys_sprites: bitmap %d draw command\n\r", getCurrentBitmapId());
 		}	break;
 
 	   /*
@@ -129,7 +129,7 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 		case 0x20: {	// Select bitmap, 16-bit buffer ID
 			auto b = readWord_t(); if (b == -1) return;
 			setCurrentBitmap((uint16_t) b);
-			debug_log("vdu_sys_sprites: bitmap %d selected\n\r", getCurrentBitmap());
+			debug_log("vdu_sys_sprites: bitmap %d selected\n\r", getCurrentBitmapId());
 		}	break;
 
 		case 0x21: {	// Create bitmap from buffer
@@ -140,71 +140,51 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 			createBitmapFromBuffer(bufferId, format, width, height);
 		}	break;
 
-		case 0x22: {	// TEST draw bitmap to screen
-			auto rx = readWord_t(); if (rx == -1) return;
-			auto ry = readWord_t(); if (ry == -1) return;
-			debug_log("vdu_sys_sprites: draw bitmap %d to screen at (%d,%d)\n\r", getCurrentBitmap(), rx, ry);
-			drawBitmapZ(rx,ry);
+		default: {
+			debug_log("vdu_sys_sprites: unknown command %d\n\r", cmd);
 		}	break;
 	}
 }
 
 void VDUStreamProcessor::receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height) {
-	// buffer-backed version should...
-	// use bufferWrite to write the data to the buffer
-	// bufferId = getCurrentBitmap()
+	auto bufferId = getCurrentBitmapId();
 
-	//
-	// Allocate new heap data
-	//
+	// clear the buffer
+	bufferClear(bufferId);
+
 	uint32_t size = sizeof(uint32_t) * width * height;
-	void * dataptr = PreferPSRAMAlloc(size);
 
-	if (dataptr != NULL) {                  
-		if (cmd == 1) {
-			//
-			// Read data to the new databuffer
-			//
-			auto remaining = readIntoBuffer((uint8_t *)dataptr, size);
-			if (remaining > 0) {
-				debug_log("vdu_sys_sprites: bitmap %d - failed to receive all bitmap data (%d remaining)\n\r", getCurrentBitmap(), remaining);
-				return;
-			}
-			debug_log("vdu_sys_sprites: bitmap %d - data received - width %d, height %d\n\r", getCurrentBitmap(), width, height);
+	if (cmd == 1) {
+		// receive the data
+		if (bufferWrite(bufferId, size) != 0) {
+			// timed out, or couldn't allocate buffer - so abort
+			return;
 		}
-		if (cmd == 2) {
-			uint32_t color;
-			auto remaining = readIntoBuffer((uint8_t *)&color, sizeof(uint32_t));
-			if (remaining > 0) {
-				debug_log("vdu_sys_sprites: failed to receive color data\n\r");
-				return;
-			}
-			//
-			// Define single color
-			//
-			for (auto n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = color;            
-			debug_log("vdu_sys_sprites: bitmap %d - set to solid color - width %d, height %d\n\r", getCurrentBitmap(), width, height);            
+		// create RGBA8888 bitmap from buffer
+		createBitmapFromBuffer(bufferId, 0, width, height);
+	} else if (cmd == 2) {
+		uint32_t color;
+		auto remaining = readIntoBuffer((uint8_t *)&color, sizeof(uint32_t));
+		if (remaining > 0) {
+			debug_log("vdu_sys_sprites: failed to receive color data\n\r");
+			return;
 		}
-		// Create bitmap structure
-		//
-		createBitmap(width, height, dataptr);
+		// create a new buffer of appropriate size
+		auto buffer = bufferCreate(bufferId, size);
+		if (!buffer) {
+			debug_log("vdu_sys_sprites: failed to create buffer\n\r");
+			return;
+		}
+		uint32_t * dataptr = (uint32_t *)buffer->getBuffer();
+		for (auto n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = color;
+		// create RGBA8888 bitmap from buffer
+		createBitmapFromBuffer(bufferId, 0, width, height);
 	}
-	else { 
-		//
-		// Discard incoming serial data if failed to allocate memory
-		//
-		if (cmd == 1) {
-			discardBytes(4*width*height);
-		}
-		if (cmd == 2) {
-			discardBytes(4);
-		}
-		debug_log("vdu_sys_sprites: bitmap %d - data discarded, no memory available - width %d, height %d\n\r", getCurrentBitmap(), width, height);
-	}
-
+	return;
 }
 
 void VDUStreamProcessor::createBitmapFromBuffer(uint16_t bufferId, uint8_t format, uint16_t width, uint16_t height) {
+	clearBitmap(bufferId);
 	// do we have a buffer with this ID?
 	if (buffers.find(bufferId) != buffers.end()) {
 		// is this a singular buffer we can use for a bitmap source?
@@ -223,7 +203,7 @@ void VDUStreamProcessor::createBitmapFromBuffer(uint16_t bufferId, uint8_t forma
 					pixelFormat = PixelFormat::RGBA2222;
 					bytesPerPixel = 1.;
 					break;
-				case 2: // Mono/Mask - not sure exactly how to handle this
+				case 2: // Mono/Mask - TODO not sure exactly how to handle this
 					pixelFormat = PixelFormat::Mask;
 					bytesPerPixel = 1/8;
 					break;
@@ -240,7 +220,7 @@ void VDUStreamProcessor::createBitmapFromBuffer(uint16_t bufferId, uint8_t forma
 				return;
 			}
 			auto data = stream->getBuffer();
-			zbitmaps[bufferId] = make_shared_psram<Bitmap>(width, height, (uint8_t *)data, (PixelFormat)format);
+			bitmaps[bufferId] = make_shared_psram<Bitmap>(width, height, (uint8_t *)data, pixelFormat);
 			debug_log("vdu_sys_sprites: bitmap created for bufferId %d, format %d, (%dx%d)\n\r", bufferId, format, width, height);
 		} else {
 			debug_log("vdu_sys_sprites: buffer %d is not a singular buffer and cannot be used for a bitmap source\n\r", bufferId);
