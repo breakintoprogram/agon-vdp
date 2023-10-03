@@ -11,6 +11,7 @@
 #include "vdu_audio.h"
 #include "vdu_buffered.h"
 #include "vdu_sprites.h"
+#include "updater.h"
 
 extern void switchTerminalMode();				// Switch to terminal mode
 
@@ -36,6 +37,10 @@ typedef union {
 // Wait for eZ80 to initialise
 //
 void VDUStreamProcessor::wait_eZ80() {
+	if(esp_reset_reason() == ESP_RST_SW) {
+		return;
+	}
+
 	debug_log("wait_eZ80: Start\n\r");
 	while (!initialised) {
 		if (byteAvailable()) {
@@ -85,6 +90,9 @@ void VDUStreamProcessor::vdu_sys() {
 			}	break;
 			case 0x1C: {					// VDU 23, 28
 				vdu_sys_hexload();
+			}	break;
+			case 0x1D: {					// VDU 23, 29
+				vdu_sys_updater();
 			}	break;
 		}
 	}
