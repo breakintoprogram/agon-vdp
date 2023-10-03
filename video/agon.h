@@ -169,6 +169,9 @@
 #define COND_24BIT_OFFSETS		0x10	// offset values are 24-bit
 #define COND_BUFFER_VALUE		0x20	// value to compare is a buffer-fetched value
 
+// Buffered bitmap info
+#define BUFFERED_BITMAP_BASEID	0xFA00	// Base ID for buffered bitmaps
+
 // Viewport definitions
 #define VIEWPORT_TEXT			0		// Text viewport
 #define VIEWPORT_DEFAULT		1		// Default (whole screen) viewport

@@ -70,6 +70,9 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 		}	break;
 		case BUFFERED_DEBUG_INFO: {
 			debug_log("vdu_sys_buffered: buffer %d, %d streams stored\n\r", bufferId, buffers[bufferId].size());
+			if (buffers[bufferId].size() == 0) {
+				return;
+			}
 			// output contents of buffer stream 0
 			auto buffer = buffers[bufferId][0];
 			auto bufferLength = buffer->size();

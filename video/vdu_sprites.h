@@ -6,6 +6,7 @@
 #include "graphics.h"
 #include "sprites.h"
 #include "types.h"
+#include "vdu_stream_processor.h"
 
 // Sprite Engine, VDU command handler
 //
@@ -16,7 +17,7 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 		case 0: {	// Select bitmap
 			auto rb = readByte_t();
 			if (rb >= 0) {
-				setCurrentBitmap(rb);
+				setCurrentBitmap((uint8_t) rb);
 				debug_log("vdu_sys_sprites: bitmap %d selected\n\r", getCurrentBitmap());
 			}
 		}	break;
@@ -27,7 +28,6 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 			auto rh = readWord_t(); if (rh == -1) return;
 
 			receiveBitmap(cmd, rw, rh);
-
 		}	break;
 
 		case 3: {	// Draw bitmap to screen (x,y)
@@ -124,10 +124,36 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 			resetBitmaps();
 			debug_log("vdu_sys_sprites: reset\n\r");
 		}	break;
+
+		// Extended bitmap commands
+		case 0x20: {	// Select bitmap, 16-bit buffer ID
+			auto b = readWord_t(); if (b == -1) return;
+			setCurrentBitmap((uint16_t) b);
+			debug_log("vdu_sys_sprites: bitmap %d selected\n\r", getCurrentBitmap());
+		}	break;
+
+		case 0x21: {	// Create bitmap from buffer
+			auto bufferId = readWord_t(); if (bufferId == -1) return;
+			auto format = readByte_t(); if (format == -1) return;
+			auto width = readWord_t(); if (width == -1) return;
+			auto height = readWord_t(); if (height == -1) return;
+			createBitmapFromBuffer(bufferId, format, width, height);
+		}	break;
+
+		case 0x22: {	// TEST draw bitmap to screen
+			auto rx = readWord_t(); if (rx == -1) return;
+			auto ry = readWord_t(); if (ry == -1) return;
+			debug_log("vdu_sys_sprites: draw bitmap %d to screen at (%d,%d)\n\r", getCurrentBitmap(), rx, ry);
+			drawBitmapZ(rx,ry);
+		}	break;
 	}
 }
 
 void VDUStreamProcessor::receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height) {
+	// buffer-backed version should...
+	// use bufferWrite to write the data to the buffer
+	// bufferId = getCurrentBitmap()
+
 	//
 	// Allocate new heap data
 	//
@@ -176,6 +202,50 @@ void VDUStreamProcessor::receiveBitmap(uint8_t cmd, uint16_t width, uint16_t hei
 		debug_log("vdu_sys_sprites: bitmap %d - data discarded, no memory available - width %d, height %d\n\r", getCurrentBitmap(), width, height);
 	}
 
+}
+
+void VDUStreamProcessor::createBitmapFromBuffer(uint16_t bufferId, uint8_t format, uint16_t width, uint16_t height) {
+	// do we have a buffer with this ID?
+	if (buffers.find(bufferId) != buffers.end()) {
+		// is this a singular buffer we can use for a bitmap source?
+		if (buffers[bufferId].size() == 1) {
+			// create bitmap from buffer
+			auto stream = buffers[bufferId][0];
+			// map our pixel format, default to RGBA8888
+			PixelFormat pixelFormat = PixelFormat::RGBA8888;
+			auto bytesPerPixel = 4.;
+			switch (format) {
+				case 0:	// RGBA8888
+					pixelFormat = PixelFormat::RGBA8888;
+					bytesPerPixel = 4.;
+					break;
+				case 1:	// RGBA2222
+					pixelFormat = PixelFormat::RGBA2222;
+					bytesPerPixel = 1.;
+					break;
+				case 2: // Mono/Mask - not sure exactly how to handle this
+					pixelFormat = PixelFormat::Mask;
+					bytesPerPixel = 1/8;
+					break;
+				default:
+					pixelFormat = PixelFormat::RGBA8888;
+					bytesPerPixel = 4.;
+					debug_log("vdu_sys_sprites: buffer %d - unknown pixel format %d, defaulting to RGBA8888\n\r", bufferId, format);
+			}
+			// Check that our stream length matches the expected length
+			auto streamLength = stream->size();
+			auto expectedLength = width * height * bytesPerPixel;
+			if (streamLength != expectedLength) {
+				debug_log("vdu_sys_sprites: buffer %d - stream length %d does not match expected length %f\n\r", bufferId, streamLength, expectedLength);
+				return;
+			}
+			auto data = stream->getBuffer();
+			zbitmaps[bufferId] = make_shared_psram<Bitmap>(width, height, (uint8_t *)data, (PixelFormat)format);
+			debug_log("vdu_sys_sprites: bitmap created for bufferId %d, format %d, (%dx%d)\n\r", bufferId, format, width, height);
+		} else {
+			debug_log("vdu_sys_sprites: buffer %d is not a singular buffer and cannot be used for a bitmap source\n\r", bufferId);
+		}
+	}
 }
 
 #endif // _VDU_SPRITES_H_
