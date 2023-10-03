@@ -81,6 +81,7 @@ class VDUStreamProcessor {
 
 		void vdu_sys_sprites(void);
 		void receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height);
+		void createBitmapFromBuffer(uint16_t bufferId, uint8_t format, uint16_t width, uint16_t height);
 
 		void vdu_sys_hexload(void);
 		void sendKeycodeByte(uint8_t b, bool waitack);

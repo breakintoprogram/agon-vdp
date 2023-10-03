@@ -1,6 +1,9 @@
 #ifndef SPRITES_H
 #define SPRITES_H
 
+#include <memory>
+#include <vector>
+#include <unordered_map>
 #include <fabgl.h>
 
 #include "agon.h"
@@ -9,15 +12,30 @@
 uint8_t			numsprites = 0;					// Number of sprites on stage
 uint8_t			current_sprite = 0;				// Current sprite number
 uint8_t			current_bitmap = 0;				// Current bitmap number
+uint16_t		currentBitmap = 0;				// Current bitmap ID
 Bitmap			bitmaps[MAX_BITMAPS];			// Bitmap object storage
 Sprite			sprites[MAX_SPRITES];			// Sprite object storage
+
+std::unordered_map<uint16_t, std::shared_ptr<Bitmap>> zbitmaps;
 
 Bitmap * getBitmap(uint8_t b = current_bitmap) {
 	return &bitmaps[b];
 }
 
+std::shared_ptr<Bitmap> getBitmap(uint16_t id) {
+	if (zbitmaps.find(id) != zbitmaps.end()) {
+		return zbitmaps[id];
+	}
+	return nullptr;
+}
+
 inline void setCurrentBitmap(uint8_t b) {
 	current_bitmap = b;
+	currentBitmap = b + BUFFERED_BITMAP_BASEID;
+}
+
+inline void setCurrentBitmap(uint16_t b) {
+	currentBitmap = b;
 }
 
 inline uint8_t getCurrentBitmap() {
@@ -40,10 +58,20 @@ void createBitmap(uint16_t width, uint16_t height, void * data, PixelFormat form
 }
 
 void drawBitmap(uint16_t x, uint16_t y) {
-	auto bitmap = getBitmap();
+	auto bitmap = getBitmap(current_bitmap);
 	if (bitmap->data) {
 		canvas->drawBitmap(x, y, bitmap);
 		waitPlotCompletion();
+	}
+}
+
+void drawBitmapZ(uint16_t x, uint16_t y) {
+	auto bitmap = getBitmap(currentBitmap);
+	if (bitmap) {
+		canvas->drawBitmap(x, y, bitmap.get());
+		waitPlotCompletion();
+	} else {
+		debug_log("drawBitmapZ: bitmap %d not found\n\r", currentBitmap);
 	}
 }
 
