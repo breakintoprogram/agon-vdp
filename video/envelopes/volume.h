@@ -9,9 +9,9 @@
 
 class VolumeEnvelope {
 	public:
-		virtual uint8_t getVolume(uint8_t baseVolume, uint32_t elapsed, int32_t duration);
-		virtual bool isReleasing(uint32_t elapsed, int32_t duration);
-		virtual bool isFinished(uint32_t elapsed, int32_t duration);
+		virtual uint8_t getVolume(uint8_t baseVolume, uint32_t elapsed, int32_t duration) = 0;
+		virtual bool isReleasing(uint32_t elapsed, int32_t duration) = 0;
+		virtual bool isFinished(uint32_t elapsed, int32_t duration) = 0;
 };
 
 class ADSRVolumeEnvelope : public VolumeEnvelope {
