@@ -15,15 +15,14 @@ uint8_t			numsprites = 0;					// Number of sprites on stage
 uint8_t			current_sprite = 0;				// Current sprite number
 Sprite			sprites[MAX_SPRITES];			// Sprite object storage
 
+// track which sprites may be using a bitmap
+std::unordered_map<uint16_t, std::vector<uint8_t>> bitmapUsers;
+
 std::shared_ptr<Bitmap> getBitmap(uint16_t id = currentBitmap) {
 	if (bitmaps.find(id) != bitmaps.end()) {
 		return bitmaps[id];
 	}
 	return nullptr;
-}
-
-inline void setCurrentBitmap(uint8_t b) {
-	currentBitmap = b + BUFFERED_BITMAP_BASEID;
 }
 
 inline void setCurrentBitmap(uint16_t b) {
@@ -32,13 +31,6 @@ inline void setCurrentBitmap(uint16_t b) {
 
 inline uint16_t getCurrentBitmapId() {
 	return currentBitmap;
-}
-
-void clearBitmap(uint16_t b = currentBitmap) {
-	if (bitmaps.find(b) == bitmaps.end()) {
-		return;
-	}
-	bitmaps.erase(b);
 }
 
 void drawBitmap(uint16_t x, uint16_t y) {
@@ -53,6 +45,8 @@ void drawBitmap(uint16_t x, uint16_t y) {
 
 void resetBitmaps() {
 	bitmaps.clear();
+	// this will only be used after resetting sprites, so we can clear the bitmapUsers list
+	bitmapUsers.clear();
 }
 
 Sprite * getSprite(uint8_t sprite = current_sprite) {
@@ -72,16 +66,43 @@ void clearSpriteFrames(uint8_t s = current_sprite) {
 	sprite->visible = false;
 	sprite->setFrame(0);
 	sprite->clearBitmaps();
+	// find all bitmaps used by this sprite and remove it from the list
+	for (auto bitmapUser : bitmapUsers) {
+		auto bitmapId = bitmapUser.first;
+		auto users = bitmapUser.second;
+		// remove all instances of this sprite from the users list
+		auto it = std::find(users.begin(), users.end(), s);
+		while (it != users.end()) {
+			users.erase(it);
+			it = std::find(users.begin(), users.end(), s);
+		}
+	}
 }
 
-void addSpriteFrame(uint8_t bitmapId) {
+void clearBitmap(uint16_t b = currentBitmap) {
+	if (bitmaps.find(b) == bitmaps.end()) {
+		return;
+	}
+	bitmaps.erase(b);
+	// find all sprites that had used this bitmap and clear their frames
+	if (bitmapUsers.find(b) != bitmapUsers.end()) {
+		auto users = bitmapUsers[b];
+		for (auto user : users) {
+			debug_log("clearBitmap: sprite %d can no longer use bitmap %d, so clearing sprite frames\n\r", user, b);
+			clearSpriteFrames(user);
+		}
+		bitmapUsers.erase(b);
+	}
+}
+
+void addSpriteFrame(uint16_t bitmapId) {
 	auto sprite = getSprite();
-	auto bitmap = getBitmap(bitmapId + BUFFERED_BITMAP_BASEID);
+	auto bitmap = getBitmap(bitmapId);
 	if (!bitmap) {
 		debug_log("addSpriteFrame: bitmap %d not found\n\r", bitmapId);
 		return;
 	}
-	// TODO track that we're using this bitmap for a sprite
+	bitmapUsers[bitmapId].push_back(current_sprite);
 	sprite->addBitmap(bitmap.get());
 }
 
@@ -127,8 +148,8 @@ void showSprite() {
 	sprite->visible = 1;
 }
 
-void hideSprite() {
-	auto sprite = getSprite();
+void hideSprite(uint8_t s = current_sprite) {
+	auto sprite = getSprite(s);
 	sprite->visible = 0;
 }
 
@@ -148,10 +169,26 @@ void refreshSprites() {
 	}
 }
 
+void hideAllSprites() {
+	if (numsprites == 0) {
+		return;
+	}
+	for (auto n = 0; n < MAX_SPRITES; n++) {
+		hideSprite(n);
+	}
+	refreshSprites();
+}
+
 void resetSprites() {
+	hideAllSprites();
 	for (auto n = 0; n < MAX_SPRITES; n++) {
 		clearSpriteFrames(n);
 	}
+	activateSprites(0);
+	// replace all the sprite objects
+	// for (auto n = 0; n < MAX_SPRITES; n++) {
+	// 	sprites[n] = Sprite();
+	// }
 	waitPlotCompletion();
 }
 

@@ -17,7 +17,7 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 		case 0: {	// Select bitmap
 			auto rb = readByte_t();
 			if (rb >= 0) {
-				setCurrentBitmap((uint8_t) rb);
+				setCurrentBitmap(rb + BUFFERED_BITMAP_BASEID);
 				debug_log("vdu_sys_sprites: bitmap %d selected\n\r", getCurrentBitmapId());
 			}
 		}	break;
@@ -26,6 +26,14 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 		case 2: {	// Define bitmap in single color
 			auto rw = readWord_t(); if (rw == -1) return;
 			auto rh = readWord_t(); if (rh == -1) return;
+
+			if (rw == 0 && rh == 0) {
+				// TODO support defining bitmap from screen area
+				// as per Acorn GXR
+				// which defines area with last two graphics move commands
+				debug_log("vdu_sys_sprites: bitmap %d - zero size\n\r", getCurrentBitmapId());
+				return;
+			}
 
 			receiveBitmap(cmd, rw, rh);
 		}	break;
@@ -63,7 +71,7 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 
 		case 6:	{	// Add frame to sprite
 			auto b = readByte_t(); if (b == -1) return;
-			addSpriteFrame(b);
+			addSpriteFrame(b + BUFFERED_BITMAP_BASEID);
 			debug_log("vdu_sys_sprites: sprite %d - bitmap %d added as frame %d\n\r", getCurrentSprite(), b, getSprite()->framesCount-1);
 		}	break;
 
@@ -119,10 +127,15 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 		}	break;
 
 		case 16: {	// Reset
-			cls(false);
 			resetSprites();
 			resetBitmaps();
+			cls(false);
 			debug_log("vdu_sys_sprites: reset\n\r");
+		}	break;
+
+		case 17: {	// Reset sprites only
+			resetSprites();
+			debug_log("vdu_sys_sprites: reset sprites\n\r");
 		}	break;
 
 		// Extended bitmap commands
@@ -138,6 +151,12 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 			auto width = readWord_t(); if (width == -1) return;
 			auto height = readWord_t(); if (height == -1) return;
 			createBitmapFromBuffer(bufferId, format, width, height);
+		}	break;
+
+		case 0x26: {	// add sprite frame for bitmap (long ID)
+			auto bufferId = readWord_t(); if (bufferId == -1) return;
+			addSpriteFrame(bufferId);
+			debug_log("vdu_sys_sprites: sprite %d - bitmap %d added as frame %d\n\r", getCurrentSprite(), bufferId, getSprite()->framesCount-1);
 		}	break;
 
 		default: {
@@ -175,8 +194,8 @@ void VDUStreamProcessor::receiveBitmap(uint8_t cmd, uint16_t width, uint16_t hei
 			debug_log("vdu_sys_sprites: failed to create buffer\n\r");
 			return;
 		}
-		uint32_t * dataptr = (uint32_t *)buffer->getBuffer();
-		for (auto n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = color;
+		auto dataptr = (uint32_t *)buffer->getBuffer();
+		for (auto n = 0; n < width*height; n++) dataptr[n] = color;
 		// create RGBA8888 bitmap from buffer
 		createBitmapFromBuffer(bufferId, 0, width, height);
 	}
@@ -225,6 +244,8 @@ void VDUStreamProcessor::createBitmapFromBuffer(uint16_t bufferId, uint8_t forma
 		} else {
 			debug_log("vdu_sys_sprites: buffer %d is not a singular buffer and cannot be used for a bitmap source\n\r", bufferId);
 		}
+	} else {
+		debug_log("vdu_sys_sprites: buffer %d not found\n\r", bufferId);
 	}
 }
 

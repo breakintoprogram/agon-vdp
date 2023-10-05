@@ -8,6 +8,7 @@
 #include "agon.h"
 #include "buffer_stream.h"
 #include "multi_buffer_stream.h"
+#include "sprites.h"
 #include "types.h"
 
 std::unordered_map<uint16_t, std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>>> buffers;
@@ -144,10 +145,12 @@ void VDUStreamProcessor::bufferClear(uint16_t bufferId) {
 	debug_log("bufferClear: buffer %d\n\r", bufferId);
 	if (bufferId == 65535) {
 		buffers.clear();
+		resetBitmaps();
 		return;
 	}
 	if (buffers.find(bufferId) != buffers.end()) {
 		buffers.erase(bufferId);
+		clearBitmap(bufferId);
 		debug_log("bufferClear: cleared buffer %d\n\r", bufferId);
 	} else {
 		debug_log("bufferClear: buffer %d not found\n\r", bufferId);
