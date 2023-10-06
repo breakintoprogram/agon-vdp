@@ -68,7 +68,6 @@ void clearSpriteFrames(uint8_t s = current_sprite) {
 	sprite->clearBitmaps();
 	// find all bitmaps used by this sprite and remove it from the list
 	for (auto bitmapUser : bitmapUsers) {
-		auto bitmapId = bitmapUser.first;
 		auto users = bitmapUser.second;
 		// remove all instances of this sprite from the users list
 		auto it = std::find(users.begin(), users.end(), s);
