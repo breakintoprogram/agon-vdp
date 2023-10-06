@@ -130,8 +130,10 @@
 #define BUFFERED_COND_JUMP		0x08	// Conditionally jump to a buffer
 #define BUFFERED_OFFSET_JUMP	0x09	// Jump to a buffer with an offset
 #define BUFFERED_OFFSET_COND_JUMP	0x0A	// Conditionally jump to a buffer with an offset
-#define BUFFERED_COPY			0x0B	// Copy buffers (raw)
-#define BUFFERED_CONSOLIDATE	0x0C	// Consolidate buffers into one
+#define BUFFERED_COPY			0x0B	// Copy blocks from multiple buffers into one buffer
+#define BUFFERED_CONSOLIDATE	0x0C	// Consolidate blocks inside a buffer into one
+#define BUFFERED_SPLIT			0x0D	// Split a buffer into multiple blocks
+#define BUFFERED_REVERSE_BLOCKS	0x0E	// Reverse the order of blocks in a buffer
 
 #define BUFFERED_DEBUG_INFO		0x10	// Get debug info about a buffer
 

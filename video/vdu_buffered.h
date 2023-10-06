@@ -1,6 +1,7 @@
 #ifndef VDU_BUFFERED_H
 #define VDU_BUFFERED_H
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 #include <unordered_map>
@@ -68,6 +69,13 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 		}	break;
 		case BUFFERED_CONSOLIDATE: {
 			bufferConsolidate(bufferId);
+		}	break;
+		case BUFFERED_SPLIT: {
+			auto length = readWord_t(); if (length == -1) return;
+			bufferSplit(bufferId, length);
+		}	break;
+		case BUFFERED_REVERSE_BLOCKS: {
+			bufferReverseBlocks(bufferId);
 		}	break;
 		case BUFFERED_DEBUG_INFO: {
 			debug_log("vdu_sys_buffered: buffer %d, %d streams stored\n\r", bufferId, buffers[bufferId].size());
@@ -551,6 +559,10 @@ void VDUStreamProcessor::bufferConsolidate(uint16_t bufferId) {
 	// Copy all streams into the new stream
 	// Replace the given buffer with the new stream	
 	if (buffers.find(bufferId) != buffers.end()) {
+		if (buffers[bufferId].size() == 1) {
+			// only one stream, so nothing to consolidate
+			return;
+		}
 		// buffer ID exists
 		// work out total length of buffer
 		uint32_t length = 0;
@@ -569,6 +581,57 @@ void VDUStreamProcessor::bufferConsolidate(uint16_t bufferId) {
 		debug_log("bufferConsolidate: consolidated %d streams into buffer %d\n\r", buffers[bufferId].size(), bufferId);
 	} else {
 		debug_log("bufferConsolidate: buffer %d not found\n\r", bufferId);
+	}
+}
+
+// VDU 23, 0, &A0, bufferId; &0D, length; : Split buffer into blocks
+// Split a buffer into multiple blocks/streams
+//
+void VDUStreamProcessor::bufferSplit(uint16_t bufferId, uint16_t length) {
+	if (buffers.find(bufferId) != buffers.end()) {
+		// buffer ID exists
+		// a split buffer can't be used for a bitmap, so clear it
+		clearBitmap(bufferId);
+		// consolidate it to simplify splitting
+		bufferConsolidate(bufferId);
+		// get length of first block
+		auto stream =  buffers[bufferId][0];
+		// clear the buffer
+		buffers[bufferId].clear();
+		// work out how many blocks we'll need
+		auto totalLength = stream->size();
+		auto blockCount = totalLength / length;
+		if (totalLength % length > 0) {
+			blockCount++;
+		}
+		// create a new buffer for each block and split the data into each block
+		auto remaining = totalLength;
+		auto sourceData = stream->getBuffer();
+		for (auto i = 0; i < blockCount; i++) {
+			auto bufferLength = length;
+			if (remaining < bufferLength) {
+				bufferLength = remaining;
+			}
+			auto bufferStream = make_shared_psram<BufferStream>(bufferLength);
+			memcpy(bufferStream->getBuffer(), sourceData, bufferLength);
+			buffers[bufferId].push_back(bufferStream);
+			sourceData += bufferLength;
+			remaining -= bufferLength;
+		}
+		debug_log("bufferSplit: split buffer %d into %d blocks of length %d\n\r", bufferId, blockCount, length);
+	} else {
+		debug_log("bufferSplit: buffer %d not found\n\r", bufferId);
+	}
+}
+
+// VDU 23, 0, &A0, bufferId; &0E : Reverse blocks within buffer
+// Reverses the order of blocks within a buffer
+// may be useful for mirroring bitmaps if they have been split by row
+//
+void VDUStreamProcessor::bufferReverseBlocks(uint16_t bufferId) {
+	if (buffers.find(bufferId) != buffers.end()) {
+		// reverse the order of the streams
+		std::reverse(buffers[bufferId].begin(), buffers[bufferId].end());
 	}
 }
 
