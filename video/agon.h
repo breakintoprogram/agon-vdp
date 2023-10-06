@@ -150,7 +150,7 @@
 
 // Adjust operation flags
 #define ADJUST_OP_MASK			0x0F	// operation code mask
-#define ADJUST_24BIT_OFFSETS	0x10	// offset values are 24-bit
+#define ADJUST_ADVANCED_OFFSETS	0x10	// advanced, 24-bit offsets (16-bit block offset follows if top bit set)
 #define ADJUST_BUFFER_VALUE		0x20	// operand is a buffer fetched value
 #define ADJUST_MULTI_TARGET		0x40	// multiple target values will be adjusted
 #define ADJUST_MULTI_OPERAND	0x80	// multiple operand values used for adjustments
@@ -169,7 +169,7 @@
 
 // Conditional operation flags
 #define COND_OP_MASK			0x0F	// conditional operation code mask
-#define COND_24BIT_OFFSETS		0x10	// offset values are 24-bit
+#define COND_ADVANCED_OFFSETS	0x10	// advanced offset values
 #define COND_BUFFER_VALUE		0x20	// value to compare is a buffer-fetched value
 
 // Buffered bitmap info
