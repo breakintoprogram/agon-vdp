@@ -223,6 +223,39 @@ void VDUStreamProcessor::setOutputStream(uint16_t bufferId) {
 	}
 }
 
+uint32_t VDUStreamProcessor::getOffsetFromStream(uint16_t bufferId, bool isAdvanced) {
+	if (isAdvanced) {
+		auto offset = read24_t();
+		if (offset == -1) {
+			return -1;
+		}
+		if (offset & 0x00800000) {
+			// top bit of 24-bit offset is set, so we have a block offset too
+			auto blockOffset = readWord_t();
+			if (blockOffset == -1) {
+				return -1;
+			}
+			if (buffers.find(bufferId) == buffers.end()) {
+				debug_log("getOffsetFromStream: buffer %d not found\n\r", bufferId);
+				return -1;
+			}
+			if (blockOffset >= buffers[bufferId].size()) {
+				debug_log("getOffsetFromStream: block offset %d is greater than number of blocks %d\n\r", blockOffset, buffers[bufferId].size());
+				return -1;
+			}
+			// calculate our true offset
+			// by counting up sizes of all blocks before the one we want
+			auto trueOffset = offset & 0x007FFFFF;
+			for (auto i = 0; i < blockOffset; i++) {
+				trueOffset += buffers[bufferId][i]->size();
+			}
+			return trueOffset;
+		}
+		return offset;
+	}
+	return readWord_t();
+}
+
 int16_t VDUStreamProcessor::getBufferByte(uint16_t bufferId, uint32_t offset) {
 	if (buffers.find(bufferId) != buffers.end()) {
 		// buffer ID exists
@@ -269,7 +302,7 @@ bool VDUStreamProcessor::setBufferByte(uint8_t value, uint16_t bufferId, uint32_
 void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 	auto command = readByte_t();
 
-	bool use24bitOffsets = command & ADJUST_24BIT_OFFSETS;
+	bool useAdvancedOffsets = command & ADJUST_ADVANCED_OFFSETS;
 	bool useBufferValue = command & ADJUST_BUFFER_VALUE;
 	bool useMultiTarget = command & ADJUST_MULTI_TARGET;
 	bool useMultiOperand = command & ADJUST_MULTI_OPERAND;
@@ -277,17 +310,17 @@ void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 	// Operators that are greater than NEG have an operand value
 	bool hasOperand = op > ADJUST_NEG;
 
-	auto offset = use24bitOffsets ? read24_t() : readWord_t();
+	auto offset = getOffsetFromStream(bufferId, useAdvancedOffsets);
 	auto operandBufferId = 0;
 	auto operandOffset = 0;
 	auto count = 1;
 
 	if (useMultiTarget | useMultiOperand) {
-		count = use24bitOffsets ? read24_t() : readWord_t();
+		count = useAdvancedOffsets ? read24_t() : readWord_t();
 	}
 	if (useBufferValue && hasOperand) {
 		operandBufferId = readWord_t();
-		operandOffset = use24bitOffsets ? read24_t() : readWord_t();
+		operandOffset = getOffsetFromStream(operandBufferId, useAdvancedOffsets);
 	}
 
 	if (command == -1 || count == -1 || offset == -1 || operandBufferId == -1 || operandOffset == -1) {
@@ -318,7 +351,7 @@ void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 	}
 
 	debug_log("bufferAdjust: command %d, offset %d, count %d, operandBufferId %d, operandOffset %d, sourceValue %d, operandValue %d\n\r", command, offset, count, operandBufferId, operandOffset, sourceValue, operandValue);
-	debug_log("useMultiTarget %d, useMultiOperand %d, use24bitOffsets %d, useBufferValue %d\n\r", useMultiTarget, useMultiOperand, use24bitOffsets, useBufferValue);
+	debug_log("useMultiTarget %d, useMultiOperand %d, useAdvancedOffsets %d, useBufferValue %d\n\r", useMultiTarget, useMultiOperand, useAdvancedOffsets, useBufferValue);
 
 	for (auto i = 0; i < count; i++) {
 		if (useMultiTarget) {
@@ -407,19 +440,19 @@ bool VDUStreamProcessor::bufferConditional() {
 	auto command = readByte_t();
 	auto checkBufferId = readWord_t();
 
-	bool use24bitOffsets = command & COND_24BIT_OFFSETS;
+	bool useAdvancedOffsets = command & COND_ADVANCED_OFFSETS;
 	bool useBufferValue = command & COND_BUFFER_VALUE;
 	uint8_t op = command & COND_OP_MASK;
 	// conditional operators that are greater than NOT_EXISTS require an operand
 	bool hasOperand = op > COND_NOT_EXISTS;
 
-	auto offset = use24bitOffsets ? read24_t() : readWord_t();
+	auto offset = getOffsetFromStream(checkBufferId, useAdvancedOffsets);
 	auto operandBufferId = 0;
 	auto operandOffset = 0;
 
 	if (useBufferValue) {
 		operandBufferId = readWord_t();
-		operandOffset = use24bitOffsets ? read24_t() : readWord_t();
+		operandOffset = getOffsetFromStream(operandBufferId, useAdvancedOffsets);
 	}
 
 	if (command == -1 || checkBufferId == -1 || offset == -1 || operandBufferId == -1 || operandOffset == -1) {
