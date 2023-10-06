@@ -9,33 +9,6 @@
 #include "types.h"
 
 class VDUStreamProcessor {
-	public:
-		VDUStreamProcessor(std::shared_ptr<Stream> inputStream, std::shared_ptr<Stream> outputStream, uint16_t bufferId) :
-			inputStream(inputStream), outputStream(outputStream), originalOutputStream(outputStream), id(bufferId) {}
-		VDUStreamProcessor(Stream *input) :
-			inputStream(std::shared_ptr<Stream>(input)), outputStream(inputStream), originalOutputStream(inputStream) {}
-		inline bool byteAvailable() {
-			return inputStream->available() > 0;
-		}
-		inline uint8_t readByte() {
-			return inputStream->read();
-		}
-		inline void writeByte(uint8_t b) {
-			if (outputStream) {
-				outputStream->write(b);
-			}
-		}
-		void send_packet(uint8_t code, uint16_t len, uint8_t data[]);
-
-		void processAllAvailable();
-		void processNext();
-
-		void vdu(uint8_t c);
-
-		void wait_eZ80();
-		void sendModeInformation();
-
-		uint16_t id = 65535;
 	private:
 		std::shared_ptr<Stream> inputStream;
 		std::shared_ptr<Stream> outputStream;
@@ -103,6 +76,35 @@ class VDUStreamProcessor {
 		void bufferSplit(uint16_t bufferId, uint16_t length);
 		void bufferReverseBlocks(uint16_t bufferId);
 		void bufferReverse(uint16_t bufferId, uint8_t options);
+
+	public:
+		uint16_t id = 65535;
+
+		VDUStreamProcessor(std::shared_ptr<Stream> input, std::shared_ptr<Stream> output, uint16_t bufferId) :
+			inputStream(input), outputStream(output), originalOutputStream(output), id(bufferId) {}
+		VDUStreamProcessor(Stream *input) :
+			inputStream(std::shared_ptr<Stream>(input)), outputStream(inputStream), originalOutputStream(inputStream) {}
+
+		inline bool byteAvailable() {
+			return inputStream->available() > 0;
+		}
+		inline uint8_t readByte() {
+			return inputStream->read();
+		}
+		inline void writeByte(uint8_t b) {
+			if (outputStream) {
+				outputStream->write(b);
+			}
+		}
+		void send_packet(uint8_t code, uint16_t len, uint8_t data[]);
+
+		void processAllAvailable();
+		void processNext();
+
+		void vdu(uint8_t c);
+
+		void wait_eZ80();
+		void sendModeInformation();
 };
 
 // Read an unsigned byte from the serial port, with a timeout

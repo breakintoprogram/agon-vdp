@@ -485,14 +485,18 @@ bool VDUStreamProcessor::bufferConditional() {
 //
 void VDUStreamProcessor::bufferJump(uint16_t bufferId) {
 	debug_log("bufferJump: buffer %d\n\r", bufferId);
-	if (bufferId == 65535) {
-		// buffer ID of -1 (65535) is used as a "null output" stream
-		return;
-	}
 	if (id == 65535) {
 		// we're currently the top-level stream, so we can't jump
 		// so have to call instead
 		bufferCall(bufferId);
+		return;
+	}
+	if (bufferId == 65535) {
+		// buffer ID of -1 (65535) is used as a "null output" stream
+		// for a jump it indicates "go to end of stream"
+		// this will return out a called stream
+		auto instream = (MultiBufferStream *)inputStream.get();
+		instream->seekTo(instream->size());
 		return;
 	}
 	if (bufferId == id) {
