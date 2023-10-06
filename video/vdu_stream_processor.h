@@ -102,6 +102,7 @@ class VDUStreamProcessor {
 		void bufferConsolidate(uint16_t bufferId);
 		void bufferSplit(uint16_t bufferId, uint16_t length);
 		void bufferReverseBlocks(uint16_t bufferId);
+		void bufferReverse(uint16_t bufferId, uint8_t options);
 };
 
 // Read an unsigned byte from the serial port, with a timeout
