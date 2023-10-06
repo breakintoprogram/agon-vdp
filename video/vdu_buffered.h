@@ -26,7 +26,7 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 			bufferWrite(bufferId, length);
 		}	break;
 		case BUFFERED_CALL: {
-			bufferCall(bufferId);
+			bufferCall(bufferId, 0);
 		}	break;
 		case BUFFERED_CLEAR: {
 			bufferClear(bufferId);
@@ -44,25 +44,41 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 		case BUFFERED_COND_CALL: {
 			// VDU 23, 0, &A0, bufferId; 6, <conditional arguments>  : Conditional call
 			if (bufferConditional()) {
-				bufferCall(bufferId);
+				bufferCall(bufferId, 0);
 			}
 		}	break;
 		case BUFFERED_JUMP: {
-			bufferJump(bufferId);
+			bufferJump(bufferId, 0);
 		}	break;
 		case BUFFERED_COND_JUMP: {
-			// VDU 23, 0, &A0, bufferId; 9, <conditional arguments>  : Conditional jump
+			// VDU 23, 0, &A0, bufferId; 8, <conditional arguments>  : Conditional jump
 			if (bufferConditional()) {
-				bufferJump(bufferId);
+				bufferJump(bufferId, 0);
 			}
 		}	break;
 		case BUFFERED_OFFSET_JUMP: {
-			// TODO implement
-			debug_log("vdu_sys_buffered: offset jump not implemented\n\r");
+			// VDU 23, 0, &A0, bufferId; 9, offset; offsetHighByte  : Offset jump
+			auto offset = getOffsetFromStream(bufferId, true); if (offset == -1) return;
+			bufferJump(bufferId, offset);
 		}	break;
 		case BUFFERED_OFFSET_COND_JUMP: {
-			// TODO implement
-			debug_log("vdu_sys_buffered: offset conditional jump not implemented\n\r");
+			// VDU 23, 0, &A0, bufferId; &0A, offset; offsetHighByte, <conditional arguments>  : Conditional jump with offset
+			auto offset = getOffsetFromStream(bufferId, true); if (offset == -1) return;
+			if (bufferConditional()) {
+				bufferJump(bufferId, offset);
+			}
+		}	break;
+		case BUFFERED_OFFSET_CALL: {
+			// VDU 23, 0, &A0, bufferId; &0B, offset; offsetHighByte  : Offset call
+			auto offset = getOffsetFromStream(bufferId, true); if (offset == -1) return;
+			bufferCall(bufferId, offset);
+		}	break;
+		case BUFFERED_OFFSET_COND_CALL: {
+			// VDU 23, 0, &A0, bufferId; &0C, offset; offsetHighByte, <conditional arguments>  : Conditional call with offset
+			auto offset = getOffsetFromStream(bufferId, true); if (offset == -1) return;
+			if (bufferConditional()) {
+				bufferCall(bufferId, offset);
+			}
 		}	break;
 		case BUFFERED_COPY: {
 			bufferCopy(bufferId);
@@ -125,28 +141,29 @@ uint32_t VDUStreamProcessor::bufferWrite(uint16_t bufferId, uint32_t length) {
 // VDU 23, 0, &A0, bufferId; 1: Call buffer
 // Processes all commands from the streams stored against the given bufferId
 //
-void VDUStreamProcessor::bufferCall(uint16_t bufferId) {
+void VDUStreamProcessor::bufferCall(uint16_t bufferId, uint32_t offset) {
 	debug_log("bufferCall: buffer %d\n\r", bufferId);
 	if (bufferId == 65535) {
 		// buffer ID of -1 (65535) is used as a "null output" stream
 		return;
 	}
-	if (bufferId == id) {
-		// this is our current buffer ID, so rewind the stream
-		debug_log("bufferCall: rewinding stream\n\r");
-		((MultiBufferStream *)inputStream.get())->rewind();
-		return;
-	}
 	if (buffers.find(bufferId) != buffers.end()) {
+		if (id == 65535 && inputStream->available() == 0) {
+			// tail-call optimise - turn the call into a jump
+			bufferJump(bufferId, offset);
+			return;
+		}
 		auto streams = buffers[bufferId];
 		auto multiBufferStream = make_shared_psram<MultiBufferStream>(streams);
+		if (offset) {
+			multiBufferStream->seekTo(offset);
+		}
 		debug_log("bufferCall: processing %d streams\n\r", streams.size());
-		// TODO consider - should this use originalOutputStream?
 		auto streamProcessor = make_unique_psram<VDUStreamProcessor>(multiBufferStream, outputStream, bufferId);
 		streamProcessor->processAllAvailable();
-	} else {
-		debug_log("bufferCall: buffer %d not found\n\r", bufferId);
+		return;
 	}
+	debug_log("bufferCall: buffer %d not found\n\r", bufferId);
 }
 
 // VDU 23, 0, &A0, bufferId; 2: Clear buffer
@@ -514,20 +531,20 @@ bool VDUStreamProcessor::bufferConditional() {
 }
 
 // VDU 23, 0, &A0, bufferId; 7: Jump to a buffer
-// Change execution to given buffer (from beginning)
+// VDU 23, 0, &A0, bufferId; 9, offset; offsetHighByte : Jump to (advanced) offset within buffer
+// Change execution to given buffer (from beginning or at an offset)
 //
-void VDUStreamProcessor::bufferJump(uint16_t bufferId) {
+void VDUStreamProcessor::bufferJump(uint16_t bufferId, uint32_t offset = 0) {
 	debug_log("bufferJump: buffer %d\n\r", bufferId);
 	if (id == 65535) {
 		// we're currently the top-level stream, so we can't jump
 		// so have to call instead
-		bufferCall(bufferId);
-		return;
+		return bufferCall(bufferId, offset);
 	}
 	if (bufferId == 65535) {
 		// buffer ID of -1 (65535) is used as a "null output" stream
 		// for a jump it indicates "go to end of stream"
-		// this will return out a called stream
+		// this will return out a called stream, offset will be ignored
 		auto instream = (MultiBufferStream *)inputStream.get();
 		instream->seekTo(instream->size());
 		return;
@@ -535,20 +552,23 @@ void VDUStreamProcessor::bufferJump(uint16_t bufferId) {
 	if (bufferId == id) {
 		// this is our current buffer ID, so rewind the stream
 		debug_log("bufferJump: rewinding stream\n\r");
-		((MultiBufferStream *)inputStream.get())->rewind();
+		((MultiBufferStream *)inputStream.get())->seekTo(offset);
 		return;
 	}
 	if (buffers.find(bufferId) != buffers.end()) {
 		auto streams = buffers[bufferId];
 		// replace our input stream with a new one
 		auto multiBufferStream = make_shared_psram<MultiBufferStream>(streams);
+		if (offset) {
+			multiBufferStream->seekTo(offset);
+		}
 		inputStream = multiBufferStream;
-	} else {
-		debug_log("bufferJump: buffer %d not found\n\r", bufferId);
+		return;
 	}
+	debug_log("bufferJump: buffer %d not found\n\r", bufferId);
 }
 
-// VDU 23, 0, &A0, bufferId; &0B, sourceBufferId; sourceBufferId; ...; : Copy buffers
+// VDU 23, 0, &A0, bufferId; &0D, sourceBufferId; sourceBufferId; ...; : Copy buffers
 // Copy a list of buffers into a new buffer
 // list is terminated with a bufferId of 65535 (-1)
 // Replaces the target buffer with the new one
@@ -591,7 +611,7 @@ void VDUStreamProcessor::bufferCopy(uint16_t bufferId) {
 	debug_log("bufferCopy: copied %d streams into buffer %d (%d)\n\r", streams.size(), bufferId, buffers[bufferId].size());
 }
 
-// VDU 23, 0, &A0, bufferId; &0C : Consolidate blocks within buffer
+// VDU 23, 0, &A0, bufferId; &0E : Consolidate blocks within buffer
 // Consolidate multiple streams/blocks into a single block
 // This is useful for using bitmaps sent in multiple blocks
 //
@@ -625,7 +645,7 @@ void VDUStreamProcessor::bufferConsolidate(uint16_t bufferId) {
 	}
 }
 
-// VDU 23, 0, &A0, bufferId; &0D, length; : Split buffer into blocks
+// VDU 23, 0, &A0, bufferId; &0F, length; : Split buffer into blocks
 // Split a buffer into multiple blocks/streams
 //
 void VDUStreamProcessor::bufferSplit(uint16_t bufferId, uint16_t length) {
@@ -665,7 +685,7 @@ void VDUStreamProcessor::bufferSplit(uint16_t bufferId, uint16_t length) {
 	}
 }
 
-// VDU 23, 0, &A0, bufferId; &0E : Reverse blocks within buffer
+// VDU 23, 0, &A0, bufferId; &10 : Reverse blocks within buffer
 // Reverses the order of blocks within a buffer
 // may be useful for mirroring bitmaps if they have been split by row
 //
@@ -676,7 +696,7 @@ void VDUStreamProcessor::bufferReverseBlocks(uint16_t bufferId) {
 	}
 }
 
-// VDU 23, 0, &A0, bufferId; &0F, options, <parameters> : Reverse buffer
+// VDU 23, 0, &A0, bufferId; &11, options, <parameters> : Reverse buffer
 // Reverses the contents of a buffer
 // may be useful for mirroring bitmaps
 //

@@ -62,7 +62,7 @@ class VDUStreamProcessor {
 
 		void vdu_sys_buffered();
 		uint32_t bufferWrite(uint16_t bufferId, uint32_t size);
-		void bufferCall(uint16_t bufferId);
+		void bufferCall(uint16_t bufferId, uint32_t offset);
 		void bufferClear(uint16_t bufferId);
 		std::shared_ptr<WritableBufferStream> bufferCreate(uint16_t bufferId, uint32_t size);
 		void setOutputStream(uint16_t bufferId);
@@ -71,7 +71,7 @@ class VDUStreamProcessor {
 		bool setBufferByte(uint8_t value, uint16_t bufferId, uint32_t offset);
 		void bufferAdjust(uint16_t bufferId);
 		bool bufferConditional();
-		void bufferJump(uint16_t bufferId);
+		void bufferJump(uint16_t bufferId, uint32_t offset);
 		void bufferCopy(uint16_t bufferId);
 		void bufferConsolidate(uint16_t bufferId);
 		void bufferSplit(uint16_t bufferId, uint16_t length);
