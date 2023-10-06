@@ -77,6 +77,10 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 		case BUFFERED_REVERSE_BLOCKS: {
 			bufferReverseBlocks(bufferId);
 		}	break;
+		case BUFFERED_REVERSE: {
+			auto options = readByte_t(); if (options == -1) return;
+			bufferReverse(bufferId, options);
+		}	break;
 		case BUFFERED_DEBUG_INFO: {
 			debug_log("vdu_sys_buffered: buffer %d, %d streams stored\n\r", bufferId, buffers[bufferId].size());
 			if (buffers[bufferId].size() == 0) {
@@ -632,6 +636,50 @@ void VDUStreamProcessor::bufferReverseBlocks(uint16_t bufferId) {
 	if (buffers.find(bufferId) != buffers.end()) {
 		// reverse the order of the streams
 		std::reverse(buffers[bufferId].begin(), buffers[bufferId].end());
+	}
+}
+
+// VDU 23, 0, &A0, bufferId; &0F, options, <parameters> : Reverse buffer
+// Reverses the contents of a buffer
+// may be useful for mirroring bitmaps
+//
+void VDUStreamProcessor::bufferReverse(uint16_t bufferId, uint8_t options) {
+	if (buffers.find(bufferId) != buffers.end()) {
+		// buffer ID exists
+
+		// if options is zero then this is a "simple" reverse
+		// which is a byte-wise reverse, per block
+		// blocks do not get reversed
+		if (options != 0) {
+			// TODO implement complex reverse
+			debug_log("bufferReverse: complex reverse not implemented\n\r");
+			return;
+		}
+
+		for (auto buffer : buffers[bufferId]) {
+			// get last offset into buffer
+			auto bufferEnd = buffer->size() - 1;
+			// get pointer to buffer data
+			auto bufferData = buffer->getBuffer();
+			// reverse the data
+			for (auto i = 0; i <= (bufferEnd / 2); i++) {
+				auto temp = bufferData[i];
+				bufferData[i] = bufferData[bufferEnd - i];
+				bufferData[bufferEnd - i] = temp;
+			}
+		}
+
+		// ideas for advanced reverse
+		// if options is non-zero then this is a "complex" reverse
+		// bottom two bits indicate chunk size
+		// - 0 = bytes, 1 = 16-bit, 2 = 32-bit, 3 = size follows as a word
+		// next bit indicates whether to reverse per-block, or whole buffer
+		// next bit indicates whether to reverse blocks
+		// next bit indicates that an offset and length follow
+
+		debug_log("bufferReverse: reversed buffer %d\n\r", bufferId);
+	} else {
+		debug_log("bufferReverse: buffer %d not found\n\r", bufferId);
 	}
 }
 

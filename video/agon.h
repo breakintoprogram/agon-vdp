@@ -134,8 +134,9 @@
 #define BUFFERED_CONSOLIDATE	0x0C	// Consolidate blocks inside a buffer into one
 #define BUFFERED_SPLIT			0x0D	// Split a buffer into multiple blocks
 #define BUFFERED_REVERSE_BLOCKS	0x0E	// Reverse the order of blocks in a buffer
+#define BUFFERED_REVERSE		0x0F	// Reverse the order of data in a buffer
 
-#define BUFFERED_DEBUG_INFO		0x10	// Get debug info about a buffer
+#define BUFFERED_DEBUG_INFO		0x20	// Get debug info about a buffer
 
 // Adjust operation codes
 #define ADJUST_NOT				0x00	// Adjust: NOT
