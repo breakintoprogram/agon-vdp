@@ -130,7 +130,7 @@
 #define BUFFERED_COND_JUMP		0x08	// Conditionally jump to a buffer
 #define BUFFERED_OFFSET_JUMP	0x09	// Jump to a buffer with an offset
 #define BUFFERED_OFFSET_COND_JUMP	0x0A	// Conditionally jump to a buffer with an offset
-#define BUFFERED_OFFSET_CALL    0x0B	// Call a buffer with an offset
+#define BUFFERED_OFFSET_CALL	0x0B	// Call a buffer with an offset
 #define BUFFERED_OFFSET_COND_CALL	0x0C	// Conditionally call a buffer with an offset
 #define BUFFERED_COPY			0x0D	// Copy blocks from multiple buffers into one buffer
 #define BUFFERED_CONSOLIDATE	0x0E	// Consolidate blocks inside a buffer into one
@@ -173,6 +173,14 @@
 #define COND_OP_MASK			0x0F	// conditional operation code mask
 #define COND_ADVANCED_OFFSETS	0x10	// advanced offset values
 #define COND_BUFFER_VALUE		0x20	// value to compare is a buffer-fetched value
+
+// Reverse operation flags
+#define REVERSE_16BIT			0x01	// 16-bit value length
+#define REVERSE_32BIT			0x02	// 32-bit value length
+#define REVERSE_SIZE			0x03	// when both length flags are set, a 16-bit length value follows
+#define REVERSE_CHUNKED			0x04	// chunked reverse, 16-bit size value follows
+#define REVERSE_BLOCK			0x08	// reverse block order
+#define REVERSE_UNUSED_BITS		0xF0	// unused bits
 
 // Buffered bitmap info
 #define BUFFERED_BITMAP_BASEID	0xFA00	// Base ID for buffered bitmaps

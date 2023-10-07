@@ -696,43 +696,106 @@ void VDUStreamProcessor::bufferReverseBlocks(uint16_t bufferId) {
 	}
 }
 
+void reverseValues(uint8_t * data, uint32_t length, uint8_t valueSize) {
+	// get last offset into buffer
+	auto bufferEnd = length - valueSize;
+
+	if (valueSize == 1) {
+		// reverse the data
+		for (auto i = 0; i <= (bufferEnd / 2); i++) {
+			auto temp = data[i];
+			data[i] = data[bufferEnd - i];
+			data[bufferEnd - i] = temp;
+		}
+	} else {
+		// reverse the data in chunks
+		for (auto i = 0; i <= (bufferEnd / (valueSize * 2)); i++) {
+			auto sourceOffset = i * valueSize;
+			auto targetOffset = bufferEnd - sourceOffset;
+			for (auto j = 0; j < valueSize; j++) {
+				auto temp = data[sourceOffset + j];
+				data[sourceOffset + j] = data[targetOffset + j];
+				data[targetOffset + j] = temp;
+			}
+		}
+	}
+}
+
 // VDU 23, 0, &A0, bufferId; &11, options, <parameters> : Reverse buffer
-// Reverses the contents of a buffer
+// Reverses the contents of blocks within a buffer
 // may be useful for mirroring bitmaps
 //
 void VDUStreamProcessor::bufferReverse(uint16_t bufferId, uint8_t options) {
 	if (buffers.find(bufferId) != buffers.end()) {
 		// buffer ID exists
 
-		// if options is zero then this is a "simple" reverse
-		// which is a byte-wise reverse, per block
-		// blocks do not get reversed
-		if (options != 0) {
-			// TODO implement complex reverse
-			debug_log("bufferReverse: complex reverse not implemented\n\r");
-			return;
+		bool use16Bit = options & REVERSE_16BIT;
+		bool use32Bit = options & REVERSE_32BIT;
+		bool useSize  = (options & REVERSE_SIZE) == REVERSE_SIZE;
+		bool useChunks = options & REVERSE_CHUNKED;
+		bool reverseBlocks = options & REVERSE_BLOCK;
+		uint8_t unused = options & REVERSE_UNUSED_BITS;
+
+		// future expansion may include:
+		// reverse at an offset for a set length (within blocks)
+		// reversing across whole buffer (not per block)
+
+		if (unused != 0) {
+			debug_log("bufferReverse: warning - unused bits in options byte\n\r");
 		}
 
-		for (auto buffer : buffers[bufferId]) {
-			// get last offset into buffer
-			auto bufferEnd = buffer->size() - 1;
-			// get pointer to buffer data
-			auto bufferData = buffer->getBuffer();
-			// reverse the data
-			for (auto i = 0; i <= (bufferEnd / 2); i++) {
-				auto temp = bufferData[i];
-				bufferData[i] = bufferData[bufferEnd - i];
-				bufferData[bufferEnd - i] = temp;
+		auto valueSize = 1;
+		auto chunkSize = 0;
+
+		if (useSize) {
+			// size follows as a word
+			valueSize = readWord_t();
+			if (valueSize == -1) {
+				return;
+			}
+		} else if (use32Bit) {
+			valueSize = 4;
+		} else if (use16Bit) {
+			valueSize = 2;
+		}
+
+		if (useChunks) {
+			chunkSize = readWord_t();
+			if (chunkSize == -1) {
+				return;
 			}
 		}
 
-		// ideas for advanced reverse
-		// if options is non-zero then this is a "complex" reverse
-		// bottom two bits indicate chunk size
-		// - 0 = bytes, 1 = 16-bit, 2 = 32-bit, 3 = size follows as a word
-		// next bit indicates whether to reverse per-block, or whole buffer
-		// next bit indicates whether to reverse blocks
-		// next bit indicates that an offset and length follow
+		// verify that our blocks are a multiple of valueSize
+		for (auto buffer : buffers[bufferId]) {
+			auto size = buffer->size();
+			if (size % valueSize != 0 || (chunkSize != 0 && size % chunkSize != 0)) {
+				debug_log("bufferReverse: error - buffer %d contains block not a multiple of value/chunk size %d\n\r", bufferId, valueSize);
+				return;
+			}
+		}
+
+		debug_log("bufferReverse: reversing buffer %d, value size %d, chunk size %d\n\r", bufferId, valueSize, chunkSize);
+
+		for (auto buffer : buffers[bufferId]) {
+			if (chunkSize == 0) {
+				// no chunking, so simpler reverse
+				reverseValues(buffer->getBuffer(), buffer->size(), valueSize);
+			} else {
+				// reverse in chunks
+				auto bufferData = buffer->getBuffer();
+				auto bufferLength = buffer->size();
+				auto chunkCount = bufferLength / chunkSize;
+				for (auto i = 0; i < chunkCount; i++) {
+					reverseValues(bufferData + (i * chunkSize), chunkSize, valueSize);
+				}
+			}
+		}
+
+		if (reverseBlocks) {
+			// reverse the order of the streams
+			bufferReverseBlocks(bufferId);
+		}
 
 		debug_log("bufferReverse: reversed buffer %d\n\r", bufferId);
 	} else {
