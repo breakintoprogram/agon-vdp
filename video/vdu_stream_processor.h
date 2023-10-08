@@ -67,14 +67,17 @@ class VDUStreamProcessor {
 		std::shared_ptr<WritableBufferStream> bufferCreate(uint16_t bufferId, uint32_t size);
 		void setOutputStream(uint16_t bufferId);
 		uint32_t getOffsetFromStream(uint16_t bufferId, bool isAdvanced);
+		std::vector<uint16_t> getBufferIdsFromStream();
 		int16_t getBufferByte(uint16_t bufferId, uint32_t offset);
 		bool setBufferByte(uint8_t value, uint16_t bufferId, uint32_t offset);
 		void bufferAdjust(uint16_t bufferId);
 		bool bufferConditional();
 		void bufferJump(uint16_t bufferId, uint32_t offset);
-		void bufferCopy(uint16_t bufferId);
+		void bufferCopy(uint16_t bufferId, std::vector<uint16_t> sourceBufferIds);
 		void bufferConsolidate(uint16_t bufferId);
-		void bufferSplit(uint16_t bufferId, uint16_t length);
+		void bufferSplitInto(uint16_t bufferId, uint16_t length, std::vector<uint16_t> newBufferIds, bool iterate);
+		void bufferSplitByInto(uint16_t bufferId, uint16_t width, uint16_t chunkCount, std::vector<uint16_t> newBufferIds, bool iterate);
+		void bufferSpreadInto(uint16_t bufferId, std::vector<uint16_t> newBufferIds, bool iterate);
 		void bufferReverseBlocks(uint16_t bufferId);
 		void bufferReverse(uint16_t bufferId, uint8_t options);
 
