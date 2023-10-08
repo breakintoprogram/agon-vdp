@@ -10,7 +10,7 @@
 
 class MultiBufferStream : public Stream {
 	public:
-		MultiBufferStream(std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>> buffers);
+		MultiBufferStream(std::vector<std::shared_ptr<BufferStream>> buffers);
 		int available();
 		int read();
 		int peek();
@@ -19,12 +19,12 @@ class MultiBufferStream : public Stream {
 		void seekTo(uint32_t position);
 		uint32_t size();
 	private:
-		std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>> buffers;
+		std::vector<std::shared_ptr<BufferStream>> buffers;
 		std::shared_ptr<BufferStream> getBuffer();
 		size_t currentBufferIndex = 0;
 };
 
-MultiBufferStream::MultiBufferStream(std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>> buffers) : buffers(buffers) {
+MultiBufferStream::MultiBufferStream(std::vector<std::shared_ptr<BufferStream>> buffers) : buffers(buffers) {
 	// rewind all buffers, in case they've been used before
 	rewind();
 }
