@@ -219,7 +219,11 @@ void VDUStreamProcessor::bufferCall(uint16_t bufferId, uint32_t offset) {
 			multiBufferStream->seekTo(offset);
 		}
 		auto streamProcessor = make_unique_psram<VDUStreamProcessor>(multiBufferStream, outputStream, bufferId);
-		streamProcessor->processAllAvailable();
+		if (streamProcessor) {
+			streamProcessor->processAllAvailable();
+		} else {
+			debug_log("bufferCall: failed to create stream processor\n\r");
+		}
 		return;
 	}
 	debug_log("bufferCall: buffer %d not found\n\r", bufferId);
@@ -659,6 +663,10 @@ void VDUStreamProcessor::bufferCopy(uint16_t bufferId, std::vector<uint16_t> sou
 			for (auto buffer : buffers[sourceId]) {
 				// push a copy of the buffer into our vector
 				auto bufferStream = make_shared_psram<BufferStream>(buffer->size());
+				if (!bufferStream || !bufferStream->getBuffer()) {
+					debug_log("bufferCopy: failed to create buffer\n\r");
+					return;
+				}
 				bufferStream->writeBuffer(buffer->getBuffer(), buffer->size());
 				streams.push_back(bufferStream);
 			}
@@ -686,6 +694,10 @@ std::shared_ptr<BufferStream> consolidateBuffers(std::vector<std::shared_ptr<Buf
 		length += buffer->size();
 	}
 	auto bufferStream = make_shared_psram<BufferStream>(length);
+	if (!bufferStream || !bufferStream->getBuffer()) {
+		debug_log("consolidateBuffers: failed to create buffer\n\r");
+		return nullptr;
+	}
 	auto offset = 0;
 	for (auto buffer : streams) {
 		auto bufferLength = buffer->size();
@@ -710,6 +722,10 @@ void VDUStreamProcessor::bufferConsolidate(uint16_t bufferId) {
 		}
 		// buffer ID exists
 		auto bufferStream = consolidateBuffers(buffers[bufferId]);
+		if (!bufferStream) {
+			debug_log("bufferConsolidate: failed to create buffer\n\r");
+			return;
+		}
 		buffers[bufferId].clear();
 		buffers[bufferId].push_back(bufferStream);
 		debug_log("bufferConsolidate: consolidated %d streams into buffer %d\n\r", buffers[bufferId].size(), bufferId);
@@ -747,6 +763,10 @@ std::vector<std::shared_ptr<BufferStream>> splitBuffer(std::shared_ptr<BufferStr
 			bufferLength = remaining;
 		}
 		auto chunk = make_shared_psram<BufferStream>(bufferLength);
+		if (!chunk || !chunk->getBuffer()) {
+			debug_log("splitBuffer: failed to create buffer\n\r");
+			return {};
+		}
 		memcpy(chunk->getBuffer(), sourceData, bufferLength);
 		chunks.push_back(chunk);
 		sourceData += bufferLength;
@@ -775,11 +795,19 @@ void VDUStreamProcessor::bufferSplitInto(uint16_t bufferId, uint16_t length, std
 		// buffer ID exists
 		// get a consolidated version of the buffer
 		auto bufferStream = consolidateBuffers(buffers[bufferId]);
+		if (!bufferStream) {
+			debug_log("bufferSplitInto: failed to create buffer\n\r");
+			return;
+		}
 		if (!iterate) {
 			clearTargets(newBufferIds);
 		}
 
 		auto chunks = splitBuffer(bufferStream, length);
+		if (chunks.size() == 0) {
+			debug_log("bufferSplitInto: failed to split buffer\n\r");
+			return;
+		}
 		// distribute our chunks to destination buffers
 		uint16_t newBufferIdIndex = 0;
 		auto targetId = newBufferIds[newBufferIdIndex];
@@ -808,6 +836,10 @@ void VDUStreamProcessor::bufferSplitByInto(uint16_t bufferId, uint16_t width, ui
 		// buffer ID exists
 		// get a consolidated version of the buffer
 		auto bufferStream = consolidateBuffers(buffers[bufferId]);
+		if (!bufferStream) {
+			debug_log("bufferSplitByInto: failed to create buffer\n\r");
+			return;
+		}
 		if (!iterate) {
 			clearTargets(newBufferIds);
 		}
@@ -817,6 +849,10 @@ void VDUStreamProcessor::bufferSplitByInto(uint16_t bufferId, uint16_t width, ui
 		{
 			// split to get raw chunks
 			auto rawchunks = splitBuffer(bufferStream, width);
+			if (rawchunks.size() == 0) {
+				debug_log("bufferSplitByInto: failed to split buffer\n\r");
+				return;
+			}
 			// and re-jig into our chunks vector
 			auto chunkIndex = 0;
 			for (auto chunk : rawchunks) {
@@ -836,6 +872,10 @@ void VDUStreamProcessor::bufferSplitByInto(uint16_t bufferId, uint16_t width, ui
 				clearTargets({ targetId });
 			}
 			auto chunk = consolidateBuffers(stream);
+			if (!chunk) {
+				debug_log("bufferSplitByInto: failed to create buffer\n\r");
+				return;
+			}
 			buffers[targetId].push_back(chunk);
 			updateTarget(newBufferIds, targetId, newBufferIndex, iterate);
 		}

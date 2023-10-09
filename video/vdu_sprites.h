@@ -146,11 +146,10 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 		}	break;
 
 		case 0x21: {	// Create bitmap from buffer
-			auto bufferId = readWord_t(); if (bufferId == -1) return;
-			auto format = readByte_t(); if (format == -1) return;
 			auto width = readWord_t(); if (width == -1) return;
 			auto height = readWord_t(); if (height == -1) return;
-			createBitmapFromBuffer(bufferId, format, width, height);
+			auto format = readByte_t(); if (format == -1) return;
+			createBitmapFromBuffer(getCurrentBitmapId(), format, width, height);
 		}	break;
 
 		case 0x26: {	// add sprite frame for bitmap (long ID)

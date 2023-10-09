@@ -9,7 +9,7 @@
 #include "agon.h"
 #include "agon_screen.h"
 
-uint16_t		currentBitmap = 0;				// Current bitmap ID
+uint16_t		currentBitmap = BUFFERED_BITMAP_BASEID;	// Current bitmap ID
 std::unordered_map<uint16_t, std::shared_ptr<Bitmap>> bitmaps;	// Storage for our bitmaps
 uint8_t			numsprites = 0;					// Number of sprites on stage
 uint8_t			current_sprite = 0;				// Current sprite number
@@ -47,6 +47,7 @@ void resetBitmaps() {
 	bitmaps.clear();
 	// this will only be used after resetting sprites, so we can clear the bitmapUsers list
 	bitmapUsers.clear();
+	setCurrentBitmap(BUFFERED_BITMAP_BASEID);
 }
 
 Sprite * getSprite(uint8_t sprite = current_sprite) {
@@ -184,6 +185,7 @@ void resetSprites() {
 		clearSpriteFrames(n);
 	}
 	activateSprites(0);
+	setCurrentSprite(0);
 	// replace all the sprite objects
 	// for (auto n = 0; n < MAX_SPRITES; n++) {
 	// 	sprites[n] = Sprite();
