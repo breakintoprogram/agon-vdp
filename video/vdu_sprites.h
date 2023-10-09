@@ -204,48 +204,49 @@ void VDUStreamProcessor::receiveBitmap(uint8_t cmd, uint16_t width, uint16_t hei
 void VDUStreamProcessor::createBitmapFromBuffer(uint16_t bufferId, uint8_t format, uint16_t width, uint16_t height) {
 	clearBitmap(bufferId);
 	// do we have a buffer with this ID?
-	if (buffers.find(bufferId) != buffers.end()) {
-		// is this a singular buffer we can use for a bitmap source?
-		if (buffers[bufferId].size() == 1) {
-			// create bitmap from buffer
-			auto stream = buffers[bufferId][0];
-			// map our pixel format, default to RGBA8888
-			PixelFormat pixelFormat = PixelFormat::RGBA8888;
-			auto bytesPerPixel = 4.;
-			switch (format) {
-				case 0:	// RGBA8888
-					pixelFormat = PixelFormat::RGBA8888;
-					bytesPerPixel = 4.;
-					break;
-				case 1:	// RGBA2222
-					pixelFormat = PixelFormat::RGBA2222;
-					bytesPerPixel = 1.;
-					break;
-				case 2: // Mono/Mask - TODO not sure exactly how to handle this
-					pixelFormat = PixelFormat::Mask;
-					bytesPerPixel = 1/8;
-					break;
-				default:
-					pixelFormat = PixelFormat::RGBA8888;
-					bytesPerPixel = 4.;
-					debug_log("vdu_sys_sprites: buffer %d - unknown pixel format %d, defaulting to RGBA8888\n\r", bufferId, format);
-			}
-			// Check that our stream length matches the expected length
-			auto streamLength = stream->size();
-			auto expectedLength = width * height * bytesPerPixel;
-			if (streamLength != expectedLength) {
-				debug_log("vdu_sys_sprites: buffer %d - stream length %d does not match expected length %f\n\r", bufferId, streamLength, expectedLength);
-				return;
-			}
-			auto data = stream->getBuffer();
-			bitmaps[bufferId] = make_shared_psram<Bitmap>(width, height, (uint8_t *)data, pixelFormat);
-			debug_log("vdu_sys_sprites: bitmap created for bufferId %d, format %d, (%dx%d)\n\r", bufferId, format, width, height);
-		} else {
-			debug_log("vdu_sys_sprites: buffer %d is not a singular buffer and cannot be used for a bitmap source\n\r", bufferId);
-		}
-	} else {
+	if (buffers.find(bufferId) == buffers.end()) {
 		debug_log("vdu_sys_sprites: buffer %d not found\n\r", bufferId);
+		return;
 	}
+	// is this a singular buffer we can use for a bitmap source?
+	if (buffers[bufferId].size() != 1) {
+		debug_log("vdu_sys_sprites: buffer %d is not a singular buffer and cannot be used for a bitmap source\n\r", bufferId);
+		return;
+	}
+
+	// create bitmap from buffer
+	auto stream = buffers[bufferId][0];
+	// map our pixel format, default to RGBA8888
+	PixelFormat pixelFormat = PixelFormat::RGBA8888;
+	auto bytesPerPixel = 4.;
+	switch (format) {
+		case 0:	// RGBA8888
+			pixelFormat = PixelFormat::RGBA8888;
+			bytesPerPixel = 4.;
+			break;
+		case 1:	// RGBA2222
+			pixelFormat = PixelFormat::RGBA2222;
+			bytesPerPixel = 1.;
+			break;
+		case 2: // Mono/Mask - TODO not sure exactly how to handle this
+			pixelFormat = PixelFormat::Mask;
+			bytesPerPixel = 1/8;
+			break;
+		default:
+			pixelFormat = PixelFormat::RGBA8888;
+			bytesPerPixel = 4.;
+			debug_log("vdu_sys_sprites: buffer %d - unknown pixel format %d, defaulting to RGBA8888\n\r", bufferId, format);
+	}
+	// Check that our stream length matches the expected length
+	auto streamLength = stream->size();
+	auto expectedLength = width * height * bytesPerPixel;
+	if (streamLength != expectedLength) {
+		debug_log("vdu_sys_sprites: buffer %d - stream length %d does not match expected length %f\n\r", bufferId, streamLength, expectedLength);
+		return;
+	}
+	auto data = stream->getBuffer();
+	bitmaps[bufferId] = make_shared_psram<Bitmap>(width, height, (uint8_t *)data, pixelFormat);
+	debug_log("vdu_sys_sprites: bitmap created for bufferId %d, format %d, (%dx%d)\n\r", bufferId, format, width, height);
 }
 
 #endif // _VDU_SPRITES_H_
