@@ -825,7 +825,7 @@ void VDUStreamProcessor::bufferSplitInto(uint16_t bufferId, uint16_t length, std
 
 // VDU 23, 0, &A0, bufferId; &12, width; chunkCount; : Split buffer by width (in-place)
 // VDU 23, 0, &A0, bufferId; &13, width; <bufferIds>; 65535; : Split buffer by width to new buffers
-// VDU 23, 0, &A0, bufferId; &14, width; targetBufferId; : Split buffer by width to new buffers from ID onwards
+// VDU 23, 0, &A0, bufferId; &14, width; chunkCount; targetBufferId; : Split buffer by width to new buffers from ID onwards
 // Split a buffer into multiple blocks/streams to new buffers/chunks by width
 // Will overwrite any existing buffers
 //
