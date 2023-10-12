@@ -6,17 +6,13 @@
 
 #include "types.h"
 #include "audio_channel.h"
+#include "buffer_stream.h"
 
 struct audio_sample {
-	audio_sample(uint32_t length) : length(length) {
-		data = (int8_t *) PreferPSRAMAlloc(length);
-		if (!data) {
-			debug_log("audio_sample: failed to allocate %d bytes\n\r", length);
-		}
-	}
+	audio_sample(std::vector<std::shared_ptr<BufferStream>> streams, uint8_t format) : blocks(streams), format(format) {}
 	~audio_sample();
-	uint32_t		length = 0;			// Length of the sample in bytes
-	int8_t *		data = nullptr;		// Pointer to the sample data
+	std::vector<std::shared_ptr<BufferStream>> blocks;
+	uint8_t			format = 0;			// Format of the sample data
 	std::unordered_map<uint8_t, std::weak_ptr<audio_channel>> channels;	// Channels playing this sample
 };
 
@@ -31,11 +27,6 @@ audio_sample::~audio_sample() {
 			channel->setWaveform(AUDIO_WAVE_DEFAULT, nullptr);
 		}
 	}
-
-	if (this->data) {
-		free(this->data);
-	}
-
 	debug_log("audio_sample cleared\n\r");
 }
 
