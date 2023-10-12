@@ -65,7 +65,6 @@
 
 #define AUDIO_CHANNELS			3		// Default number of audio channels
 #define MAX_AUDIO_CHANNELS		32		// Maximum number of audio channels
-#define MAX_AUDIO_SAMPLES		128		// Maximum number of audio samples
 #define PLAY_SOUND_PRIORITY		3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest
 
 // Audio command definitions
@@ -89,12 +88,16 @@
 #define AUDIO_WAVE_SINE			3		// Sine wave
 #define AUDIO_WAVE_NOISE		4		// Noise (simple, no frequency support)
 #define AUDIO_WAVE_VICNOISE		5		// VIC-style noise (supports frequency)
-#define AUDIO_WAVE_SAMPLE		8		// Sample playback (internally used, can't be passed as a parameter)
+#define AUDIO_WAVE_SAMPLE		8		// Sample playback, explicit buffer ID sent in following 2 bytes
 // negative values for waveforms indicate a sample number
 
 #define AUDIO_SAMPLE_LOAD		0		// Send a sample to the VDP
 #define AUDIO_SAMPLE_CLEAR		1		// Clear/delete a sample
-#define AUDIO_SAMPLE_DEBUG_INFO 2		// Get debug info about a sample
+#define AUDIO_SAMPLE_FROM_BUFFER	2	// Load a sample from a buffer
+#define AUDIO_SAMPLE_DEBUG_INFO 0x10	// Get debug info about a sample
+
+#define AUDIO_FORMAT_8BIT_SIGNED	0	// 8-bit signed sample
+#define AUDIO_FORMAT_8BIT_UNSIGNED	1	// 8-bit unsigned sample
 
 #define AUDIO_ENVELOPE_NONE		0		// No envelope
 #define AUDIO_ENVELOPE_ADSR		1		// Simple ADSR volume envelope
@@ -189,8 +192,9 @@
 #define REVERSE_BLOCK			0x08	// reverse block order
 #define REVERSE_UNUSED_BITS		0xF0	// unused bits
 
-// Buffered bitmap info
+// Buffered bitmap and sample info
 #define BUFFERED_BITMAP_BASEID	0xFA00	// Base ID for buffered bitmaps
+#define BUFFERED_SAMPLE_BASEID	0xFB00	// Base ID for buffered samples
 
 // Viewport definitions
 #define VIEWPORT_TEXT			0		// Text viewport

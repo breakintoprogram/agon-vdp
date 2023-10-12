@@ -49,7 +49,8 @@ class VDUStreamProcessor {
 
 		void vdu_sys_audio();
 		void sendAudioStatus(uint8_t channel, uint8_t status);
-		uint8_t loadSample(uint8_t sampleIndex, uint32_t length);
+		uint8_t loadSample(uint16_t bufferId, uint32_t length);
+		uint8_t createSampleFromBuffer(uint16_t bufferId, uint8_t format);
 		void setVolumeEnvelope(uint8_t channel, uint8_t type);
 		void setFrequencyEnvelope(uint8_t channel, uint8_t type);
 

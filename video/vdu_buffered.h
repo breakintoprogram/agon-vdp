@@ -246,6 +246,7 @@ void VDUStreamProcessor::bufferClear(uint16_t bufferId) {
 	}
 	buffers.erase(bufferId);
 	clearBitmap(bufferId);
+	clearSample(bufferId);
 	debug_log("bufferClear: cleared buffer %d\n\r", bufferId);
 }
 

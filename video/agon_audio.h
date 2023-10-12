@@ -23,7 +23,7 @@
 std::unordered_map<uint8_t, std::shared_ptr<audio_channel>> audio_channels;
 std::vector<TaskHandle_t, psram_allocator<TaskHandle_t>> audioHandlers;
 
-std::unordered_map<uint8_t, std::shared_ptr<audio_sample>> samples;	// Storage for the sample data
+std::unordered_map<uint16_t, std::shared_ptr<audio_sample>> samples;	// Storage for the sample data
 
 fabgl::SoundGenerator		SoundGenerator;		// The audio class
 
@@ -119,27 +119,24 @@ void setFrequency(uint8_t channel, uint16_t frequency) {
 
 // Set channel waveform
 //
-void setWaveform(uint8_t channel, int8_t waveformType) {
+void setWaveform(uint8_t channel, int8_t waveformType, uint16_t sampleId) {
 	if (channelEnabled(channel)) {
 		auto channelRef = audio_channels[channel];
-		channelRef->setWaveform(waveformType, channelRef);
+		channelRef->setWaveform(waveformType, channelRef, sampleId);
 	}
 }
 
 // Clear a sample
 //
-uint8_t clearSample(uint8_t sampleIndex) {
-	debug_log("clearSample: sample %d\n\r", sampleIndex);
-	if (sampleIndex < MAX_AUDIO_SAMPLES) {
-		if (samples.find(sampleIndex) == samples.end()) {
-			debug_log("clearSample: sample %d not found\n\r", sampleIndex);
-			return 0;
-		}
-		samples.erase(sampleIndex);
-		debug_log("reset sample\n\r");
-		return 1;
+uint8_t clearSample(uint16_t sampleId) {
+	debug_log("clearSample: sample %d\n\r", sampleId);
+	if (samples.find(sampleId) == samples.end()) {
+		debug_log("clearSample: sample %d not found\n\r", sampleId);
+		return 0;
 	}
-	return 0;
+	samples.erase(sampleId);
+	debug_log("reset sample\n\r");
+	return 1;
 }
 
 #endif // AGON_AUDIO_H
