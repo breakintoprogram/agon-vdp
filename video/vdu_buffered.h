@@ -47,12 +47,15 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 			}
 		}	break;
 		case BUFFERED_JUMP: {
-			bufferJump(bufferId, 0);
+			// VDU 23, 0, &A0, bufferId; 7: Jump to buffer
+			// a "jump" (without an offset) to buffer 65535 (-1) indicates a "jump to end"
+			bufferJump(bufferId, bufferId == 65535 ? -1 : 0);
 		}	break;
 		case BUFFERED_COND_JUMP: {
 			// VDU 23, 0, &A0, bufferId; 8, <conditional arguments>  : Conditional jump
 			if (bufferConditional()) {
-				bufferJump(bufferId, 0);
+				// ensure offset-less jump to buffer 65535 (-1) is treated as a "jump to end"
+				bufferJump(bufferId, bufferId == 65535 ? -1 : 0);
 			}
 		}	break;
 		case BUFFERED_OFFSET_JUMP: {
@@ -616,7 +619,7 @@ bool VDUStreamProcessor::bufferConditional() {
 // VDU 23, 0, &A0, bufferId; 9, offset; offsetHighByte : Jump to (advanced) offset within buffer
 // Change execution to given buffer (from beginning or at an offset)
 //
-void VDUStreamProcessor::bufferJump(uint16_t bufferId, uint32_t offset = 0xFFFFFFFF) {
+void VDUStreamProcessor::bufferJump(uint16_t bufferId, uint32_t offset) {
 	debug_log("bufferJump: buffer %d\n\r", bufferId);
 	if (id == 65535) {
 		// we're currently the top-level stream, so we can't jump
@@ -625,8 +628,6 @@ void VDUStreamProcessor::bufferJump(uint16_t bufferId, uint32_t offset = 0xFFFFF
 	}
 	if (bufferId == 65535 || bufferId == id) {
 		// a buffer ID of 65535 is used to indicate current buffer
-		// if no offset is given then this will "jump to end"
-		// which will return out a called stream
 		auto instream = (MultiBufferStream *)inputStream.get();
 		instream->seekTo(offset);
 		return;
