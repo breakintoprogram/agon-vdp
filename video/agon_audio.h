@@ -139,4 +139,11 @@ uint8_t clearSample(uint16_t sampleId) {
 	return 1;
 }
 
+// Reset samples
+//
+void resetSamples() {
+	debug_log("resetSamples\n\r");
+	samples.clear();
+}
+
 #endif // AGON_AUDIO_H
