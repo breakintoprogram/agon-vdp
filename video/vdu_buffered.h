@@ -110,7 +110,7 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 		}	break;
 		case BUFFERED_SPLIT_FROM: {
 			auto length = readWord_t(); if (length == -1) return;
-			auto targetStart = readWord_t(); if (targetStart == -1) return;
+			auto targetStart = readWord_t(); if (targetStart == -1 || targetStart == 65535) return;
 			std::vector<uint16_t> target { (uint16_t)targetStart };
 			bufferSplitInto(bufferId, length, target, true);
 		}	break;
@@ -133,7 +133,7 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 		case BUFFERED_SPLIT_BY_FROM: {
 			auto width = readWord_t(); if (width == -1) return;
 			auto chunks = readWord_t(); if (chunks == -1) return;
-			auto targetStart = readWord_t(); if (targetStart == -1) return;
+			auto targetStart = readWord_t(); if (targetStart == -1 || targetStart == 65535) return;
 			std::vector<uint16_t> target { (uint16_t)targetStart };
 			bufferSplitByInto(bufferId, width, chunks, target, true);
 		}	break;
@@ -146,7 +146,7 @@ void VDUStreamProcessor::vdu_sys_buffered() {
 			bufferSpreadInto(bufferId, targetBufferIds, false);
 		}	break;
 		case BUFFERED_SPREAD_FROM: {
-			auto targetStart = readWord_t(); if (targetStart == -1) return;
+			auto targetStart = readWord_t(); if (targetStart == -1 || targetStart == 65535) return;
 			std::vector<uint16_t> target { (uint16_t)targetStart };
 			bufferSpreadInto(bufferId, target, true);
 		}	break;
@@ -193,6 +193,12 @@ uint32_t VDUStreamProcessor::bufferWrite(uint16_t bufferId, uint32_t length) {
 		return remaining;
 	}
 
+	if (bufferId == 65535) {
+		// buffer ID of -1 (65535) reserved so we don't store it
+		debug_log("bufferWrite: ignoring buffer 65535\n\r");
+		return remaining;
+	}
+
 	buffers[bufferId].push_back(std::move(bufferStream));
 	debug_log("bufferWrite: stored stream in buffer %d, length %d, %d streams stored\n\r", bufferId, length, buffers[bufferId].size());
 	return remaining;
@@ -202,11 +208,11 @@ uint32_t VDUStreamProcessor::bufferWrite(uint16_t bufferId, uint32_t length) {
 // VDU 23, 0, &A0, bufferId; &0B, offset; offsetHighByte  : Offset call
 // Processes all commands from the streams stored against the given bufferId
 //
-void VDUStreamProcessor::bufferCall(uint16_t bufferId, uint32_t offset) {
-	debug_log("bufferCall: buffer %d\n\r", bufferId);
-	if (bufferId == 65535) {
-		// buffer ID of -1 (65535) is used as a "null output" stream
-		// so calling it is meaningless
+void VDUStreamProcessor::bufferCall(uint16_t callBufferId, uint32_t offset) {
+	debug_log("bufferCall: buffer %d\n\r", callBufferId);
+	auto bufferId = resolveBufferId(callBufferId, id);
+	if (bufferId == -1) {
+		debug_log("bufferCall: no buffer ID\n\r");
 		return;
 	}
 	if (buffers.find(bufferId) == buffers.end()) {
@@ -240,6 +246,7 @@ void VDUStreamProcessor::bufferClear(uint16_t bufferId) {
 	if (bufferId == 65535) {
 		buffers.clear();
 		resetBitmaps();
+		resetSamples();
 		return;
 	}
 	if (buffers.find(bufferId) == buffers.end()) {
@@ -306,6 +313,7 @@ void VDUStreamProcessor::setOutputStream(uint16_t bufferId) {
 	}
 }
 
+// Utility call to read offset from stream, supporting advanced offsets
 uint32_t VDUStreamProcessor::getOffsetFromStream(uint16_t bufferId, bool isAdvanced) {
 	if (isAdvanced) {
 		auto offset = read24_t();
@@ -339,6 +347,7 @@ uint32_t VDUStreamProcessor::getOffsetFromStream(uint16_t bufferId, bool isAdvan
 	return readWord_t();
 }
 
+// Utility call to read a sequence of buffer IDs from the stream
 std::vector<uint16_t> VDUStreamProcessor::getBufferIdsFromStream() {
 	// read buffer IDs until we get a 65535 (end of list) or a timeout
 	std::vector<uint16_t> bufferIds;
@@ -352,12 +361,14 @@ std::vector<uint16_t> VDUStreamProcessor::getBufferIdsFromStream() {
 		}
 	}
 	if (bufferId == -1) {
+		// timeout
 		bufferIds.clear();
 	}
 
 	return bufferIds;
 }
 
+// Utility call to read a byte from a buffer at the given offset
 int16_t VDUStreamProcessor::getBufferByte(uint16_t bufferId, uint32_t offset) {
 	if (buffers.find(bufferId) != buffers.end()) {
 		// loop thru blocks stored against this ID to find data at offset
@@ -374,6 +385,7 @@ int16_t VDUStreamProcessor::getBufferByte(uint16_t bufferId, uint32_t offset) {
 	return -1;
 }
 
+// Utility call to set a byte in a buffer at the given offset
 bool VDUStreamProcessor::setBufferByte(uint8_t value, uint16_t bufferId, uint32_t offset) {
 	if (buffers.find(bufferId) != buffers.end()) {
 		// find the block containing the offset
@@ -401,9 +413,11 @@ bool VDUStreamProcessor::setBufferByte(uint8_t value, uint16_t bufferId, uint32_
 // - whether to adjust a single target or multiple targets
 // - whether to use a single operand or multiple operands
 //
-void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
+void VDUStreamProcessor::bufferAdjust(uint16_t adjustBufferId) {
 	auto command = readByte_t();
 
+	auto bufferId = resolveBufferId(adjustBufferId, id);
+	// at this point bufferId could be -1, but that's OK - we will fail later
 	bool useAdvancedOffsets = command & ADJUST_ADVANCED_OFFSETS;
 	bool useBufferValue = command & ADJUST_BUFFER_VALUE;
 	bool useMultiTarget = command & ADJUST_MULTI_TARGET;
@@ -421,7 +435,7 @@ void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 		count = useAdvancedOffsets ? read24_t() : readWord_t();
 	}
 	if (useBufferValue && hasOperand) {
-		operandBufferId = readWord_t();
+		operandBufferId = resolveBufferId(readWord_t(), id);
 		operandOffset = getOffsetFromStream(operandBufferId, useAdvancedOffsets);
 	}
 
@@ -540,7 +554,7 @@ void VDUStreamProcessor::bufferAdjust(uint16_t bufferId) {
 // 
 bool VDUStreamProcessor::bufferConditional() {
 	auto command = readByte_t();
-	auto checkBufferId = readWord_t();
+	auto checkBufferId = resolveBufferId(readWord_t(), id);
 
 	bool useAdvancedOffsets = command & COND_ADVANCED_OFFSETS;
 	bool useBufferValue = command & COND_BUFFER_VALUE;
@@ -553,7 +567,7 @@ bool VDUStreamProcessor::bufferConditional() {
 	auto operandOffset = 0;
 
 	if (useBufferValue) {
-		operandBufferId = readWord_t();
+		operandBufferId = resolveBufferId(readWord_t(), id);
 		operandOffset = getOffsetFromStream(operandBufferId, useAdvancedOffsets);
 	}
 
@@ -627,7 +641,7 @@ void VDUStreamProcessor::bufferJump(uint16_t bufferId, uint32_t offset) {
 		return bufferCall(bufferId, offset);
 	}
 	if (bufferId == 65535 || bufferId == id) {
-		// a buffer ID of 65535 is used to indicate current buffer
+		// a buffer ID of 65535 is used to indicate current buffer, so we seek to offset
 		auto instream = (MultiBufferStream *)inputStream.get();
 		instream->seekTo(offset);
 		return;
@@ -654,6 +668,10 @@ void VDUStreamProcessor::bufferJump(uint16_t bufferId, uint32_t offset) {
 // Target buffer ID can be included in the source list
 //
 void VDUStreamProcessor::bufferCopy(uint16_t bufferId, std::vector<uint16_t> sourceBufferIds) {
+	if (bufferId == 65535) {
+		debug_log("bufferCopy: ignoring buffer %d\n\r", bufferId);
+		return;
+	}
 	// prepare a vector for storing our buffers
 	std::vector<std::shared_ptr<BufferStream>, psram_allocator<std::shared_ptr<BufferStream>>> streams;
 	// loop thru buffer IDs
@@ -684,30 +702,6 @@ void VDUStreamProcessor::bufferCopy(uint16_t bufferId, std::vector<uint16_t> sou
 	debug_log("bufferCopy: copied %d streams into buffer %d (%d)\n\r", streams.size(), bufferId, buffers[bufferId].size());
 }
 
-std::shared_ptr<BufferStream> consolidateBuffers(std::vector<std::shared_ptr<BufferStream>>& streams) {
-	// don't do anything if only one stream
-	if (streams.size() == 1) {
-		return streams[0];
-	}
-	// work out total length of buffer
-	uint32_t length = 0;
-	for (auto block : streams) {
-		length += block->size();
-	}
-	auto bufferStream = make_shared_psram<BufferStream>(length);
-	if (!bufferStream || !bufferStream->getBuffer()) {
-		debug_log("consolidateBuffers: failed to create buffer\n\r");
-		return nullptr;
-	}
-	auto offset = 0;
-	for (auto block : streams) {
-		auto bufferLength = block->size();
-		memcpy(bufferStream->getBuffer() + offset, block->getBuffer(), bufferLength);
-		offset += bufferLength;
-	}
-	return bufferStream;
-}
-
 // VDU 23, 0, &A0, bufferId; &0E : Consolidate blocks within buffer
 // Consolidate multiple streams/blocks into a single block
 // This is useful for using bitmaps sent in multiple blocks
@@ -733,47 +727,6 @@ void VDUStreamProcessor::bufferConsolidate(uint16_t bufferId) {
 	buffers[bufferId].clear();
 	buffers[bufferId].push_back(bufferStream);
 	debug_log("bufferConsolidate: consolidated %d streams into buffer %d\n\r", buffers[bufferId].size(), bufferId);
-}
-
-void updateTarget(std::vector<uint16_t> targets, uint16_t &target, uint16_t &index, bool iterate) {
-	// work out which buffer to use next
-	// use the next buffer in the list, or loop back to the start
-	// unless the iterate flag is set, in which case just use the next buffer
-	if (iterate) {
-		target++;
-	} else {
-		index++;
-		if (index >= targets.size()) {
-			index = 0;
-		}
-		target = targets[index];
-	}
-}
-
-std::vector<std::shared_ptr<BufferStream>> splitBuffer(std::shared_ptr<BufferStream> buffer, uint16_t length) {
-	std::vector<std::shared_ptr<BufferStream>> chunks;
-	auto totalLength = buffer->size();
-	auto remaining = totalLength;
-	auto sourceData = buffer->getBuffer();
-
-	// chop up source data by length, storing into new buffers
-	// looping the buffer list until we have no data left
-	while (remaining > 0) {
-		auto bufferLength = length;
-		if (remaining < bufferLength) {
-			bufferLength = remaining;
-		}
-		auto chunk = make_shared_psram<BufferStream>(bufferLength);
-		if (!chunk || !chunk->getBuffer()) {
-			debug_log("splitBuffer: failed to create buffer\n\r");
-			return {};
-		}
-		memcpy(chunk->getBuffer(), sourceData, bufferLength);
-		chunks.push_back(chunk);
-		sourceData += bufferLength;
-		remaining -= bufferLength;
-	}
-	return chunks;
 }
 
 void clearTargets(std::vector<uint16_t> targets) {
@@ -917,31 +870,6 @@ void VDUStreamProcessor::bufferReverseBlocks(uint16_t bufferId) {
 		// reverse the order of the streams
 		std::reverse(buffers[bufferId].begin(), buffers[bufferId].end());
 		debug_log("bufferReverseBlocks: reversed blocks in buffer %d\n\r", bufferId);
-	}
-}
-
-void reverseValues(uint8_t * data, uint32_t length, uint8_t valueSize) {
-	// get last offset into buffer
-	auto bufferEnd = length - valueSize;
-
-	if (valueSize == 1) {
-		// reverse the data
-		for (auto i = 0; i <= (bufferEnd / 2); i++) {
-			auto temp = data[i];
-			data[i] = data[bufferEnd - i];
-			data[bufferEnd - i] = temp;
-		}
-	} else {
-		// reverse the data in chunks
-		for (auto i = 0; i <= (bufferEnd / (valueSize * 2)); i++) {
-			auto sourceOffset = i * valueSize;
-			auto targetOffset = bufferEnd - sourceOffset;
-			for (auto j = 0; j < valueSize; j++) {
-				auto temp = data[sourceOffset + j];
-				data[sourceOffset + j] = data[targetOffset + j];
-				data[targetOffset + j] = temp;
-			}
-		}
 	}
 }
 
