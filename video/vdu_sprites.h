@@ -3,6 +3,7 @@
 
 #include <fabgl.h>
 
+#include "buffers.h"
 #include "graphics.h"
 #include "sprites.h"
 #include "types.h"
