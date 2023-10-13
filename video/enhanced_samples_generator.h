@@ -20,12 +20,10 @@ class EnhancedSamplesGenerator : public WaveformGenerator {
 	
 	private:
 		std::weak_ptr<audio_sample> _sample;
-		int _index;
-		int _blockIndex;
 };
 
-EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<audio_sample> sample) 
-	: _sample(sample), _index(0), _blockIndex(0)
+EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<audio_sample> sample)
+	: _sample(sample)
 {}
 
 void EnhancedSamplesGenerator::setFrequency(int value) {
@@ -33,8 +31,11 @@ void EnhancedSamplesGenerator::setFrequency(int value) {
 	// but we'll hijack this method to allow us to reset the sample index
 	// ideally we'd override the enable method, but C++ doesn't let us do that
 	if (value < 0) {
-		_index = 0;
-		_blockIndex = 0;
+		// rewind our sample if it's still valid
+		if (!_sample.expired()) {
+			auto samplePtr = _sample.lock();
+			samplePtr->rewind();
+		}
 	}
 }
 
@@ -44,21 +45,7 @@ int EnhancedSamplesGenerator::getSample() {
 	}
 
 	auto samplePtr = _sample.lock();
-	auto block = samplePtr->blocks[_blockIndex];
-	int8_t sample = block->getBuffer()[_index++];
-	
-	// Insert looping magic here
-	if (_index >= block->size()) {
-		// block reached end, move to next, or loop
-		_index = 0;
-		_blockIndex++;
-		if (_blockIndex >= samplePtr->blocks.size()) {
-			_blockIndex = 0;
-		}
-	}
-	if (samplePtr->format == AUDIO_FORMAT_8BIT_UNSIGNED) {
-		sample = sample - 128;
-	}
+	int sample = samplePtr->getSample();
 
 	// process volume
 	sample = sample * volume() / 127;

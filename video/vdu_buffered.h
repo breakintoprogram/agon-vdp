@@ -7,12 +7,11 @@
 #include <unordered_map>
 
 #include "agon.h"
+#include "buffers.h"
 #include "buffer_stream.h"
 #include "multi_buffer_stream.h"
 #include "sprites.h"
 #include "types.h"
-
-std::unordered_map<uint16_t, std::vector<std::shared_ptr<BufferStream>>> buffers;
 
 // VDU 23, 0, &A0, bufferId; command: Buffered command support
 //

@@ -14,8 +14,8 @@
 
 #include "agon.h"
 #include "agon_audio.h"
+#include "buffers.h"
 #include "types.h"
-#include "vdu_buffered.h"
 
 // Audio VDU command support (VDU 23, 0, &85, <args>)
 //
@@ -97,9 +97,10 @@ void VDUStreamProcessor::vdu_sys_audio() {
 						debug_log("  sample is null\n\r");
 						break;
 					}
-					debug_log("  length: %d\n\r", sample->blocks.size());
-					if (sample->blocks.size() > 0) {
-						debug_log("  data first byte: %d\n\r", sample->blocks[0]->getBuffer()[0]);
+					auto buffer = sample->blocks;
+					debug_log("  length: %d\n\r", buffer.size());
+					if (buffer.size() > 0) {
+						debug_log("  data first byte: %d\n\r", buffer[0]->getBuffer()[0]);
 					}
 				} break;
 
@@ -175,8 +176,8 @@ uint8_t VDUStreamProcessor::createSampleFromBuffer(uint16_t bufferId, uint8_t fo
 		return 0;
 	}
 	clearSample(bufferId);
-	// create sample from buffer
 	auto sample = make_shared_psram<audio_sample>(buffers[bufferId], format);
+	// auto sample = make_shared_psram<audio_sample>(bufferId, format);
 	if (sample) {
 		samples[bufferId] = sample;
 		return 1;
