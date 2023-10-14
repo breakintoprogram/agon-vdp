@@ -184,5 +184,5 @@ void debug_log(const char *format, ...);
 // Additional modelines
 //
 #ifndef VGA_640x240_60Hz
-#define VGA_640x240_60Hz	"\"640x240@60Hz\" 25.175 640 656 752 800 240 245 247 262 -HSync -VSync DoubleScan"
+#define VGA_640x240_60Hz	"\"640x240@60Hz\" 25.175 640 656 752 800 240 245 246 262 -HSync -VSync DoubleScan"
 #endif
