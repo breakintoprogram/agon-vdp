@@ -40,6 +40,13 @@ void setKeyboardLayout(uint8_t region) {
 		case 6:	kb->setLayout(&fabgl::BelgianLayout); break;
 		case 7:	kb->setLayout(&fabgl::NorwegianLayout); break;
 		case 8:	kb->setLayout(&fabgl::JapaneseLayout);break;
+    case 9: kb->setLayout(&fabgl::USInternationalLayout);break;
+    case 10: kb->setLayout(&fabgl::USInternationalAltLayout);break;
+    case 11: kb->setLayout(&fabgl::SwissGLayout);break;
+    case 12: kb->setLayout(&fabgl::SwissFLayout);break;
+    case 13: kb->setLayout(&fabgl::DanishLayout);break;
+    case 14: kb->setLayout(&fabgl::SwedishLayout);break;
+    case 15: kb->setLayout(&fabgl::PortugueseLayout);break;
 		default:
 			kb->setLayout(&fabgl::UKLayout);
 			break;
