@@ -20,7 +20,8 @@ inline fabgl::Keyboard* getKeyboard() {
 // Keyboard setup
 //
 void setupKeyboard() {
-	_PS2Controller.begin(PS2Preset::KeyboardPort0, KbdMode::CreateVirtualKeysQueue);
+	// _PS2Controller.begin(PS2Preset::KeyboardPort0, KbdMode::CreateVirtualKeysQueue);
+	_PS2Controller.begin();
 	auto kb = getKeyboard();
 	kb->setLayout(&fabgl::UKLayout);
 	kb->setCodePage(fabgl::CodePages::get(1252));

@@ -44,6 +44,7 @@
 #define VDP_MODE				0x86	// Get screen dimensions
 #define VDP_RTC					0x87	// RTC
 #define VDP_KEYSTATE			0x88	// Keyboard repeat rate and LED status
+#define VDP_MOUSE				0x89	// Mouse data
 #define VDP_BUFFERED			0xA0	// Buffered commands
 #define VDP_LOGICALCOORDS		0xC0	// Switch BBC Micro style logical coords on and off
 #define VDP_LEGACYMODES			0xC1	// Switch VDP 1.03 compatible modes on and off
@@ -62,6 +63,7 @@
 #define PACKET_MODE				0x06	// Get screen dimensions
 #define PACKET_RTC				0x07	// RTC
 #define PACKET_KEYSTATE			0x08	// Keyboard repeat rate and LED status
+#define PACKET_MOUSE			0x09	// Mouse data
 
 #define AUDIO_CHANNELS			3		// Default number of audio channels
 #define MAX_AUDIO_CHANNELS		32		// Maximum number of audio channels
