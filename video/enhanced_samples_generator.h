@@ -59,7 +59,7 @@ int EnhancedSamplesGenerator::getSample() {
 
 int EnhancedSamplesGenerator::getDuration() {
 	// NB this is hard-coded for a 16khz sample rate
-	return _sample.expired() ? 0 : _sample.lock()->length / 16;
+	return _sample.expired() ? 0 : _sample.lock()->getDuration();
 }
 
 #endif // ENHANCED_SAMPLES_GENERATOR_H
