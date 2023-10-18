@@ -88,9 +88,9 @@ unsigned char agon_ttxt::translate_char(unsigned char c)
       c = '_';
       break;
     case '_':
-      c = '\`';
+      c = '`';
       break;
-    case '\`':
+    case '`':
       c = '#';
       break;
   }  
