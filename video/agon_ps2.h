@@ -1,5 +1,7 @@
-#ifndef AGON_KEYBOARD_H
-#define AGON_KEYBOARD_H
+#ifndef AGON_PS2_H
+#define AGON_PS2_H
+
+#include <vector>
 
 #include <fabgl.h>
 
@@ -12,15 +14,26 @@ uint8_t			_modifiers = 0;					// Last pressed key modifiers
 uint16_t		kbRepeatDelay = 500;			// Keyboard repeat delay ms (250, 500, 750 or 1000)		
 uint16_t		kbRepeatRate = 100;				// Keyboard repeat rate ms (between 33 and 500)
 
+bool			mouseEnabled = false;			// Mouse enabled
+uint8_t			mSampleRate = MOUSE_DEFAULT_SAMPLERATE;	// Mouse sample rate
+uint8_t			mResolution = MOUSE_DEFAULT_RESOLUTION;	// Mouse resolution
+uint8_t			mScaling = MOUSE_DEFAULT_SCALING;	// Mouse scaling
+uint16_t		mAcceleration = MOUSE_DEFAULT_ACCELERATION;	// Mouse acceleration
+uint32_t		mWheelAcc = MOUSE_DEFAULT_WHEELACC;	// Mouse wheel acceleration
+
 // Get keyboard instance
 inline fabgl::Keyboard* getKeyboard() {
 	return _PS2Controller.keyboard();
 }
 
-// Keyboard setup
+// Get mouse instance
+inline fabgl::Mouse* getMouse() {
+	return _PS2Controller.mouse();
+}
+
+// Keyboard and mouse setup
 //
-void setupKeyboard() {
-	// _PS2Controller.begin(PS2Preset::KeyboardPort0, KbdMode::CreateVirtualKeysQueue);
+void setupKeyboardAndMouse() {
 	_PS2Controller.begin();
 	auto kb = getKeyboard();
 	kb->setLayout(&fabgl::UKLayout);
@@ -179,4 +192,172 @@ void setKeyboardState(uint16_t delay, uint16_t rate, uint8_t ledState) {
     kb->setTypematicRateAndDelay(kbRepeatRate, kbRepeatDelay);
 }
 
-#endif // AGON_KEYBOARD_H
+bool enableMouse() {
+	if (mouseEnabled) {
+		return true;
+	}
+	auto mouse = getMouse();
+	if (!mouse) {
+		return false;
+	}
+	mouse->resumePort();
+	mouseEnabled = true;
+	return true;
+}
+
+bool disableMouse() {
+	if (!mouseEnabled) {
+		return true;
+	}
+	auto mouse = getMouse();
+	if (!mouse) {
+		return false;
+	}
+	mouse->suspendPort();
+	mouseEnabled = false;
+	return true;
+}
+
+bool setMouseSampleRate(uint8_t rate) {
+	auto mouse = getMouse();
+	if (!mouse) {
+		return false;
+	}
+	// sampleRate: valid values are 10, 20, 40, 60, 80, 100, and 200 (samples/sec)
+	if (rate == 0) rate = MOUSE_DEFAULT_SAMPLERATE;
+	auto rates = std::vector<uint16_t>{ 10, 20, 40, 60, 80, 100, 200 };
+	if (std::find(rates.begin(), rates.end(), rate) == rates.end()) {
+		debug_log("vdu_sys_mouse: invalid sample rate %d\n\r", rate);
+		return false;
+	}
+
+	if (mouse->setSampleRate(rate)) {
+		mSampleRate = rate;
+		return true;
+	}
+	return false;
+}
+
+bool setMouseResolution(int8_t resolution) {
+	auto mouse = getMouse();
+	if (!mouse) {
+		return false;
+	}
+	if (resolution == -1) resolution = MOUSE_DEFAULT_RESOLUTION;
+	if (resolution > 3) {
+		debug_log("setMouseResolution: invalid resolution %d\n\r", resolution);
+		return false;
+	}
+
+	if (mouse->setResolution(resolution)) {
+		mResolution = resolution;
+		return true;
+	}
+	return false;
+}
+
+bool setMouseScaling(uint8_t scaling) {
+	auto mouse = getMouse();
+	if (!mouse) {
+		return false;
+	}
+	if (scaling == 0) scaling = MOUSE_DEFAULT_SCALING;
+	if (scaling > 2) {
+		debug_log("setMouseScaling: invalid scaling %d\n\r", scaling);
+		return false;
+	}
+
+	if (mouse->setScaling(scaling)) {
+		mScaling = scaling;
+		return true;
+	}
+	return false;
+}
+
+bool setMouseAcceleration(uint16_t acceleration) {
+	auto mouse = getMouse();
+	if (!mouse) {
+		return false;
+	}
+	if (acceleration == 0) acceleration = MOUSE_DEFAULT_ACCELERATION;
+
+	// get current acceleration
+	auto & currentAcceleration = mouse->movementAcceleration();
+
+	// change the acceleration
+	currentAcceleration = acceleration;
+
+	return false;
+}
+
+bool setMouseWheelAcceleration(uint32_t acceleration) {
+	auto mouse = getMouse();
+	if (!mouse) {
+		return false;
+	}
+	if (acceleration == 0) acceleration = MOUSE_DEFAULT_WHEELACC;
+
+	// get current acceleration
+	auto & currentAcceleration = mouse->wheelAcceleration();
+
+	// change the acceleration
+	currentAcceleration = acceleration;
+
+	return false;
+}
+
+bool resetMousePositioner(uint16_t width, uint16_t height, fabgl::VGABaseController * display) {
+	auto mouse = getMouse();
+	if (!mouse) {
+		return false;
+	}
+	// setup and then terminate absolute positioner
+	// this will set width/height of mouse area for updateAbsolutePosition calls
+	mouse->setupAbsolutePositioner(width, height, true, display);
+	mouse->terminateAbsolutePositioner();
+	return true;
+}
+
+bool setMousePos(uint16_t x, uint16_t y) {
+	auto mouse = getMouse();
+	if (!mouse) {
+		return false;
+	}
+	auto & status = mouse->status();
+	status.X = x;
+	status.Y = y;
+	return true;
+}
+
+bool resetMouse() {
+	auto mouse = getMouse();
+	if (!mouse) {
+		return false;
+	}
+	// reset parameters for mouse
+	// set default sample rate, resolution, scaling, acceleration, wheel acceleration
+	setMouseSampleRate(0);
+	setMouseResolution(-1);
+	setMouseScaling(0);
+	setMouseAcceleration(0);
+	setMouseWheelAcceleration(0);
+	return mouse->reset();
+}
+
+bool mouseMoved(MouseDelta * delta) {
+	if (!mouseEnabled) {
+		return false;
+	}
+	auto mouse = getMouse();
+	if (!mouse) {
+		return false;
+	}
+	if (mouse->deltaAvailable()) {
+		mouse->getNextDelta(delta, -1);
+		mouse->updateAbsolutePosition(delta);
+		return true;
+	}
+	return false;
+}
+
+#endif // AGON_PS2_H
