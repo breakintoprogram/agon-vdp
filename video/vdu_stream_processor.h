@@ -5,8 +5,10 @@
 #include <Stream.h>
 
 #include "agon.h"
+#include "agon_ps2.h"
 #include "buffer_stream.h"
 #include "types.h"
+#include "viewport.h"
 
 class VDUStreamProcessor {
 	private:
@@ -43,6 +45,7 @@ class VDUStreamProcessor {
 		void vdu_sys_video_time();
 		void sendKeyboardState();
 		void vdu_sys_keystate();
+		void vdu_sys_mouse();
 		void vdu_sys_scroll();
 		void vdu_sys_cursorBehaviour();
 		void vdu_sys_udg(char c);
@@ -102,6 +105,8 @@ class VDUStreamProcessor {
 			}
 		}
 		void send_packet(uint8_t code, uint16_t len, uint8_t data[]);
+
+		void sendMouseData(MouseDelta * delta);
 
 		void processAllAvailable();
 		void processNext();
@@ -235,6 +240,41 @@ void VDUStreamProcessor::send_packet(uint8_t code, uint16_t len, uint8_t data[])
 	}
 }
 
+void VDUStreamProcessor::sendMouseData(MouseDelta * delta = nullptr) {
+	auto mouse = getMouse();
+	uint16_t mouseX = 0;
+	uint16_t mouseY = 0;
+	uint8_t buttons = 0;
+	uint8_t wheelDelta = 0;
+	uint16_t deltaX = 0;
+	uint16_t deltaY = 0;
+	if (delta) {
+		deltaX = delta->deltaX;
+		deltaY = delta->deltaY;
+	}
+	if (mouse) {
+		auto mStatus = mouse->status();
+		auto mousePos = toCurrentCoordinates(mStatus.X, mStatus.Y);
+		mouseX = mousePos.X;
+		mouseY = mousePos.Y;
+		buttons = mStatus.buttons.left << 0 | mStatus.buttons.right << 1 | mStatus.buttons.middle << 2;
+		wheelDelta = mStatus.wheelDelta;
+	}
+	debug_log("sendMouseData: %d %d %d %d %d %d %d %d %d %d\n\r", mouseX, mouseY, buttons, wheelDelta, deltaX, deltaY);
+	uint8_t packet[] = {
+		(uint8_t) (mouseX & 0xFF),
+		(uint8_t) ((mouseX >> 8) & 0xFF),
+		(uint8_t) (mouseY & 0xFF),
+		(uint8_t) ((mouseY >> 8) & 0xFF),
+		(uint8_t) buttons,
+		(uint8_t) wheelDelta,
+		(uint8_t) (deltaX & 0xFF),
+		(uint8_t) ((deltaX >> 8) & 0xFF),
+		(uint8_t) (deltaY & 0xFF),
+		(uint8_t) ((deltaY >> 8) & 0xFF),
+	};
+	send_packet(PACKET_MOUSE, sizeof packet, packet);
+}
 // Process all available commands from the stream
 //
 void VDUStreamProcessor::processAllAvailable() {

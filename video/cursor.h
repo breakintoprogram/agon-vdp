@@ -3,7 +3,7 @@
 
 #include <fabgl.h>
 
-#include "agon_keyboard.h"
+#include "agon_ps2.h"
 #include "graphics.h"
 #include "viewport.h"
 // TODO remove this, somehow

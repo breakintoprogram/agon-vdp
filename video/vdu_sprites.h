@@ -158,6 +158,16 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 			debug_log("vdu_sys_sprites: sprite %d - bitmap %d added as frame %d\n\r", getCurrentSprite(), bufferId, getSprite()->framesCount-1);
 		}	break;
 
+		case 0x40: {	// Setup mouse cursor from current bitmap
+			auto hotX = readByte_t(); if (hotX == -1) return;
+			auto hotY = readByte_t(); if (hotY == -1) return;
+			if (makeCursor(getCurrentBitmapId(), hotX, hotY)) {
+				debug_log("vdu_sys_sprites: cursor created from bitmap %d\n\r", getCurrentBitmapId());
+			} else {
+				debug_log("vdu_sys_sprites: cursor failed to create from bitmap %d\n\r", getCurrentBitmapId());
+			}
+		}	break;
+
 		default: {
 			debug_log("vdu_sys_sprites: unknown command %d\n\r", cmd);
 		}	break;

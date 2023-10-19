@@ -136,6 +136,9 @@ void VDUStreamProcessor::vdu_mode() {
 	if (mode >= 0) {
 	  	set_mode(mode);
 		sendModeInformation();
+		if (mouseEnabled) {
+			sendMouseData();
+		}
 	}
 }
 

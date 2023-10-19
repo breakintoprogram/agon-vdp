@@ -1,11 +1,13 @@
 #ifndef VDU_SYS_H
 #define VDU_SYS_H
 
+#include <vector>
+
 #include <fabgl.h>
 #include <ESP32Time.h>
 
 #include "agon.h"
-#include "agon_keyboard.h"
+#include "agon_ps2.h"
 #include "cursor.h"
 #include "graphics.h"
 #include "vdu_audio.h"
@@ -135,6 +137,9 @@ void VDUStreamProcessor::vdu_sys_video() {
 		}	break;
 		case VDP_KEYSTATE: {			// VDU 23, 0, &88, repeatRate; repeatDelay; status
 			vdu_sys_keystate();
+		}	break;
+		case VDP_MOUSE: {				// VDU 23, 0, &89, command, <args>
+			vdu_sys_mouse();
 		}	break;
 		case VDP_BUFFERED: {			// VDU 23, 0, &A0, bufferId; command, <args>
 			vdu_sys_buffered();
@@ -303,6 +308,136 @@ void VDUStreamProcessor::vdu_sys_keystate() {
 	setKeyboardState(delay, rate, ledState);
 	debug_log("vdu_sys_video: keystate: delay=%d, rate=%d, led=%d\n\r", kbRepeatDelay, kbRepeatRate, ledState);
 	sendKeyboardState();
+}
+
+// VDU 23, 0, &89, command, [<args>]: Handle mouse requests
+//
+void VDUStreamProcessor::vdu_sys_mouse() {
+	auto command = readByte_t(); if (command == -1) return;
+
+	switch (command) {
+		case MOUSE_ENABLE: {
+			// ensure mouse is enabled, enabling its port if necessary
+			if (enableMouse()) {
+				// mouse can be enabled, so set cursor
+				if (!setMouseCursor()) {
+					uint16_t cursor = MOUSE_DEFAULT_CURSOR;
+					setMouseCursor(cursor);
+				}
+				debug_log("vdu_sys_mouse: mouse enabled\n\r");
+			} else {
+				debug_log("vdu_sys_mouse: mouse enable failed\n\r");
+			}
+			// send mouse data (with no delta) to indicate command processed successfully
+			sendMouseData();
+		}	break;
+
+		case MOUSE_DISABLE: {
+			if (disableMouse()) {
+				setMouseCursor(65535);	// set cursor to be a non-existant cursor
+				debug_log("vdu_sys_mouse: mouse disabled\n\r");
+			} else {
+				debug_log("vdu_sys_mouse: mouse disable failed\n\r");
+			}
+			sendMouseData();
+		}	break;
+
+		case MOUSE_RESET: {
+			debug_log("vdu_sys_mouse: reset mouse\n\r");
+			// call the reset for the mouse
+			if (resetMouse()) {
+				// mouse successfully reset, so set cursor
+				if (!setMouseCursor()) {
+					uint16_t cursor = MOUSE_DEFAULT_CURSOR;
+					setMouseCursor(cursor);
+				}
+			}
+			sendMouseData();
+		}	break;
+
+		case MOUSE_SET_CURSOR: {
+			auto cursor = readWord_t();	if (cursor == -1) return;
+			if (setMouseCursor(cursor)) {
+				sendMouseData();
+			}
+			debug_log("vdu_sys_mouse: set cursor\n\r");
+		}	break;
+
+		case MOUSE_SET_POSITION: {
+			auto x = readWord_t();	if (x == -1) return;
+			auto y = readWord_t();	if (y == -1) return;
+			// normalise coordinates
+			auto p = translateViewport(scale(x, y));
+
+			// need to update position in mouse status
+			setMousePos(p.X, p.Y);
+			setMouseCursorPos(p.X, p.Y);
+
+			sendMouseData();
+			debug_log("vdu_sys_mouse: set position\n\r");
+		}	break;
+
+		case MOUSE_SET_AREA: {
+			auto x = readWord_t();	if (x == -1) return;
+			auto y = readWord_t();	if (y == -1) return;
+			auto x2 = readWord_t();	if (x2 == -1) return;
+			auto y2 = readWord_t();	if (y2 == -1) return;
+
+			debug_log("vdu_sys_mouse: set area can't be properly supported with current fab-gl\n\r");
+			// TODO set area to width/height using bottom/right only
+		}	break;
+
+		case MOUSE_SET_SAMPLERATE: {
+			auto rate = readByte_t();	if (rate == -1) return;
+			if (setMouseSampleRate(rate)) {
+				debug_log("vdu_sys_mouse: set sample rate %d\n\r", rate);
+				// success so send new data packet (triggering VDP flag)
+				sendMouseData();
+			}
+			debug_log("vdu_sys_mouse: set sample rate %d failed\n\r", rate);
+		}	break;
+
+		case MOUSE_SET_RESOLUTION: {
+			auto resolution = readByte_t();	if (resolution == -1) return;
+			if (setMouseResolution(resolution)) {
+				// success so send new data packet (triggering VDP flag)
+				sendMouseData();
+				debug_log("vdu_sys_mouse: set resolution %d\n\r", resolution);
+				return;
+			}
+			debug_log("vdu_sys_mouse: set resolution %d failed\n\r", resolution);
+		}	break;
+
+		case MOUSE_SET_SCALING: {
+			auto scaling = readByte_t();	if (scaling == -1) return;
+			if (setMouseScaling(scaling)) {
+				// success so send new data packet (triggering VDP flag)
+				sendMouseData();
+				debug_log("vdu_sys_mouse: set scaling %d\n\r", scaling);
+				return;
+			}
+		}	break;
+
+		case MOUSE_SET_ACCERATION: {
+			auto acceleration = readWord_t();	if (acceleration == -1) return;
+			if (setMouseAcceleration(acceleration)) {
+				// success so send new data packet (triggering VDP flag)
+				sendMouseData();
+				debug_log("vdu_sys_mouse: set acceleration %d\n\r", acceleration);
+				return;
+			}
+		}	break;
+
+		case MOUSE_SET_WHEELACC: {
+			auto wheelAcc = read24_t();	if (wheelAcc == -1) return;
+			if (setMouseWheelAcceleration(wheelAcc)) {
+				// success so send new data packet (triggering VDP flag)
+				sendMouseData();
+				debug_log("vdu_sys_mouse: set wheel acceleration %d\n\r", wheelAcc);
+				return;
+			}
+		}	break;
+	}
 }
 
 // VDU 23,7: Scroll rectangle on screen

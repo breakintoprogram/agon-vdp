@@ -56,7 +56,7 @@
 #define SERIALBAUDRATE	115200
 
 #include "agon.h"								// Configuration file
-#include "agon_keyboard.h"						// Keyboard support
+#include "agon_ps2.h"						// Keyboard support
 #include "agon_audio.h"							// Audio support
 #include "graphics.h"							// Graphics support
 #include "cursor.h"								// Cursor support
@@ -77,23 +77,11 @@ void setup() {
 	setupVDPProtocol();
 	processor = new VDUStreamProcessor(&VDPSerial);
 	processor->wait_eZ80();
-	setupKeyboard();
+	setupKeyboardAndMouse();
 	init_audio();
 	copy_font();
 	set_mode(1);
 	processor->sendModeInformation();
-
-	// experimental mouse stuff
-	auto display = _VGAController.get();
-	// setup and then terminate absolute positioner - this will set width/height of mouse area for updateAbsolutePosition calls
-	_PS2Controller.mouse()->setupAbsolutePositioner(canvas->getWidth(), canvas->getHeight(), true, display);
-	_PS2Controller.mouse()->terminateAbsolutePositioner();
-  	display->setMouseCursor((CursorName)3);
-	// _PS2Controller.mouse()->m_area = Size(canvas->getWidth(), canvas->getHeight());
-
-	// auto mStatus = _PS2Controller.mouse()->status();
-	// debug_log("Mouse status: %d, %d, %d\n\r", mStatus.X, mStatus.Y, mStatus.buttons);
-
 	boot_screen();
 }
 
@@ -173,32 +161,14 @@ void do_keyboard_terminal() {
 // Handle the mouse
 //
 void do_mouse() {
-	auto mouse = _PS2Controller.mouse();
 	// get mouse delta, if the mouse is active
-	if (mouse->deltaAvailable()) {
-		MouseDelta delta;
-		mouse->getNextDelta(&delta, -1);
-		mouse->updateAbsolutePosition(&delta);
+	MouseDelta delta;
+	if (mouseMoved(&delta)) {
+		auto mouse = getMouse();
 		auto mStatus = mouse->status();
 		// update mouse cursor position if it's active
-		_VGAController->setMouseCursorPos(mStatus.X, mStatus.Y);
-
-		auto mousePos = toCurrentCoordinates(mStatus.X, mStatus.Y);
-		debug_log("Mouse status: %d, %d, d(%d, %d) scaled (%d, %d), scroll: %d (%d), left: %d (%d), right: %d (%d), middle: %d (%d), overflows: %d, %d\n\r", mStatus.X, mStatus.Y, delta.deltaX, delta.deltaY, mousePos.X, mousePos.Y, mStatus.wheelDelta, delta.deltaZ, mStatus.buttons.left, delta.buttons.left, mStatus.buttons.right, delta.buttons.right, mStatus.buttons.middle, delta.buttons.middle, delta.overflowX, delta.overflowY);
-
-		uint8_t packet[] = {
-			(uint8_t) (mousePos.X & 0xFF),
-			(uint8_t) ((mousePos.X >> 8) & 0xFF),
-			(uint8_t) (mousePos.Y & 0xFF),
-			(uint8_t) ((mousePos.Y >> 8) & 0xFF),
-			(uint8_t) (mStatus.buttons.left << 0 | mStatus.buttons.right << 1 | mStatus.buttons.middle << 2),
-			(uint8_t) mStatus.wheelDelta,
-			(uint8_t) (delta.deltaX & 0xFF),
-			(uint8_t) ((delta.deltaX >> 8) & 0xFF),
-			(uint8_t) (delta.deltaY & 0xFF),
-			(uint8_t) ((delta.deltaY >> 8) & 0xFF),
-		};
-		processor->send_packet(PACKET_MOUSE, sizeof packet, packet);
+		setMouseCursorPos(mStatus.X, mStatus.Y);
+		processor->sendMouseData(&delta);
 	}
 }
 

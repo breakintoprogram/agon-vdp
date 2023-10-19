@@ -123,6 +123,26 @@
 #define AUDIO_STATE_RELEASE		4		// Channel is releasing a note
 #define AUDIO_STATE_ABORT		5		// Channel is aborting a note
 
+// Mouse commands
+#define MOUSE_ENABLE			0		// Enable mouse
+#define MOUSE_DISABLE			1		// Disable mouse
+#define MOUSE_RESET				2		// Reset mouse
+#define MOUSE_SET_CURSOR		3		// Set cursor
+#define MOUSE_SET_POSITION		4		// Set mouse position
+#define MOUSE_SET_AREA			5		// Set mouse area
+#define MOUSE_SET_SAMPLERATE	6		// Set mouse sample rate
+#define MOUSE_SET_RESOLUTION	7		// Set mouse resolution
+#define MOUSE_SET_SCALING		8		// Set mouse scaling
+#define MOUSE_SET_ACCERATION	9		// Set mouse acceleration (1-2000)
+#define MOUSE_SET_WHEELACC		10		// Set mouse wheel acceleration
+
+#define MOUSE_DEFAULT_CURSOR	0;		// Default mouse cursor
+#define MOUSE_DEFAULT_SAMPLERATE	60;	// Default mouse sample rate
+#define MOUSE_DEFAULT_RESOLUTION	2;	// Default mouse resolution (4 counts/mm)
+#define MOUSE_DEFAULT_SCALING	1;		// Default mouse scaling (1:1)
+#define MOUSE_DEFAULT_ACCELERATION	180;	// Default mouse acceleration 
+#define MOUSE_DEFAULT_WHEELACC		60000;	// Default mouse wheel acceleration
+
 // Buffered commands
 #define BUFFERED_WRITE			0x00	// Write to a numbered buffer
 #define BUFFERED_CALL			0x01	// Call buffered commands
