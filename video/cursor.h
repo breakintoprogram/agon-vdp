@@ -142,11 +142,11 @@ void cursorHome() {
 // TAB(x,y)
 //
 void cursorTab(uint8_t x, uint8_t y) {
-  if (activeViewport->X1 + x * fontW <= activeViewport->X2 &&
-      activeViewport->Y1 + y * fontW <= activeViewport->Y2)
+  if (textViewport.X1 + x * fontW <= textViewport.X2 &&
+      textViewport.Y1 + y * fontW <= textViewport.Y2)
   {
-	  activeCursor->X = activeViewport->X1 + x * fontW;
-	  activeCursor->Y = activeViewport->Y1 + y * fontH;
+	  textCursor.X = textViewport.X1 + x * fontW;
+	  textCursor.Y = textViewport.Y1 + y * fontH;
   }
 }
 

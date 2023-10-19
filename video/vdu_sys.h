@@ -186,8 +186,8 @@ void VDUStreamProcessor::vdu_sys_video_kblayout() {
 //
 void VDUStreamProcessor::sendCursorPosition() {
 	uint8_t packet[] = {
-		(uint8_t) (textCursor.X / fontW),
-		(uint8_t) (textCursor.Y / fontH),
+		(uint8_t) ((textCursor.X - textViewport.X1)/ fontW),
+		(uint8_t) ((textCursor.Y - textViewport.Y1)/ fontH),
 	};
 	send_packet(PACKET_CURSOR, sizeof packet, packet);	
 }
