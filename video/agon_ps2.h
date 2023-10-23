@@ -192,6 +192,15 @@ void setKeyboardState(uint16_t delay, uint16_t rate, uint8_t ledState) {
     kb->setTypematicRateAndDelay(kbRepeatRate, kbRepeatDelay);
 }
 
+bool updateMouseEnabled() {
+	auto mouse = getMouse();
+	if (!mouse) {
+		return false;
+	}
+	mouseEnabled = mouse->isMouseAvailable();
+	return mouseEnabled;
+}
+
 bool enableMouse() {
 	if (mouseEnabled) {
 		return true;
@@ -201,8 +210,7 @@ bool enableMouse() {
 		return false;
 	}
 	mouse->resumePort();
-	mouseEnabled = true;
-	return true;
+	return updateMouseEnabled();
 }
 
 bool disableMouse() {

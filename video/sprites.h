@@ -50,6 +50,53 @@ void drawBitmap(uint16_t x, uint16_t y) {
 	}
 }
 
+void clearCursor(uint16_t cursor) {
+	if (cursors.find(cursor) != cursors.end()) {
+		cursors.erase(cursor);
+	}
+}
+
+bool makeCursor(uint16_t bitmapId, uint16_t hotX, uint16_t hotY) {
+	auto bitmap = getBitmap(bitmapId);
+	if (!bitmap) {
+		debug_log("addCursor: bitmap %d not found\n\r", bitmapId);
+		return false;
+	}
+	fabgl::Cursor c;
+	c.bitmap = *bitmap;
+	c.hotspotX = std::min(static_cast<uint16_t>(std::max(static_cast<int>(hotX), 0)), static_cast<uint16_t>(bitmap->width - 1));
+	c.hotspotY = std::min(static_cast<uint16_t>(std::max(static_cast<int>(hotY), 0)), static_cast<uint16_t>(bitmap->height - 1));
+	cursors[bitmapId] = c;
+	return true;
+}
+
+bool setMouseCursor(uint16_t cursor = mCursor) {
+	// if our mouse is enabled, then we'll set the cursor
+	if (mouseEnabled) {
+		// if this cursor exists then set it
+		// first, check whether it's a built-in cursor
+		auto minValue = static_cast<CursorName>(std::numeric_limits<std::underlying_type<CursorName>::type>::min());
+		auto maxValue = static_cast<CursorName>(std::numeric_limits<std::underlying_type<CursorName>::type>::max());
+		if (minValue <= cursor && cursor <= maxValue) {
+			_VGAController->setMouseCursor(static_cast<CursorName>(cursor));
+			mCursor = cursor;
+			return true;
+		} 
+		// otherwise, check whether it's a custom cursor
+		if (cursors.find(cursor) != cursors.end()) {
+			_VGAController->setMouseCursor(&cursors[cursor]);
+			mCursor = cursor;
+			return true;
+		}
+	}
+	// otherwise make sure we remove the cursor and keep track of the requested cursor number
+	_VGAController->setMouseCursor(nullptr);
+	if (cursor != 65535) {
+		mCursor = cursor;
+	}
+	return false;
+}
+
 void resetBitmaps() {
 	// if we're using a bitmap as a cursor then the cursor needs to change too
 	if (cursors.find(currentBitmap) != cursors.end()) {
@@ -204,53 +251,6 @@ void resetSprites() {
 	// 	sprites[n] = Sprite();
 	// }
 	waitPlotCompletion();
-}
-
-void clearCursor(uint16_t cursor) {
-	if (cursors.find(cursor) != cursors.end()) {
-		cursors.erase(cursor);
-	}
-}
-
-bool makeCursor(uint16_t bitmapId, uint16_t hotX, uint16_t hotY) {
-	auto bitmap = getBitmap(bitmapId);
-	if (!bitmap) {
-		debug_log("addCursor: bitmap %d not found\n\r", bitmapId);
-		return false;
-	}
-	fabgl::Cursor c;
-	c.bitmap = *bitmap;
-	c.hotspotX = std::min(static_cast<uint16_t>(std::max(static_cast<int>(hotX), 0)), static_cast<uint16_t>(bitmap->width - 1));
-	c.hotspotY = std::min(static_cast<uint16_t>(std::max(static_cast<int>(hotY), 0)), static_cast<uint16_t>(bitmap->height - 1));
-	cursors[bitmapId] = c;
-	return true;
-}
-
-bool setMouseCursor(uint16_t cursor = mCursor) {
-	// if our mouse is enabled, then we'll set the cursor
-	if (mouseEnabled) {
-		// if this cursor exists then set it
-		// first, check whether it's a built-in cursor
-		auto minValue = static_cast<CursorName>(std::numeric_limits<std::underlying_type<CursorName>::type>::min());
-		auto maxValue = static_cast<CursorName>(std::numeric_limits<std::underlying_type<CursorName>::type>::max());
-		if (minValue <= cursor && cursor <= maxValue) {
-			_VGAController->setMouseCursor(static_cast<CursorName>(cursor));
-			mCursor = cursor;
-			return true;
-		} 
-		// otherwise, check whether it's a custom cursor
-		if (cursors.find(cursor) != cursors.end()) {
-			_VGAController->setMouseCursor(&cursors[cursor]);
-			mCursor = cursor;
-			return true;
-		}
-	}
-	// otherwise make sure we remove the cursor and keep track of the requested cursor number
-	_VGAController->setMouseCursor(nullptr);
-	if (cursor != 65535) {
-		mCursor = cursor;
-	}
-	return false;
 }
 
 #endif // SPRITES_H
