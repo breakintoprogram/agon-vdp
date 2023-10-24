@@ -644,31 +644,30 @@ int8_t change_mode(uint8_t mode) {
 		case 143:
 			errVal = change_resolution(2, VGA_320x200_70Hz, true);
 			break;
-        case 150:
-            errVal = change_resolution(8, QSVGA_640x512_60Hz);  // Too big for 16 colors.
-            break;
-        case 151:
-            errVal = change_resolution(4, QSVGA_640x512_60Hz);
-            break;
-        case 152:
-            errVal = change_resolution(2, QSVGA_640x512_60Hz);
-            break;
-        case 153:
-            errVal = change_resolution(64, SVGA_320_256_60hz);
-            break;
-        case 154:
-            errVal = change_resolution(16, SVGA_320_256_60hz);
-            break;
-        case 155:
-            errVal = change_resolution(8, SVGA_320_256_60hz);
-            break;
-        case 156:
-            errVal = change_resolution(4, SVGA_320_256_60hz);
-            break;
-        case 157:
-            errVal = change_resolution(2, SVGA_320_256_60hz);
-            break;
-
+        	case 150:
+            		errVal = change_resolution(8, QSVGA_640x512_60Hz);  // Too big for 16 colors.
+            		break;
+        	case 151:
+            		errVal = change_resolution(4, QSVGA_640x512_60Hz);
+            		break;
+        	case 152:
+            		errVal = change_resolution(2, QSVGA_640x512_60Hz);
+            		break;
+        	case 153:
+            		errVal = change_resolution(64, SVGA_320_256_60hz);
+            		break;
+        	case 154:
+            		errVal = change_resolution(16, SVGA_320_256_60hz);
+            		break;
+        	case 155:
+            		errVal = change_resolution(8, SVGA_320_256_60hz);
+            		break;
+        	case 156:
+            		errVal = change_resolution(4, SVGA_320_256_60hz);
+            		break;
+        	case 157:
+            		errVal = change_resolution(2, SVGA_320_256_60hz);
+            		break;
 	}
 	if (errVal != 0) {
 		return errVal;
