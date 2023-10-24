@@ -82,8 +82,8 @@ char getScreenChar(uint16_t px, uint16_t py) {
 		// Finally try and match with the character set array
 		//
 		for (auto i = 32; i <= 255; i++) {
-	    	if (cmpChar(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {	
-	    		return i;		
+	    	if (cmpChar(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {
+	    		return i;
 			}
 		}
 	}
@@ -127,7 +127,7 @@ void setPalette(uint8_t l, uint8_t p, uint8_t r, uint8_t g, uint8_t b) {
 			col = RGB888(r, g, b);
 		} else if (p < 64) {			// If p < 64, then look the value up in the colour lookup table
 			col = colourLookup[p];
-		} else {				
+		} else {
 			debug_log("vdu_palette: p=%d not supported\n\r", p);
 			return;
 		}
@@ -157,7 +157,7 @@ void resetPalette(const uint8_t colours[]) {
 //
 fabgl::PaintOptions getPaintOptions(uint8_t mode, fabgl::PaintOptions priorPaintOptions) {
 	fabgl::PaintOptions p = priorPaintOptions;
-	
+
 	switch (mode) {
 		case 0: p.NOT = 0; p.swapFGBG = 0; break;
 		case 4: p.NOT = 1; p.swapFGBG = 0; break;
@@ -178,7 +178,7 @@ void setTextColour(uint8_t colour) {
 	}
 	else if (colour >= 128 && colour < 192) {
 		tbg = colourLookup[c];
-		debug_log("vdu_colour: tbg %d = %02X : %02X,%02X,%02X\n\r", colour, c, tbg.R, tbg.G, tbg.B);	
+		debug_log("vdu_colour: tbg %d = %02X : %02X,%02X,%02X\n\r", colour, c, tbg.R, tbg.G, tbg.B);
 	}
 	else {
 		debug_log("vdu_colour: invalid colour %d\n\r", colour);
@@ -189,7 +189,7 @@ void setTextColour(uint8_t colour) {
 //
 void setGraphicsColour(uint8_t mode, uint8_t colour) {
 	if (ttxtMode) return;
-	
+
 	uint8_t c = palette[colour % getVGAColourDepth()];
 
 	if (mode <= 6) {
@@ -216,7 +216,7 @@ void setGraphicsColour(uint8_t mode, uint8_t colour) {
 void clearViewport(Rect * viewport) {
 	if (ttxtMode) {
 		ttxt_instance.cls();
-	} else {       
+	} else {
   		if (canvas) {
 	  		if (useViewports) {
 		  		canvas->fillRectangle(*viewport);
@@ -330,7 +330,7 @@ void plotTriangle() {
 	Point p[3] = {
 		p3,
 		p2,
-		p1, 
+		p1,
 	};
 	canvas->drawPath(p, 3);
 	canvas->fillPath(p, 3);
@@ -479,7 +479,7 @@ void drawCursor(Point p) {
 
 
 // Clear the screen
-// 
+//
 void cls(bool resetViewports) {
 	if (resetViewports) {
     	if (ttxtMode) {
@@ -489,7 +489,7 @@ void cls(bool resetViewports) {
 	}
 	if (canvas) {
 		canvas->setPenColor(tfg);
-		canvas->setBrushColor(tbg);	
+		canvas->setBrushColor(tbg);
 		canvas->setPaintOptions(tpo);
 		clearViewport(getViewport(VIEWPORT_TEXT));
 	}
@@ -506,7 +506,7 @@ void cls(bool resetViewports) {
 void clg() {
 	if (canvas) {
 		canvas->setPenColor(gfg);
-		canvas->setBrushColor(gbg);	
+		canvas->setBrushColor(gbg);
 		canvas->setPaintOptions(gpo);
 		clearViewport(getViewport(VIEWPORT_GRAPHICS));
 	}
@@ -569,7 +569,7 @@ int8_t change_mode(uint8_t mode) {
 	    	errVal = change_resolution(16, VGA_640x480_60Hz);
 	    	if (errVal == 0) {
 	      		errVal = ttxt_instance.init();
-	    		if (errVal == 0) ttxtMode = true; 
+	    		if (errVal == 0) ttxtMode = true;
 	    	}
 	    	break;
 		case 8:
@@ -628,7 +628,7 @@ int8_t change_mode(uint8_t mode) {
 			break;
 		case 138:
 			errVal = change_resolution(4, QVGA_320x240_60Hz, true);
-			break;	
+			break;
 		case 139:
 			errVal = change_resolution(2, QVGA_320x240_60Hz, true);
 			break;
@@ -643,7 +643,32 @@ int8_t change_mode(uint8_t mode) {
 			break;
 		case 143:
 			errVal = change_resolution(2, VGA_320x200_70Hz, true);
-			break;									
+			break;
+        case 150:
+            errVal = change_resolution(8, QSVGA_640x512_60Hz);  // Too big for 16 colors.
+            break;
+        case 151:
+            errVal = change_resolution(4, QSVGA_640x512_60Hz);
+            break;
+        case 152:
+            errVal = change_resolution(2, QSVGA_640x512_60Hz);
+            break;
+        case 153:
+            errVal = change_resolution(64, SVGA_320_256_60hz);
+            break;
+        case 154:
+            errVal = change_resolution(16, SVGA_320_256_60hz);
+            break;
+        case 155:
+            errVal = change_resolution(8, SVGA_320_256_60hz);
+            break;
+        case 156:
+            errVal = change_resolution(4, SVGA_320_256_60hz);
+            break;
+        case 157:
+            errVal = change_resolution(2, SVGA_320_256_60hz);
+            break;
+
 	}
 	if (errVal != 0) {
 		return errVal;
@@ -732,7 +757,7 @@ void scrollRegion(Rect * region, uint8_t direction, int16_t movement) {
 				canvas->scroll(0, -movement);
 				break;
   		}
-  	} 
+  	}
 }
 
 #endif
