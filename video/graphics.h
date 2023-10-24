@@ -606,27 +606,21 @@ int8_t change_mode(uint8_t mode) {
 			errVal = change_resolution(2, SVGA_1024x768_60Hz);		// VDP 1.03 Mode 0
 			break;
 		case 19:
-			errVal = change_resolution(8, QSVGA_640x512_60Hz);
-			break;
-		case 20:
 			errVal = change_resolution(4, QSVGA_640x512_60Hz);
 			break;
-		case 21:
+		case 20:
 			errVal = change_resolution(2, QSVGA_640x512_60Hz);
 			break;
-		case 22:
+		case 21:
 			errVal = change_resolution(64, SVGA_320_256_60hz);
 			break;
-		case 23:
+		case 22:
 			errVal = change_resolution(16, SVGA_320_256_60hz);
 			break;
-		case 24:
-			errVal = change_resolution(8, SVGA_320_256_60hz);
-			break;
-		case 25:
+		case 23:
 			errVal = change_resolution(4, SVGA_320_256_60hz);
 			break;
-		case 26:
+		case 24:
 			errVal = change_resolution(2, SVGA_320_256_60hz);
 			break;
 		case 129:
