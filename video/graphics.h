@@ -515,7 +515,10 @@ int8_t change_mode(uint8_t mode) {
 	int8_t errVal = -1;
 
 	cls(true);
-	ttxtMode = false;
+  if (ttxtMode) {
+    ttxt_instance.uninit();
+    ttxtMode = false;
+  }
 	switch (mode) {
 		case 0:
 			if (legacyModes == true) {

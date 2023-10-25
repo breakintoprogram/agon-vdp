@@ -50,6 +50,7 @@ typedef enum {
 class agon_ttxt {	
 public:
   int init(void);
+  void uninit(void);
   unsigned char get_screen_char(int x, int y);
   void draw_char(int x, int y, unsigned char c);
   void scroll();
@@ -500,6 +501,25 @@ int agon_ttxt::init(void)
   set_window(0, 24, 39, 0);
   cls();
   return 0;
+}
+
+void agon_ttxt::uninit(void)
+{
+  if (m_font_data_norm) {
+    free(m_font_data_norm);
+    m_font_data_norm = NULL;
+  }
+  if (m_font_data_top) {
+    free(m_font_data_top);
+    m_font_data_top = NULL;
+  } if (m_font_data_bottom) {
+    free(m_font_data_bottom);
+    m_font_data_bottom = NULL;
+  }
+  if (m_screen_buf) {
+    free(m_screen_buf);
+    m_screen_buf = NULL;
+  }
 }
 
 unsigned char agon_ttxt::get_screen_char(int x, int y)
