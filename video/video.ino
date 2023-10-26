@@ -44,6 +44,7 @@
 // 05/09/2023:					+ New audio enhancements, improved mode change code
 // 12/09/2023:					+ Refactored
 
+#include <WiFi.h>
 #include <HardwareSerial.h>
 #include <fabgl.h>
 
