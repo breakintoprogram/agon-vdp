@@ -57,6 +57,8 @@ void VDUStreamProcessor::receiveFirmware() {
 	err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle);
 	if (err != ESP_OK) {
 		printFmt("esp_ota_begin failed, error=%d\n\r", err);
+		discardBytes(update_size + 1);
+		return;
 	}
 
 	uint32_t remaining_bytes = update_size;
@@ -76,22 +78,23 @@ void VDUStreamProcessor::receiveFirmware() {
 
 		bytes_remain = readIntoBuffer(buffer, bytes_to_read);
 		if(bytes_remain) {
-			printFmt("Read buffer failed at byte %u!\n\r", remaining_bytes);
-			break;
+			printFmt("\n\rRead buffer failed at byte %u!\n\r", remaining_bytes);
+			return;
 		}
 
 		for(int i = 0; i < bytes_to_read; i++) {
 			code += ((uint8_t*)buffer)[i];
 		}
 
-		err = esp_ota_write( update_handle, (const void *)buffer, bytes_to_read);
-		if (err != ESP_OK) {
-			printFmt("esp_ota_write failed, error=%d", err);
-			break;
-		}
-
 		print(".");
 		remaining_bytes -= bytes_to_read;
+
+		err = esp_ota_write( update_handle, (const void *)buffer, bytes_to_read);
+		if (err != ESP_OK) {
+			printFmt("\n\resp_ota_write failed, error=%d\n'r", err);
+			discardBytes(remaining_bytes + 1);
+			return;
+		}
 	}
 	print("\n\r");
 	
@@ -100,9 +103,13 @@ void VDUStreamProcessor::receiveFirmware() {
 	printFmt("Bandwidth: %u kbit/s\n\r", update_size / (end - start) * 8);
 	
 	// checksum check
-	uint8_t checksum_complement = readByte_b();
+	auto checksum_complement = readByte_t();
+	if (checksum_complement == -1) {
+		printFmt("Checksum not received!\n\r");
+		return;
+	}
 	printFmt("checksum_complement: 0x%x\n\r", checksum_complement);
-	if(uint8_t(code + checksum_complement)) {
+	if(uint8_t(code + (uint8_t)checksum_complement)) {
 		printFmt("checksum error!\n\r");
 		return;
 	}
@@ -134,6 +141,7 @@ void VDUStreamProcessor::switchFirmware() {
 	const esp_partition_t *running = esp_ota_get_running_partition();
 	const esp_partition_t *update_partition = esp_ota_get_next_update_partition(running);
 
+	// TODO: check if update_partition is valid
 	err = esp_ota_set_boot_partition(update_partition);
 	if (err != ESP_OK) {
 		printFmt("esp_ota_set_boot_partition failed! err=0x%x\n\r", err);

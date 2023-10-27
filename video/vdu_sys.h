@@ -93,9 +93,6 @@ void VDUStreamProcessor::vdu_sys() {
 			case 0x1C: {					// VDU 23, 28
 				vdu_sys_hexload();
 			}	break;
-			case 0x1D: {					// VDU 23, 29
-				vdu_sys_updater();
-			}	break;
 		}
 	}
 	//
@@ -151,6 +148,9 @@ void VDUStreamProcessor::vdu_sys_video() {
 		}	break;
 		case VDP_BUFFERED: {			// VDU 23, 0, &A0, bufferId; command, <args>
 			vdu_sys_buffered();
+		}	break;
+		case VDP_UPDATER: {				// VDU 23, 0, &A1, command, <args>
+			vdu_sys_updater();
 		}	break;
 		case VDP_LOGICALCOORDS: {		// VDU 23, 0, &C0, n
 			auto b = readByte_t();		// Set logical coord mode

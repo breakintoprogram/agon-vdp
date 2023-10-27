@@ -46,11 +46,10 @@
 #define VDP_KEYSTATE			0x88	// Keyboard repeat rate and LED status
 #define VDP_MOUSE				0x89	// Mouse data
 #define VDP_BUFFERED			0xA0	// Buffered commands
+#define VDP_UPDATER				0xA1	// Update VDP
 #define VDP_LOGICALCOORDS		0xC0	// Switch BBC Micro style logical coords on and off
 #define VDP_LEGACYMODES			0xC1	// Switch VDP 1.03 compatible modes on and off
 #define VDP_SWITCHBUFFER		0xC3	// Double buffering control
-#define VDP_UPDATE				0xD0	// Update VDP
-#define VDP_SWITCH				0xD1	// Switch VDP
 #define VDP_TERMINALMODE		0xFF	// Switch to terminal mode
 
 // And the corresponding return packets
