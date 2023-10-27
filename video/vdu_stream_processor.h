@@ -82,6 +82,11 @@ class VDUStreamProcessor {
 		void bufferReverseBlocks(uint16_t bufferId);
 		void bufferReverse(uint16_t bufferId, uint8_t options);
 
+		void vdu_sys_updater();
+		void unlock();
+		void receiveFirmware();
+		void switchFirmware();
+
 	public:
 		uint16_t id = 65535;
 

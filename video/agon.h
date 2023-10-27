@@ -48,6 +48,8 @@
 #define VDP_LOGICALCOORDS		0xC0	// Switch BBC Micro style logical coords on and off
 #define VDP_LEGACYMODES			0xC1	// Switch VDP 1.03 compatible modes on and off
 #define VDP_SWITCHBUFFER		0xC3	// Double buffering control
+#define VDP_UPDATE				0xD0	// Update VDP
+#define VDP_SWITCH				0xD1	// Switch VDP
 #define VDP_TERMINALMODE		0xFF	// Switch to terminal mode
 
 // And the corresponding return packets
