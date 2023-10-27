@@ -44,6 +44,7 @@
 #define VDP_MODE				0x86	// Get screen dimensions
 #define VDP_RTC					0x87	// RTC
 #define VDP_KEYSTATE			0x88	// Keyboard repeat rate and LED status
+#define VDP_MOUSE				0x89	// Mouse data
 #define VDP_BUFFERED			0xA0	// Buffered commands
 #define VDP_LOGICALCOORDS		0xC0	// Switch BBC Micro style logical coords on and off
 #define VDP_LEGACYMODES			0xC1	// Switch VDP 1.03 compatible modes on and off
@@ -64,6 +65,7 @@
 #define PACKET_MODE				0x06	// Get screen dimensions
 #define PACKET_RTC				0x07	// RTC
 #define PACKET_KEYSTATE			0x08	// Keyboard repeat rate and LED status
+#define PACKET_MOUSE			0x09	// Mouse data
 
 #define AUDIO_CHANNELS			3		// Default number of audio channels
 #define MAX_AUDIO_CHANNELS		32		// Maximum number of audio channels
@@ -122,6 +124,26 @@
 #define AUDIO_STATE_PLAY_LOOP	3		// Channel is in active note playing loop
 #define AUDIO_STATE_RELEASE		4		// Channel is releasing a note
 #define AUDIO_STATE_ABORT		5		// Channel is aborting a note
+
+// Mouse commands
+#define MOUSE_ENABLE			0		// Enable mouse
+#define MOUSE_DISABLE			1		// Disable mouse
+#define MOUSE_RESET				2		// Reset mouse
+#define MOUSE_SET_CURSOR		3		// Set cursor
+#define MOUSE_SET_POSITION		4		// Set mouse position
+#define MOUSE_SET_AREA			5		// Set mouse area
+#define MOUSE_SET_SAMPLERATE	6		// Set mouse sample rate
+#define MOUSE_SET_RESOLUTION	7		// Set mouse resolution
+#define MOUSE_SET_SCALING		8		// Set mouse scaling
+#define MOUSE_SET_ACCERATION	9		// Set mouse acceleration (1-2000)
+#define MOUSE_SET_WHEELACC		10		// Set mouse wheel acceleration
+
+#define MOUSE_DEFAULT_CURSOR	0;		// Default mouse cursor
+#define MOUSE_DEFAULT_SAMPLERATE	60;	// Default mouse sample rate
+#define MOUSE_DEFAULT_RESOLUTION	2;	// Default mouse resolution (4 counts/mm)
+#define MOUSE_DEFAULT_SCALING	1;		// Default mouse scaling (1:1)
+#define MOUSE_DEFAULT_ACCELERATION	180;	// Default mouse acceleration 
+#define MOUSE_DEFAULT_WHEELACC		60000;	// Default mouse wheel acceleration
 
 // Buffered commands
 #define BUFFERED_WRITE			0x00	// Write to a numbered buffer

@@ -4,6 +4,7 @@
 #include <fabgl.h>
 
 #include "agon.h"
+#include "agon_ps2.h"
 #include "agon_screen.h"
 #include "agon_fonts.h"							// The Acorn BBC Micro Font
 #include "agon_palette.h"						// Colour lookup table
@@ -675,6 +676,8 @@ int8_t change_mode(uint8_t mode) {
 		switchBuffer();
 		cls(false);
 	}
+	resetMousePositioner(canvasW, canvasH, _VGAController.get());
+	setMouseCursor();
 	debug_log("do_modeChange: canvas(%d,%d), scale(%f,%f), mode %d, videoMode %d\n\r", canvasW, canvasH, logicalScaleX, logicalScaleY, mode, videoMode);
 	return 0;
 }

@@ -68,6 +68,17 @@ Point scale(Point p) {
 	return scale(p.X, p.Y);
 }
 
+// Convert to currently active coordinate system
+//
+Point toCurrentCoordinates(int16_t X, int16_t Y) {
+	// if we're using logical coordinates then we need to scale and invert the Y axis
+	if (logicalCoords) {
+		return Point(X * logicalScaleX, ((canvasH - 1) - Y) * logicalScaleY);
+	}
+
+	return Point(X, Y);
+}
+
 // Translate a point relative to the canvas
 //
 Point translateCanvas(int16_t X, int16_t Y) {

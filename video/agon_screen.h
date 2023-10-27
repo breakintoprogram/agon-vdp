@@ -148,4 +148,8 @@ void switchBuffer() {
 	}
 }
 
+void setMouseCursorPos(uint16_t x, uint16_t y) {
+	_VGAController->setMouseCursorPos(x, y);
+}
+
 #endif // AGON_SCREEN_H

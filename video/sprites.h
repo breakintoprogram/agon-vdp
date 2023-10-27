@@ -1,12 +1,16 @@
 #ifndef SPRITES_H
 #define SPRITES_H
 
+#include <algorithm>
+#include <limits>
 #include <memory>
-#include <vector>
+#include <type_traits>
 #include <unordered_map>
+#include <vector>
 #include <fabgl.h>
 
 #include "agon.h"
+#include "agon_ps2.h"
 #include "agon_screen.h"
 
 uint16_t		currentBitmap = BUFFERED_BITMAP_BASEID;	// Current bitmap ID
@@ -17,6 +21,9 @@ Sprite			sprites[MAX_SPRITES];			// Sprite object storage
 
 // track which sprites may be using a bitmap
 std::unordered_map<uint16_t, std::vector<uint8_t>> bitmapUsers;
+
+std::unordered_map<uint16_t, fabgl::Cursor> cursors;	// Storage for our cursors
+uint16_t		mCursor = MOUSE_DEFAULT_CURSOR;	// Mouse cursor
 
 std::shared_ptr<Bitmap> getBitmap(uint16_t id = currentBitmap) {
 	if (bitmaps.find(id) != bitmaps.end()) {
@@ -43,10 +50,63 @@ void drawBitmap(uint16_t x, uint16_t y) {
 	}
 }
 
+void clearCursor(uint16_t cursor) {
+	if (cursors.find(cursor) != cursors.end()) {
+		cursors.erase(cursor);
+	}
+}
+
+bool makeCursor(uint16_t bitmapId, uint16_t hotX, uint16_t hotY) {
+	auto bitmap = getBitmap(bitmapId);
+	if (!bitmap) {
+		debug_log("addCursor: bitmap %d not found\n\r", bitmapId);
+		return false;
+	}
+	fabgl::Cursor c;
+	c.bitmap = *bitmap;
+	c.hotspotX = std::min(static_cast<uint16_t>(std::max(static_cast<int>(hotX), 0)), static_cast<uint16_t>(bitmap->width - 1));
+	c.hotspotY = std::min(static_cast<uint16_t>(std::max(static_cast<int>(hotY), 0)), static_cast<uint16_t>(bitmap->height - 1));
+	cursors[bitmapId] = c;
+	return true;
+}
+
+bool setMouseCursor(uint16_t cursor = mCursor) {
+	// if our mouse is enabled, then we'll set the cursor
+	if (mouseEnabled) {
+		// if this cursor exists then set it
+		// first, check whether it's a built-in cursor
+		auto minValue = static_cast<CursorName>(std::numeric_limits<std::underlying_type<CursorName>::type>::min());
+		auto maxValue = static_cast<CursorName>(std::numeric_limits<std::underlying_type<CursorName>::type>::max());
+		if (minValue <= cursor && cursor <= maxValue) {
+			_VGAController->setMouseCursor(static_cast<CursorName>(cursor));
+			mCursor = cursor;
+			return true;
+		} 
+		// otherwise, check whether it's a custom cursor
+		if (cursors.find(cursor) != cursors.end()) {
+			_VGAController->setMouseCursor(&cursors[cursor]);
+			mCursor = cursor;
+			return true;
+		}
+	}
+	// otherwise make sure we remove the cursor and keep track of the requested cursor number
+	_VGAController->setMouseCursor(nullptr);
+	if (cursor != 65535) {
+		mCursor = cursor;
+	}
+	return false;
+}
+
 void resetBitmaps() {
+	// if we're using a bitmap as a cursor then the cursor needs to change too
+	if (cursors.find(currentBitmap) != cursors.end()) {
+		uint16_t cursor = MOUSE_DEFAULT_CURSOR;
+		setMouseCursor(cursor);
+	}
 	bitmaps.clear();
 	// this will only be used after resetting sprites, so we can clear the bitmapUsers list
 	bitmapUsers.clear();
+	cursors.clear();
 	setCurrentBitmap(BUFFERED_BITMAP_BASEID);
 }
 

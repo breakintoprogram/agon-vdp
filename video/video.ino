@@ -56,7 +56,7 @@
 #define SERIALBAUDRATE	115200
 
 #include "agon.h"								// Configuration file
-#include "agon_keyboard.h"						// Keyboard support
+#include "agon_ps2.h"						// Keyboard support
 #include "agon_audio.h"							// Audio support
 #include "agon_ttxt.h"
 #include "graphics.h"							// Graphics support
@@ -78,7 +78,7 @@ void setup() {
 	setupVDPProtocol();
 	processor = new VDUStreamProcessor(&VDPSerial);
 	processor->wait_eZ80();
-	setupKeyboard();
+	setupKeyboardAndMouse();
 	init_audio();
 	copy_font();
 	set_mode(1);
@@ -106,6 +106,7 @@ void loop() {
       		if (!cursorState && ttxtMode) ttxt_instance.flash(false);
 		}
 		do_keyboard();
+		do_mouse();
 
 		if (processor->byteAvailable()) {
 			if (cursorState) {
@@ -157,6 +158,20 @@ void do_keyboard_terminal() {
 	//
 	while (processor->byteAvailable()) {
 		Terminal.write(processor->readByte());
+	}
+}
+
+// Handle the mouse
+//
+void do_mouse() {
+	// get mouse delta, if the mouse is active
+	MouseDelta delta;
+	if (mouseMoved(&delta)) {
+		auto mouse = getMouse();
+		auto mStatus = mouse->status();
+		// update mouse cursor position if it's active
+		setMouseCursorPos(mStatus.X, mStatus.Y);
+		processor->sendMouseData(&delta);
 	}
 }
 
