@@ -268,8 +268,9 @@ void VDUStreamProcessor::vdu_plot() {
 // VDU 26 Reset graphics and text viewports
 //
 void VDUStreamProcessor::vdu_resetViewports() {
-  if (ttxtMode)
-    ttxt_instance.set_window(0,24,39,0);
+	if (ttxtMode) {
+		ttxt_instance.set_window(0,24,39,0);
+	}
 	viewportReset();
 	// reset cursors too (according to BBC BASIC manual)
 	cursorHome();
@@ -281,19 +282,19 @@ void VDUStreamProcessor::vdu_resetViewports() {
 // Example: VDU 28,20,23,34,4
 //
 void VDUStreamProcessor::vdu_textViewport() {
-  auto cx1 = readByte_t();
-  auto cy2 = readByte_t();
-  auto cx2 = readByte_t();
-  auto cy1 = readByte_t();
+	auto cx1 = readByte_t();
+	auto cy2 = readByte_t();
+	auto cx2 = readByte_t();
+	auto cy1 = readByte_t();
 	auto x1 = cx1 * fontW;				// Left
 	auto y2 = (cy2 + 1) * fontH - 1;	// Bottom
 	auto x2 = (cx2 + 1) * fontW - 1;	// Right
 	auto y1 = cy1 * fontH;				// Top
 
 	if (ttxtMode) {
-	  if (cx2 > 39) cx2 = 39;
-	  if (cy2 > 24) cy2 = 24;
-	  if (cx2 >= cx1 && cy2 >= cy1)
+		if (cx2 > 39) cx2 = 39;
+		if (cy2 > 24) cy2 = 24;
+		if (cx2 >= cx1 && cy2 >= cy1)
 	    ttxt_instance.set_window(cx1,cy2,cx2,cy1);
 	}	
 	if (setTextViewport(x1, y1, x2, y2)) {
