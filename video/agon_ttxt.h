@@ -544,10 +544,10 @@ void agon_ttxt::scroll()
   if (m_left==0 && m_right==39 && m_top==0 && m_bottom==24)
   {
     /* Do the full screen */
-    memcpy(m_screen_buf, m_screen_buf+40, 960);
+    memmove(m_screen_buf, m_screen_buf+40, 960);
     memset(m_screen_buf+960, ' ', 40);
     m_lastRow--;
-    memcpy(m_dh_status, m_dh_status+1, 24);
+    memmove(m_dh_status, m_dh_status+1, 24);
     if (m_dh_status[23] == 1) 
       m_dh_status[24] = 2;
     else
