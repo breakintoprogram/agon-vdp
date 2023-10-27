@@ -78,6 +78,17 @@ uint8_t audio_channel::play_note(uint8_t volume, uint16_t frequency, int32_t dur
 			this->_volume = volume;
 			this->_frequency = frequency;
 			this->_duration = duration == 65535 ? -1 : duration;
+			if (this->_duration == 0 && this->_waveformType == AUDIO_WAVE_SAMPLE) {
+				// zero duration means play whole sample
+				this->_duration = ((EnhancedSamplesGenerator *)this->_waveform.get())->getDuration();
+				if (this->_volumeEnvelope) {
+					// subtract the "release" time from the duration
+					this->_duration -= this->_volumeEnvelope->getRelease();
+				}
+				if (this->_duration < 0) {
+					this->_duration = 1;
+				}
+			}
 			this->_state = AUDIO_STATE_PENDING;
 			debug_log("audio_driver: play_note %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);
 			return 1;

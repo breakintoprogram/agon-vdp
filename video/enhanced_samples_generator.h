@@ -17,6 +17,8 @@ class EnhancedSamplesGenerator : public WaveformGenerator {
 
 		void setFrequency(int value);
 		int getSample();
+
+		int getDuration();
 	
 	private:
 		std::weak_ptr<audio_sample> _sample;
@@ -53,6 +55,11 @@ int EnhancedSamplesGenerator::getSample() {
 	decDuration();
 
 	return sample;
+}
+
+int EnhancedSamplesGenerator::getDuration() {
+	// NB this is hard-coded for a 16khz sample rate
+	return _sample.expired() ? 0 : _sample.lock()->getDuration();
 }
 
 #endif // ENHANCED_SAMPLES_GENERATOR_H
