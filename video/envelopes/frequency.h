@@ -12,8 +12,8 @@
 
 class FrequencyEnvelope {
 	public:
-		virtual uint16_t getFrequency(uint16_t baseFrequency, uint32_t elapsed, int32_t duration);
-		virtual bool isFinished(uint32_t elapsed, int32_t duration);
+		virtual uint16_t getFrequency(uint16_t baseFrequency, uint32_t elapsed, int32_t duration) = 0;
+		virtual bool isFinished(uint32_t elapsed, int32_t duration) = 0;
 };
 
 struct FrequencyStepPhase {

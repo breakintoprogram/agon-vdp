@@ -25,6 +25,13 @@ struct audio_sample {
 			index = 0;
 		}
 	}
+	uint32_t getDuration() {
+		uint32_t duration = 0;
+		for (auto block : blocks) {
+			duration += block->size();
+		}
+		return duration / 16;
+	}
 	std::vector<std::shared_ptr<BufferStream>>& blocks;
 	uint8_t			format;			// Format of the sample data
 	uint32_t		index;			// Current index inside the current sample block
