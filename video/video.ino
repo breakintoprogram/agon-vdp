@@ -100,10 +100,10 @@ void loop() {
 		}
 		cursorVisible = ((count & 0xFFFF) == 0);
 		if (cursorVisible) {
-      if (!cursorState && ttxtMode) ttxt_instance.flash(true);
+    		if (!cursorState && ttxtMode) ttxt_instance.flash(true);
 			cursorState = !cursorState;
 			do_cursor();
-      if (!cursorState && ttxtMode) ttxt_instance.flash(false);
+      		if (!cursorState && ttxtMode) ttxt_instance.flash(false);
 		}
 		do_keyboard();
 
