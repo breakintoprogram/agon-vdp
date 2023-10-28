@@ -623,6 +623,15 @@ int8_t change_mode(uint8_t mode) {
 		case 24:
 			errVal = change_resolution(2, SVGA_320_256_60hz);
 			break;
+		case 25:
+			errVal = change_resolution(16, VGA_512x384_60Hz);
+			break;
+		case 26:
+			errVal = change_resolution(4, VGA_512x384_60Hz);
+			break;
+		case 27:
+			errVal = change_resolution(2, VGA_512x384_60Hz);
+			break;
 		case 129:
 			errVal = change_resolution(4, VGA_640x480_60Hz, true);
 			break;
