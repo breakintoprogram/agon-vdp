@@ -323,6 +323,7 @@ void plotLine(bool omitFirstPoint = false, bool omitLastPoint = false) {
 //
 void plotPoint() {
 	canvas->setPixel(p1.X, p1.Y);
+	moveTo();
 }
 
 // Triangle plot
