@@ -261,6 +261,9 @@ void VDUStreamProcessor::vdu_plot() {
 					// fab-gl's ellipse isn't compatible with BBC BASIC
 					debug_log("plot ellipse not implemented\n\r");
 					break;
+				case 0xE8:	// Bitmap plot
+					plotBitmap();
+					break;
 			}
 			break;
 	}
