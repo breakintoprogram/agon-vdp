@@ -334,6 +334,7 @@ void plotTriangle() {
 		p2,
 		p1, 
 	};
+	canvas->drawPath(p, 3);
 	canvas->fillPath(p, 3);
 }
 
@@ -352,6 +353,7 @@ void plotParallelogram() {
 		p1,
 		Point(p1.X + (p3.X - p2.X), p1.Y + (p3.Y - p2.Y)),
 	};
+	canvas->drawPath(p, 4);
 	canvas->fillPath(p, 4);
 }
 
