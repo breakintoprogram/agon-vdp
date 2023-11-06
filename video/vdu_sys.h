@@ -375,7 +375,7 @@ void VDUStreamProcessor::vdu_sys_mouse() {
 			auto x = readWord_t();	if (x == -1) return;
 			auto y = readWord_t();	if (y == -1) return;
 			// normalise coordinates
-			auto p = translateViewport(scale(x, y));
+			auto p = translateCanvas(scale(x, y));
 
 			// need to update position in mouse status
 			setMousePos(p.X, p.Y);

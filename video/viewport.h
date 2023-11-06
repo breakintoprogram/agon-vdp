@@ -44,18 +44,6 @@ void setActiveViewport(uint8_t type) {
 	activeViewport = getViewport(type);
 }
 
-// Translate a point relative to the graphics viewport
-//
-Point translateViewport(int16_t X, int16_t Y) {
-	if (logicalCoords) {
-		return Point(graphicsViewport.X1 + (origin.X + X), graphicsViewport.Y2 - (origin.Y + Y));
-	}
-	return Point(graphicsViewport.X1 + (origin.X + X), graphicsViewport.Y1 + (origin.Y + Y));
-}
-Point translateViewport(Point p) {
-	return translateViewport(p.X, p.Y);
-}
-
 // Scale a point
 //
 Point scale(int16_t X, int16_t Y) {

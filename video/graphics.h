@@ -93,7 +93,7 @@ char getScreenChar(uint16_t px, uint16_t py) {
 // Get pixel value at screen coordinates
 //
 RGB888 getPixel(uint16_t x, uint16_t y) {
-	Point p = translateViewport(scale(x, y));
+	Point p = translateCanvas(scale(x, y));
 	if (p.X >= 0 && p.Y >= 0 && p.X < canvasW && p.Y < canvasH) {
 		return canvas->getPixel(p.X, p.Y);
 	}
@@ -242,7 +242,7 @@ void pushPoint(Point p) {
 	p1 = p;
 }
 void pushPoint(uint16_t x, uint16_t y) {
-	pushPoint(translateViewport(scale(x, y)));
+	pushPoint(translateCanvas(scale(x, y)));
 }
 void pushPointRelative(int16_t x, int16_t y) {
 	auto scaledPoint = scale(x, y);
