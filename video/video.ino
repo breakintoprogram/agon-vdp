@@ -43,6 +43,7 @@
 // 13/08/2023:				RC2	+ New video modes, mode change resets page mode
 // 05/09/2023:					+ New audio enhancements, improved mode change code
 // 12/09/2023:					+ Refactored
+// 17/09/2023:					+ Added ZDI mode
 
 #include <WiFi.h>
 #include <HardwareSerial.h>
@@ -54,6 +55,7 @@
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
+#define ZDI				1						// ZDI Monitor Mode: 1 = enable
 #define SERIALBAUDRATE	115200
 
 HardwareSerial DBGSerial(0);
@@ -71,6 +73,10 @@ HardwareSerial DBGSerial(0);
 bool					terminalMode = false;	// Terminal mode
 fabgl::Terminal			Terminal;				// Used for CP/M mode
 VDUStreamProcessor *	processor;				// VDU Stream Processor
+
+#if ZDI==1
+	#include "zdi.h"
+#endif
 
 void setup() {
 	disableCore0WDT(); delay(200);				// Disable the watchdog timers

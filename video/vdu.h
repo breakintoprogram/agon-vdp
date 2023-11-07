@@ -10,6 +10,14 @@
 // Handle VDU commands
 //
 void VDUStreamProcessor::vdu(uint8_t c) {
+	
+	#if ZDI==1
+		// we want to send raw chars back to the debugger
+		// this allows binary (faster) data transfer in ZDI mode
+		// to inspect memory and register values
+		DBGSerial.write (c);
+	#endif
+
 	switch(c) {
 		case 0x04:	
 			// enable text cursor
