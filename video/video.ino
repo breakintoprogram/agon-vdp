@@ -56,8 +56,10 @@
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
 #define SERIALBAUDRATE	115200
 
+HardwareSerial DBGSerial(0);
+
 #include "agon.h"								// Configuration file
-#include "agon_ps2.h"						// Keyboard support
+#include "agon_ps2.h"							// Keyboard support
 #include "agon_audio.h"							// Audio support
 #include "agon_ttxt.h"
 #include "graphics.h"							// Graphics support
@@ -69,8 +71,6 @@
 bool					terminalMode = false;	// Terminal mode
 fabgl::Terminal			Terminal;				// Used for CP/M mode
 VDUStreamProcessor *	processor;				// VDU Stream Processor
-
-HardwareSerial DBGSerial(0);
 
 void setup() {
 	disableCore0WDT(); delay(200);				// Disable the watchdog timers

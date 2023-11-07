@@ -73,7 +73,7 @@ bool getKeyboardKey(uint8_t *keycode, uint8_t *modifiers, uint8_t *vk, uint8_t *
 		*keycode = _keycode;
 		*modifiers = 0;
 		*vk = 0;
-		*down = 0;
+		*down = 1;
 		return true;
 	}
 	#endif
