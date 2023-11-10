@@ -55,7 +55,7 @@
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
-#define ZDI				1						// ZDI Monitor Mode: 1 = enable
+#define ZDI				0						// ZDI Monitor Mode: 1 = enable
 #define SERIALBAUDRATE	115200
 
 HardwareSerial DBGSerial(0);
