@@ -54,11 +54,12 @@
 #define RC				2
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
-#define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
-#define ZDI				0						// ZDI Monitor Mode: 1 = enable
 #define SERIALBAUDRATE	115200
 
-HardwareSerial DBGSerial(0);
+HardwareSerial	DBGSerial(0);
+
+bool			terminalMode = false;			// Terminal mode (for CP/M)
+bool			consoleMode = false;			// Serial console mode (0 = off, 1 = console enabled)
 
 #include "agon.h"								// Configuration file
 #include "agon_ps2.h"							// Keyboard support
@@ -70,13 +71,10 @@ HardwareSerial DBGSerial(0);
 #include "vdu_stream_processor.h"
 #include "hexload.h"
 
-bool					terminalMode = false;	// Terminal mode
 fabgl::Terminal			Terminal;				// Used for CP/M mode
 VDUStreamProcessor *	processor;				// VDU Stream Processor
 
-#if ZDI==1
-	#include "zdi.h"
-#endif
+#include "zdi.h"								// ZDI debugging console
 
 void setup() {
 	disableCore0WDT(); delay(200);				// Disable the watchdog timers
@@ -208,6 +206,14 @@ void debug_log(const char *format, ...) {
 	}
 	va_end(ap);
 	#endif
+}
+
+// Set console mode
+// Parameters:
+// - mode: 0 = off, 1 = on
+//
+void setConsoleMode(bool mode) {
+	consoleMode = mode;
 }
 
 // Switch to terminal mode
