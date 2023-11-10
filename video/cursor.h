@@ -142,8 +142,12 @@ void cursorHome() {
 // TAB(x,y)
 //
 void cursorTab(uint8_t x, uint8_t y) {
-	activeCursor->X = x * fontW;
-	activeCursor->Y = y * fontH;
+  if (textViewport.X1 + x * fontW <= textViewport.X2 &&
+      textViewport.Y1 + y * fontW <= textViewport.Y2)
+  {
+	  textCursor.X = textViewport.X1 + x * fontW;
+	  textCursor.Y = textViewport.Y1 + y * fontH;
+  }
 }
 
 void setPagedMode(bool mode = pagedMode) {
