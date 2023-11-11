@@ -6,7 +6,7 @@
 //					Igor Chaves Cananea (vdp-gl maintenance)
 //					Steve Sims (Audio enhancements, refactoring, bug fixes)
 // Created:			22/03/2022
-// Last Updated:	12/09/2023
+// Last Updated:	11/11/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -43,7 +43,7 @@
 // 13/08/2023:				RC2	+ New video modes, mode change resets page mode
 // 05/09/2023:					+ New audio enhancements, improved mode change code
 // 12/09/2023:					+ Refactored
-// 17/09/2023:					+ Added ZDI mode
+// 11/11/2023:				RC3 + See Github for full list of changes
 
 #include <WiFi.h>
 #include <HardwareSerial.h>
@@ -51,7 +51,7 @@
 
 #define VERSION			1
 #define REVISION		4
-#define RC				2
+#define RC				3
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALBAUDRATE	115200
