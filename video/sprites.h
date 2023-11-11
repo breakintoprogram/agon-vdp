@@ -44,7 +44,6 @@ void drawBitmap(uint16_t x, uint16_t y) {
 	auto bitmap = getBitmap();
 	if (bitmap) {
 		canvas->drawBitmap(x, y, bitmap.get());
-		waitPlotCompletion();
 	} else {
 		debug_log("drawBitmap: bitmap %d not found\n\r", currentBitmap);
 	}
@@ -173,12 +172,12 @@ void activateSprites(uint8_t n) {
 	*/
 	numsprites = n;
 
+	waitPlotCompletion();
 	if (numsprites) {
 		_VGAController->setSprites(sprites, numsprites);
 	} else {
 		_VGAController->removeSprites();
 	}
-	waitPlotCompletion();
 }
 
 inline bool hasActiveSprites() {
@@ -240,6 +239,7 @@ void hideAllSprites() {
 }
 
 void resetSprites() {
+	waitPlotCompletion();
 	hideAllSprites();
 	for (auto n = 0; n < MAX_SPRITES; n++) {
 		clearSpriteFrames(n);
@@ -250,7 +250,6 @@ void resetSprites() {
 	// for (auto n = 0; n < MAX_SPRITES; n++) {
 	// 	sprites[n] = Sprite();
 	// }
-	waitPlotCompletion();
 }
 
 #endif // SPRITES_H

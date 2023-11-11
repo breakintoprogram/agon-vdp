@@ -132,7 +132,6 @@ void setPalette(uint8_t l, uint8_t p, uint8_t r, uint8_t g, uint8_t b) {
 			return;
 		}
 		setPaletteItem(l, col);
-		waitPlotCompletion();
 		debug_log("vdu_palette: %d,%d,%d,%d,%d\n\r", l, p, r, g, b);
 	} else {
 		debug_log("vdu_palette: not supported in this mode\n\r");
@@ -323,7 +322,6 @@ void plotLine(bool omitFirstPoint = false, bool omitLastPoint = false) {
 //
 void plotPoint() {
 	canvas->setPixel(p1.X, p1.Y);
-	moveTo();
 }
 
 // Triangle plot
@@ -735,7 +733,6 @@ void scrollRegion(Rect * region, uint8_t direction, int16_t movement) {
 				break;
   		}
   	} 
-	waitPlotCompletion();
 }
 
 #endif
