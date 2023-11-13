@@ -213,6 +213,7 @@ void VDUStreamProcessor::sendCursorPosition() {
 // VDU 23, 0, &83 Send a character back to MOS
 //
 void VDUStreamProcessor::sendScreenChar(uint16_t x, uint16_t y) {
+	waitPlotCompletion();
 	uint16_t px = x * fontW;
 	uint16_t py = y * fontH;
 	char c = getScreenChar(px, py);
@@ -225,6 +226,7 @@ void VDUStreamProcessor::sendScreenChar(uint16_t x, uint16_t y) {
 // VDU 23, 0, &84: Send a pixel value back to MOS
 //
 void VDUStreamProcessor::sendScreenPixel(uint16_t x, uint16_t y) {
+	waitPlotCompletion();
 	RGB888 pixel = getPixel(x, y);
 	uint8_t pixelIndex = getPaletteIndex(pixel);
 	uint8_t packet[] = {
