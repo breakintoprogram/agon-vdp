@@ -51,7 +51,7 @@
 
 #define VERSION			1
 #define REVISION		4
-#define RC				3
+#define RC				0
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
 #define SERIALBAUDRATE	115200
