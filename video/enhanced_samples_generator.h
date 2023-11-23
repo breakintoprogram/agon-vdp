@@ -22,6 +22,13 @@ class EnhancedSamplesGenerator : public WaveformGenerator {
 	
 	private:
 		std::weak_ptr<audio_sample> _sample;
+
+        int previousSample = 0;
+        int currentSample = 0;
+        double samplesPerGet = 1.0;
+        double fractionalSampleOffset = 0.0;
+
+        const int baseFrequency = 16000;
 };
 
 EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<audio_sample> sample)
@@ -29,16 +36,22 @@ EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<audio_sample>
 {}
 
 void EnhancedSamplesGenerator::setFrequency(int value) {
-	// usually this will do nothing...
-	// but we'll hijack this method to allow us to reset the sample index
+	// We'll hijack this method to allow us to reset the sample index
 	// ideally we'd override the enable method, but C++ doesn't let us do that
 	if (value < 0) {
 		// rewind our sample if it's still valid
 		if (!_sample.expired()) {
 			auto samplePtr = _sample.lock();
 			samplePtr->rewind();
+
+            fractionalSampleOffset = 0.0;
+            previousSample = samplePtr->getSample();
+            currentSample = samplePtr->getSample();
 		}
 	}
+    else {
+        samplesPerGet = (double)value / (double)baseFrequency;
+    }
 }
 
 int EnhancedSamplesGenerator::getSample() {
@@ -47,7 +60,18 @@ int EnhancedSamplesGenerator::getSample() {
 	}
 
 	auto samplePtr = _sample.lock();
-	int sample = samplePtr->getSample();
+
+    while (fractionalSampleOffset >= 1.0)
+    {
+        previousSample = currentSample;
+    	currentSample = samplePtr->getSample();
+        fractionalSampleOffset -= 1.0;
+    }
+
+     // Interpolate between the samples to reduce aliasing
+    int sample = currentSample * fractionalSampleOffset + previousSample * (1.0-fractionalSampleOffset);
+
+    fractionalSampleOffset += samplesPerGet;
 
 	// process volume
 	sample = sample * volume() / 127;
@@ -59,7 +83,7 @@ int EnhancedSamplesGenerator::getSample() {
 
 int EnhancedSamplesGenerator::getDuration() {
 	// NB this is hard-coded for a 16khz sample rate
-	return _sample.expired() ? 0 : _sample.lock()->getDuration();
+	return _sample.expired() ? 0 : _sample.lock()->getDuration() / samplesPerGet;
 }
 
 #endif // ENHANCED_SAMPLES_GENERATOR_H

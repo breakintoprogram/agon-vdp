@@ -334,9 +334,8 @@ void audio_channel::loop() {
 			if (this->_waveformType == AUDIO_WAVE_SAMPLE) {
 				// hack to ensure samples always start from beginning
 				this->_waveform->setFrequency(-1);
-			} else {
-				this->_waveform->setFrequency(this->getFrequency(0));
 			}
+			this->_waveform->setFrequency(this->getFrequency(0));
 			this->_waveform->enable(true);
 			// if we have an envelope then we loop, otherwise just delay for duration			
 			if (this->_volumeEnvelope || this->_frequencyEnvelope) {
