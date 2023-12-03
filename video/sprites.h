@@ -43,7 +43,7 @@ inline uint16_t getCurrentBitmapId() {
 void drawBitmap(uint16_t x, uint16_t y) {
 	auto bitmap = getBitmap();
 	if (bitmap) {
-		canvas->drawBitmap(x, y, bitmap.get());
+		canvas->drawBitmap(x, logicalCoords ? y - bitmap->height : y, bitmap.get());
 	} else {
 		debug_log("drawBitmap: bitmap %d not found\n\r", currentBitmap);
 	}
