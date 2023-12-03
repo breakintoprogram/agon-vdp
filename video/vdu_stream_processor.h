@@ -57,8 +57,10 @@ class VDUStreamProcessor {
 		void setVolumeEnvelope(uint8_t channel, uint8_t type);
 		void setFrequencyEnvelope(uint8_t channel, uint8_t type);
 
-		void vdu_sys_sprites(void);
-		void receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height);
+		void vdu_sys_sprites();
+		void receiveBitmap(uint16_t bufferId, uint16_t width, uint16_t height);
+		void createBitmapFromScreen(uint16_t bufferId);
+		void createEmptyBitmap(uint16_t bufferId, uint16_t width, uint16_t height, uint32_t color);
 		void createBitmapFromBuffer(uint16_t bufferId, uint8_t format, uint16_t width, uint16_t height);
 
 		void vdu_sys_hexload(void);

@@ -2,6 +2,7 @@
 #define _VDU_SPRITES_H_
 
 #include <fabgl.h>
+#include <cmath>
 
 #include "buffers.h"
 #include "graphics.h"
@@ -10,7 +11,7 @@
 
 // Sprite Engine, VDU command handler
 //
-void VDUStreamProcessor::vdu_sys_sprites(void) {
+void VDUStreamProcessor::vdu_sys_sprites() {
 	auto cmd = readByte_t();
 
 	switch (cmd) {
@@ -22,20 +23,37 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 			}
 		}	break;
 
-		case 1:		// Send bitmap data
-		case 2: {	// Define bitmap in single color
+		case 1:	{	// Create new bitmap from stream (RGBA8888) or screen (Native, RGB222)
 			auto rw = readWord_t(); if (rw == -1) return;
 			auto rh = readWord_t(); if (rh == -1) return;
 
-			if (rw == 0 && rh == 0) {
-				// TODO support defining bitmap from screen area
-				// as per Acorn GXR
-				// which defines area with last two graphics move commands
-				debug_log("vdu_sys_sprites: bitmap %d - zero size\n\r", getCurrentBitmapId());
+			if (rh == 0) {
+				if (rw <= 255) {
+					// capture bitmap from screen as per GXR
+					// area defined from last two graphics move commands
+					// bitmap ID sent in first rw byte
+					createBitmapFromScreen(rw + BUFFERED_BITMAP_BASEID);
+				} else {
+					// invalid bitmap size definition for sending bitmap data stream
+					debug_log("vdu_sys_sprites: bitmap %d - zero size\n\r", getCurrentBitmapId());
+				}
 				return;
 			}
 
-			receiveBitmap(cmd, rw, rh);
+			receiveBitmap(getCurrentBitmapId(), rw, rh);
+		}	break;
+
+		case 2: {	// Define bitmap in single color
+			auto rw = readWord_t(); if (rw == -1) return;
+			auto rh = readWord_t(); if (rh == -1) return;
+			uint32_t color;
+			auto remaining = readIntoBuffer((uint8_t *)&color, sizeof(uint32_t));
+			if (remaining > 0) {
+				debug_log("vdu_sys_sprites: failed to receive color data\n\r");
+				return;
+			}
+
+			createEmptyBitmap(getCurrentBitmapId(), rw, rh, color);
 		}	break;
 
 		case 3: {	// Draw bitmap to screen (x,y)
@@ -148,8 +166,14 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 		case 0x21: {	// Create bitmap from buffer
 			auto width = readWord_t(); if (width == -1) return;
 			auto height = readWord_t(); if (height == -1) return;
-			auto format = readByte_t(); if (format == -1) return;
-			createBitmapFromBuffer(getCurrentBitmapId(), format, width, height);
+			if (height == 0) {
+				// capture bitmap from the screen, as per GXR
+				// buffer ID sent in "width" word, format byte not required/ignored
+				createBitmapFromScreen(width);
+			} else {
+				auto format = readByte_t(); if (format == -1) return;
+				createBitmapFromBuffer(getCurrentBitmapId(), format, width, height);
+			}
 		}	break;
 
 		case 0x26: {	// add sprite frame for bitmap (long ID)
@@ -174,41 +198,63 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 	}
 }
 
-void VDUStreamProcessor::receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height) {
-	auto bufferId = getCurrentBitmapId();
-
+void VDUStreamProcessor::receiveBitmap(uint16_t bufferId, uint16_t width, uint16_t height) {
 	// clear the buffer
 	bufferClear(bufferId);
-
-	uint32_t size = sizeof(uint32_t) * width * height;
-
-	if (cmd == 1) {
-		// receive the data
-		if (bufferWrite(bufferId, size) != 0) {
-			// timed out, or couldn't allocate buffer - so abort
-			return;
-		}
-		// create RGBA8888 bitmap from buffer
-		createBitmapFromBuffer(bufferId, 0, width, height);
-	} else if (cmd == 2) {
-		uint32_t color;
-		auto remaining = readIntoBuffer((uint8_t *)&color, sizeof(uint32_t));
-		if (remaining > 0) {
-			debug_log("vdu_sys_sprites: failed to receive color data\n\r");
-			return;
-		}
-		// create a new buffer of appropriate size
-		auto buffer = bufferCreate(bufferId, size);
-		if (!buffer) {
-			debug_log("vdu_sys_sprites: failed to create buffer\n\r");
-			return;
-		}
-		auto dataptr = (uint32_t *)buffer->getBuffer();
-		for (auto n = 0; n < width*height; n++) dataptr[n] = color;
-		// create RGBA8888 bitmap from buffer
-		createBitmapFromBuffer(bufferId, 0, width, height);
+	// receive the data
+	if (bufferWrite(bufferId, sizeof(uint32_t) * width * height) != 0) {
+		// timed out, or couldn't allocate buffer - so abort
+		return;
 	}
-	return;
+	// create RGBA8888 bitmap from buffer
+	createBitmapFromBuffer(bufferId, 0, width, height);
+}
+
+void VDUStreamProcessor::createBitmapFromScreen(uint16_t bufferId) {
+	bufferClear(bufferId);
+	// get screen rectangle from last two graphics cursor positions
+	auto x1 = p1.X;
+	auto y1 = p1.Y;
+	auto x2 = p2.X;
+	auto y2 = p2.Y;
+	auto width = x2 - x1;
+	auto height = y2 - y1;
+	// normalize to positive values
+	if (width < 0) {
+		width = -width;
+		x1 = x2;
+	}
+	if (height < 0) {
+		height = -height;
+		y1 = y2;
+	}
+	auto size = width * height;
+	if (size == 0) {
+		debug_log("vdu_sys_sprites: bitmap %d - zero size\n\r", bufferId);
+		return;
+	}
+
+	// create a new buffer of appropriate size, and set as a native format bitmap
+	auto buffer = bufferCreate(bufferId, size);
+	createBitmapFromBuffer(bufferId, 3, width, height);
+	// Copy screen area to buffer
+	canvas->copyToBitmap(x1, y1, getBitmap(bufferId).get());
+}
+
+void VDUStreamProcessor::createEmptyBitmap(uint16_t bufferId, uint16_t width, uint16_t height, uint32_t color) {
+	bufferClear(bufferId);
+
+	// create a new buffer of appropriate size
+	uint32_t size = width * height;
+	auto buffer = bufferCreate(bufferId, sizeof(uint32_t) * size);
+	if (!buffer) {
+		debug_log("vdu_sys_sprites: failed to create buffer\n\r");
+		return;
+	}
+	auto dataptr = (uint32_t *)buffer->getBuffer();
+	for (auto n = 0; n < size; n++) dataptr[n] = color;
+	// create RGBA8888 bitmap from buffer
+	createBitmapFromBuffer(bufferId, 0, width, height);
 }
 
 void VDUStreamProcessor::createBitmapFromBuffer(uint16_t bufferId, uint8_t format, uint16_t width, uint16_t height) {
@@ -241,6 +287,10 @@ void VDUStreamProcessor::createBitmapFromBuffer(uint16_t bufferId, uint8_t forma
 		case 2: // Mono/Mask - TODO not sure exactly how to handle this
 			pixelFormat = PixelFormat::Mask;
 			bytesPerPixel = 1/8;
+			break;
+		case 3: // Native
+			pixelFormat = PixelFormat::Native;
+			bytesPerPixel = 1.;
 			break;
 		default:
 			pixelFormat = PixelFormat::RGBA8888;
