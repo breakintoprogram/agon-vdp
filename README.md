@@ -16,7 +16,7 @@ It will process any valid BBC Basic VDU commands (starting with a character betw
 
 For example:
 
-`VDU 25, mode, x; y;` is the same as `PLOT mode, x, y` 
+`VDU 25, mode, x; y;` is the same as `PLOT mode, x, y`
 
 ### Documentation
 
@@ -58,7 +58,7 @@ And for the Port, you will need to determine the Com port that the Agon Light is
 
 Now the third party libraries will need to be installed from the Library Manager in the Tools menu
 
-* vdp-gl version 1.0.4 (Official fork of FabGL 1.0.8 for Agon)
+* vdp-gl version 1.0.5 (Official fork of FabGL 1.0.8 for Agon)
 * ESP32Time version 2.0.4
 
 It is important you use these exact versions otherwise I cannot guarantee the code will compile or run correctly.
