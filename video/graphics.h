@@ -8,6 +8,7 @@
 #include "agon_screen.h"
 #include "agon_fonts.h"							// The Acorn BBC Micro Font
 #include "agon_palette.h"						// Colour lookup table
+#include "agon_ttxt.h"
 #include "cursor.h"
 #include "sprites.h"
 #include "viewport.h"
@@ -26,6 +27,8 @@ bool			legacyModes = false;			// Default legacy modes being false
 bool			rectangularPixels = false;		// Pixels are square by default
 uint8_t			palette[64];					// Storage for the palette
 
+extern bool ttxtMode;							// Teletext mode
+extern agon_ttxt ttxt_instance;					// Teletext instance
 
 // Copy the AGON font data from Flash to RAM
 //
@@ -98,6 +101,41 @@ RGB888 getPixel(uint16_t x, uint16_t y) {
 		return canvas->getPixel(p.X, p.Y);
 	}
 	return RGB888(0,0,0);
+}
+
+// Horizontal scan until we find a pixel not non-equalto given colour
+// returns x coordinate for the last pixel before the match
+uint16_t scanH(int16_t x, int16_t y, RGB888 colour, int8_t direction = 1) {
+	uint16_t w = direction > 0 ? canvas->getWidth() - 1 : 0;
+	if (x < 0 || x >= canvas->getWidth()) return x;
+
+	while (x != w) {
+		RGB888 pixel = canvas->getPixel(x, y);
+		if (pixel == colour) {
+			x += direction;
+		} else {
+			return x - direction;
+		}
+	}
+
+	return w;
+}
+
+// Horizontal scan until we find a pixel matching the given colour
+// returns x coordinate for the last pixel before the match
+uint16_t scanHToMatch(int16_t x, int16_t y, RGB888 colour, int8_t direction = 1) {
+	uint16_t w = direction > 0 ? canvas->getWidth() - 1 : 0;
+	if (x < 0 || x >= canvas->getWidth()) return x;
+
+	while (x != w) {
+		RGB888 pixel = canvas->getPixel(x, y);
+		if (pixel == colour) {
+			return x - direction;
+		}
+		x += direction;
+	}
+
+	return w;
 }
 
 // Get the palette index for a given RGB888 colour
@@ -316,6 +354,24 @@ void plotLine(bool omitFirstPoint = false, bool omitLastPoint = false) {
 	if (omitLastPoint) {
 		canvas->setPixel(p1, lastPixelColour);
 	}
+}
+
+// Fill horizontal line
+//
+void fillHorizontalLine(bool scanLeft, bool match, RGB888 matchColor) {
+	canvas->waitCompletion(false);
+	int16_t y = p1.Y;
+	int16_t x1 = scanLeft ? (match ? scanHToMatch(p1.X, y, matchColor, -1) : scanH(p1.X, y, matchColor, -1)) : p1.X;
+	int16_t x2 = match ? scanHToMatch(p1.X, y, matchColor, 1) : scanH(p1.X, y, matchColor, 1);
+	debug_log("fillHorizontalLine: (%d, %d) transformed to (%d,%d) -> (%d,%d)\n\r", p1.X, p1.Y, x1, y, x2, y);
+
+	if (x1 == x2 || x1 > x2) {
+		// nothing to draw
+		return;
+	}
+	canvas->moveTo(x1, y);
+	canvas->lineTo(x2, y);
+	pushPoint(x2, y);
 }
 
 // Point point

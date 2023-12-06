@@ -15,6 +15,7 @@
 #include "ttxtfont.h"
 #include "agon_palette.h"
 #include "agon_screen.h"
+#include "types.h"
 
 #define COLOUR_BLACK   0x00
 #define COLOUR_RED     0x30
