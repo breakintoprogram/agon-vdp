@@ -1,3 +1,5 @@
+#include <fabgl.h>
+
 //
 // Title:			Agon Video BIOS
 // Author:			Dean Belfield
