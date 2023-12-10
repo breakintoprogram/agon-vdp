@@ -14,6 +14,7 @@
 
 #include "agon.h"
 #include "agon_audio.h"
+#include "audio_sample.h"
 #include "buffers.h"
 #include "types.h"
 
@@ -29,7 +30,7 @@ void VDUStreamProcessor::vdu_sys_audio() {
 			auto frequency = readWord_t();	if (frequency == -1) return;
 			auto duration = readWord_t();	if (duration == -1) return;
 
-			sendAudioStatus(channel, play_note(channel, volume, frequency, duration));
+			sendAudioStatus(channel, playNote(channel, volume, frequency, duration));
 		}	break;
 
 		case AUDIO_CMD_STATUS: {
@@ -124,8 +125,8 @@ void VDUStreamProcessor::vdu_sys_audio() {
 		}	break;
 
 		case AUDIO_CMD_ENABLE: {
-			if (channel >= 0 && channel < MAX_AUDIO_CHANNELS && audio_channels[channel] == nullptr) {
-				init_audio_channel(channel);
+			if (channel >= 0 && channel < MAX_AUDIO_CHANNELS && audioChannels[channel] == nullptr) {
+				initAudioChannel(channel);
 			}
 		}	break;
 
@@ -138,7 +139,7 @@ void VDUStreamProcessor::vdu_sys_audio() {
 		case AUDIO_CMD_RESET: {
 			if (channelEnabled(channel)) {
 				audioTaskKill(channel);
-				init_audio_channel(channel);
+				initAudioChannel(channel);
 			}
 		}	break;
 	}
@@ -176,8 +177,7 @@ uint8_t VDUStreamProcessor::createSampleFromBuffer(uint16_t bufferId, uint8_t fo
 		return 0;
 	}
 	clearSample(bufferId);
-	auto sample = make_shared_psram<audio_sample>(buffers[bufferId], format);
-	// auto sample = make_shared_psram<audio_sample>(bufferId, format);
+	auto sample = make_shared_psram<AudioSample>(buffers[bufferId], format);
 	if (sample) {
 		samples[bufferId] = sample;
 		return 1;
@@ -191,7 +191,7 @@ void VDUStreamProcessor::setVolumeEnvelope(uint8_t channel, uint8_t type) {
 	if (channelEnabled(channel)) {
 		switch (type) {
 			case AUDIO_ENVELOPE_NONE:
-				audio_channels[channel]->setVolumeEnvelope(nullptr);
+				audioChannels[channel]->setVolumeEnvelope(nullptr);
 				debug_log("vdu_sys_audio: channel %d - volume envelope disabled\n\r", channel);
 				break;
 			case AUDIO_ENVELOPE_ADSR:
@@ -200,7 +200,7 @@ void VDUStreamProcessor::setVolumeEnvelope(uint8_t channel, uint8_t type) {
 				auto sustain = readByte_t();	if (sustain == -1) return;
 				auto release = readWord_t();	if (release == -1) return;
 				std::unique_ptr<VolumeEnvelope> envelope = make_unique_psram<ADSRVolumeEnvelope>(attack, decay, sustain, release);
-				audio_channels[channel]->setVolumeEnvelope(std::move(envelope));
+				audioChannels[channel]->setVolumeEnvelope(std::move(envelope));
 				break;
 		}
 	}
@@ -212,7 +212,7 @@ void VDUStreamProcessor::setFrequencyEnvelope(uint8_t channel, uint8_t type) {
 	if (channelEnabled(channel)) {
 		switch (type) {
 			case AUDIO_ENVELOPE_NONE:
-				audio_channels[channel]->setFrequencyEnvelope(nullptr);
+				audioChannels[channel]->setFrequencyEnvelope(nullptr);
 				debug_log("vdu_sys_audio: channel %d - frequency envelope disabled\n\r", channel);
 				break;
 			case AUDIO_FREQUENCY_ENVELOPE_STEPPED:
@@ -229,7 +229,7 @@ void VDUStreamProcessor::setFrequencyEnvelope(uint8_t channel, uint8_t type) {
 				bool cumulative = control & AUDIO_FREQUENCY_CUMULATIVE;
 				bool restrict = control & AUDIO_FREQUENCY_RESTRICT;
 				std::unique_ptr<FrequencyEnvelope> envelope = make_unique_psram<SteppedFrequencyEnvelope>(phases, stepLength, repeats, cumulative, restrict);
-				audio_channels[channel]->setFrequencyEnvelope(std::move(envelope));
+				audioChannels[channel]->setFrequencyEnvelope(std::move(envelope));
 				break;
 		}
 	}

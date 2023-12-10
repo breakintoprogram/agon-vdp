@@ -13,25 +13,25 @@
 //
 class EnhancedSamplesGenerator : public WaveformGenerator {
 	public:
-		EnhancedSamplesGenerator(std::shared_ptr<audio_sample> sample);
+		EnhancedSamplesGenerator(std::shared_ptr<AudioSample> sample);
 
 		void setFrequency(int value);
 		int getSample();
 
 		int getDuration();
-	
+
 	private:
-		std::weak_ptr<audio_sample> _sample;
+		std::weak_ptr<AudioSample> _sample;
 
-        int previousSample = 0;
-        int currentSample = 0;
-        double samplesPerGet = 1.0;
-        double fractionalSampleOffset = 0.0;
+		int previousSample = 0;
+		int currentSample = 0;
+		double samplesPerGet = 1.0;
+		double fractionalSampleOffset = 0.0;
 
-        const int baseFrequency = 16000;
+		const int baseFrequency = 16000;
 };
 
-EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<audio_sample> sample)
+EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<AudioSample> sample)
 	: _sample(sample)
 {}
 
@@ -44,14 +44,13 @@ void EnhancedSamplesGenerator::setFrequency(int value) {
 			auto samplePtr = _sample.lock();
 			samplePtr->rewind();
 
-            fractionalSampleOffset = 0.0;
-            previousSample = samplePtr->getSample();
-            currentSample = samplePtr->getSample();
+			fractionalSampleOffset = 0.0;
+			previousSample = samplePtr->getSample();
+			currentSample = samplePtr->getSample();
 		}
+	} else {
+		samplesPerGet = (double)value / (double)baseFrequency;
 	}
-    else {
-        samplesPerGet = (double)value / (double)baseFrequency;
-    }
 }
 
 int EnhancedSamplesGenerator::getSample() {
@@ -61,17 +60,16 @@ int EnhancedSamplesGenerator::getSample() {
 
 	auto samplePtr = _sample.lock();
 
-    while (fractionalSampleOffset >= 1.0)
-    {
-        previousSample = currentSample;
-    	currentSample = samplePtr->getSample();
-        fractionalSampleOffset -= 1.0;
-    }
+	while (fractionalSampleOffset >= 1.0) {
+		previousSample = currentSample;
+		currentSample = samplePtr->getSample();
+		fractionalSampleOffset -= 1.0;
+	}
 
-     // Interpolate between the samples to reduce aliasing
-    int sample = currentSample * fractionalSampleOffset + previousSample * (1.0-fractionalSampleOffset);
+	 // Interpolate between the samples to reduce aliasing
+	int sample = currentSample * fractionalSampleOffset + previousSample * (1.0-fractionalSampleOffset);
 
-    fractionalSampleOffset += samplesPerGet;
+	fractionalSampleOffset += samplesPerGet;
 
 	// process volume
 	sample = sample * volume() / 127;

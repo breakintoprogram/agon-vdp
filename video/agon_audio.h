@@ -20,27 +20,27 @@
 #include "types.h"
 
 // audio channels and their associated tasks
-std::unordered_map<uint8_t, std::shared_ptr<audio_channel>> audio_channels;
+std::unordered_map<uint8_t, std::shared_ptr<AudioChannel>> audioChannels;
 std::vector<TaskHandle_t, psram_allocator<TaskHandle_t>> audioHandlers;
 
-std::unordered_map<uint16_t, std::shared_ptr<audio_sample>> samples;	// Storage for the sample data
+std::unordered_map<uint16_t, std::shared_ptr<AudioSample>> samples;	// Storage for the sample data
 
-fabgl::SoundGenerator		SoundGenerator;		// The audio class
+std::shared_ptr<fabgl::SoundGenerator> soundGenerator;				// audio handling sub-system
 
 // Audio channel driver task
 //
-void audio_driver(void * parameters) {
+void audioDriver(void * parameters) {
 	uint8_t channel = *(uint8_t *)parameters;
 
-	audio_channels[channel] = make_shared_psram<audio_channel>(channel);
+	audioChannels[channel] = make_shared_psram<AudioChannel>(channel);
 	while (true) {
-		audio_channels[channel]->loop();
+		audioChannels[channel]->loop();
 		vTaskDelay(1);
 	}
 }
 
-void init_audio_channel(uint8_t channel) {
-	xTaskCreatePinnedToCore(audio_driver,  "audio_driver",
+void initAudioChannel(uint8_t channel) {
+	xTaskCreatePinnedToCore(audioDriver,  "audioDriver",
 		4096,						// This stack size can be checked & adjusted by reading the Stack Highwater
 		&channel,					// Parameters
 		PLAY_SOUND_PRIORITY,		// Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
@@ -59,7 +59,7 @@ void audioTaskKill(uint8_t channel) {
 	if (audioHandlers[channel]) {
 		vTaskDelete(audioHandlers[channel]);
 		audioHandlers[channel] = nullptr;
-		audio_channels.erase(channel);
+		audioChannels.erase(channel);
 		debug_log("audioTaskKill: channel %d killed\n\r", channel);
 	} else {
 		debug_log("audioTaskKill: channel %d not found\n\r", channel);
@@ -68,26 +68,27 @@ void audioTaskKill(uint8_t channel) {
 
 // Initialise the sound driver
 //
-void init_audio() {
+void initAudio() {
+	soundGenerator = std::make_shared<fabgl::SoundGenerator>();
 	audioHandlers.reserve(MAX_AUDIO_CHANNELS);
-	debug_log("init_audio: we have reserved %d channels\n\r", audioHandlers.capacity());
+	debug_log("initAudio: we have reserved %d channels\n\r", audioHandlers.capacity());
 	for (uint8_t i = 0; i < AUDIO_CHANNELS; i++) {
-		init_audio_channel(i);
+		initAudioChannel(i);
 	}
-	SoundGenerator.play(true);
+	soundGenerator->play(true);
 }
 
 // Channel enabled?
 //
 bool channelEnabled(uint8_t channel) {
-	return channel < MAX_AUDIO_CHANNELS && audio_channels[channel];
+	return channel < MAX_AUDIO_CHANNELS && audioChannels[channel];
 }
 
 // Play a note
 //
-uint8_t play_note(uint8_t channel, uint8_t volume, uint16_t frequency, uint16_t duration) {
+uint8_t playNote(uint8_t channel, uint8_t volume, uint16_t frequency, uint16_t duration) {
 	if (channelEnabled(channel)) {
-		return audio_channels[channel]->play_note(volume, frequency, duration);
+		return audioChannels[channel]->playNote(volume, frequency, duration);
 	}
 	return 1;
 }
@@ -96,7 +97,7 @@ uint8_t play_note(uint8_t channel, uint8_t volume, uint16_t frequency, uint16_t 
 //
 uint8_t getChannelStatus(uint8_t channel) {
 	if (channelEnabled(channel)) {
-		return audio_channels[channel]->getStatus();
+		return audioChannels[channel]->getStatus();
 	}
 	return -1;
 }
@@ -105,7 +106,7 @@ uint8_t getChannelStatus(uint8_t channel) {
 //
 void setVolume(uint8_t channel, uint8_t volume) {
 	if (channelEnabled(channel)) {
-		audio_channels[channel]->setVolume(volume);
+		audioChannels[channel]->setVolume(volume);
 	}
 }
 
@@ -113,7 +114,7 @@ void setVolume(uint8_t channel, uint8_t volume) {
 //
 void setFrequency(uint8_t channel, uint16_t frequency) {
 	if (channelEnabled(channel)) {
-		audio_channels[channel]->setFrequency(frequency);
+		audioChannels[channel]->setFrequency(frequency);
 	}
 }
 
@@ -121,7 +122,7 @@ void setFrequency(uint8_t channel, uint16_t frequency) {
 //
 void setWaveform(uint8_t channel, int8_t waveformType, uint16_t sampleId) {
 	if (channelEnabled(channel)) {
-		auto channelRef = audio_channels[channel];
+		auto channelRef = audioChannels[channel];
 		channelRef->setWaveform(waveformType, channelRef, sampleId);
 	}
 }

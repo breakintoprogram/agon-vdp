@@ -118,12 +118,14 @@
 #define AUDIO_STATUS_HAS_VOLUME_ENVELOPE	0x08	// Channel has a volume envelope set
 #define AUDIO_STATUS_HAS_FREQUENCY_ENVELOPE	0x10	// Channel has a frequency envelope set
 
-#define AUDIO_STATE_IDLE		0		// Channel is idle/silent
-#define AUDIO_STATE_PENDING		1		// Channel is pending (note will be played next loop call)
-#define AUDIO_STATE_PLAYING		2		// Channel is playing a note (passive)
-#define AUDIO_STATE_PLAY_LOOP	3		// Channel is in active note playing loop
-#define AUDIO_STATE_RELEASE		4		// Channel is releasing a note
-#define AUDIO_STATE_ABORT		5		// Channel is aborting a note
+enum AudioState : uint8_t {	// Audio channel state
+	Idle = 0,				// currently idle/silent
+	Pending,				// note will be played next loop call
+	Playing,				// playing (passive)
+	PlayLoop,				// active playing loop (used when an envelope is active)
+	Release,				// in "release" phase
+	Abort					// aborting a note
+};
 
 // Mouse commands
 #define MOUSE_ENABLE			0		// Enable mouse

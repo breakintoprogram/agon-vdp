@@ -50,8 +50,8 @@ SteppedFrequencyEnvelope::SteppedFrequencyEnvelope(std::shared_ptr<std::vector<F
 		_totalAdjustment += (phase.number * phase.adjustment);
 	}
 
-	debug_log("audio_driver: SteppedFrequencyEnvelope: totalSteps=%d, totalAdjustment=%d\n\r", this->_totalSteps, this->_totalAdjustment);
-	debug_log("audio_driver: SteppedFrequencyEnvelope: stepLength=%d, repeats=%d, restricts=%d, totalLength=%d\n\r", this->_stepLength, this->_repeats, this->_restrict, _totalLength);
+	debug_log("audioDriver: SteppedFrequencyEnvelope: totalSteps=%d, totalAdjustment=%d\n\r", this->_totalSteps, this->_totalAdjustment);
+	debug_log("audioDriver: SteppedFrequencyEnvelope: stepLength=%d, repeats=%d, restricts=%d, totalLength=%d\n\r", this->_stepLength, this->_repeats, this->_restrict, _totalLength);
 }
 
 uint16_t SteppedFrequencyEnvelope::getFrequency(uint16_t baseFrequency, uint32_t elapsed, int32_t duration) {
