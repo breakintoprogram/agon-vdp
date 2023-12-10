@@ -9,7 +9,7 @@
 #include "buffer_stream.h"
 
 struct AudioSample {
-	AudioSample(std::vector<std::shared_ptr<BufferStream>>& streams, uint8_t format, uint32_t sampleRate = AUDIO_DEFAULT_SAMPLE_RATE, uint16_t frequency = AUDIO_DEFAULT_FREQUENCY) :
+	AudioSample(std::vector<std::shared_ptr<BufferStream>>& streams, uint8_t format, uint32_t sampleRate = AUDIO_DEFAULT_SAMPLE_RATE, uint16_t frequency = 0) :
 		blocks(streams), format(format), sampleRate(sampleRate), baseFrequency(frequency), index(0), blockIndex(0) {}
 	~AudioSample();
 	int8_t getSample();
@@ -27,6 +27,7 @@ struct AudioSample {
 		}
 	}
 	uint32_t getDuration() {
+		// TODO this needs to change to calculate duration with frequency borne in mind
 		uint32_t samples = 0;
 		for (auto block : blocks) {
 			samples += block->size();

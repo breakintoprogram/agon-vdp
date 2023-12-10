@@ -80,6 +80,7 @@ uint8_t AudioChannel::playNote(uint8_t volume, uint16_t frequency, int32_t durat
 			this->_duration = duration == 65535 ? -1 : duration;
 			if (this->_duration == 0 && this->_waveformType == AUDIO_WAVE_SAMPLE) {
 				// zero duration means play whole sample
+				// TODO duration needs to be flexible for streamed samples where total buffer size is unknown
 				this->_duration = ((EnhancedSamplesGenerator *)this->_waveform.get())->getDuration();
 				if (this->_volumeEnvelope) {
 					// subtract the "release" time from the duration

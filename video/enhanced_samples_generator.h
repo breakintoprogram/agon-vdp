@@ -46,7 +46,9 @@ void EnhancedSamplesGenerator::setFrequency(int frequency) {
 			previousSample = samplePtr->getSample();
 			currentSample = samplePtr->getSample();
 		} else {
-			samplesPerGet = ((double)frequency / (double)samplePtr->baseFrequency) * ((double)samplePtr->sampleRate / (double)(AUDIO_DEFAULT_SAMPLE_RATE));
+			auto baseFrequency = samplePtr->baseFrequency;
+			auto frequencyAdjust = baseFrequency > 0 ? (double)frequency / (double)baseFrequency : 1.0;
+			samplesPerGet = frequencyAdjust * ((double)samplePtr->sampleRate / (double)(AUDIO_DEFAULT_SAMPLE_RATE));
 		}
 	}
 }
@@ -58,6 +60,7 @@ int EnhancedSamplesGenerator::getSample() {
 
 	auto samplePtr = _sample.lock();
 
+	// if we've moved far enough along, read the next sample
 	while (fractionalSampleOffset >= 1.0) {
 		previousSample = currentSample;
 		currentSample = samplePtr->getSample();

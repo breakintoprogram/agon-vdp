@@ -107,6 +107,7 @@
 #define AUDIO_FORMAT_8BIT_UNSIGNED	1	// 8-bit unsigned sample
 #define AUDIO_FORMAT_DATA_MASK		7	// data bit mask for format
 #define AUDIO_FORMAT_WITH_RATE		8	// OR this with the format to indicate a sample rate follows
+#define AUDIO_FORMAT_TUNEABLE		16	// OR this with the format to indicate sample can be tuned (frequency adjustable)
 
 #define AUDIO_ENVELOPE_NONE		0		// No envelope
 #define AUDIO_ENVELOPE_ADSR		1		// Simple ADSR volume envelope

@@ -185,6 +185,9 @@ uint8_t VDUStreamProcessor::createSampleFromBuffer(uint16_t bufferId, uint8_t fo
 		make_shared_psram<AudioSample>(buffers[bufferId], format & AUDIO_FORMAT_DATA_MASK, sampleRate)
 		: make_shared_psram<AudioSample>(buffers[bufferId], format);
 	if (sample) {
+		if (format & AUDIO_FORMAT_TUNEABLE) {
+			sample->baseFrequency = AUDIO_DEFAULT_FREQUENCY;
+		}
 		samples[bufferId] = sample;
 		return 1;
 	}
