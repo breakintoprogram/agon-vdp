@@ -33,12 +33,12 @@ EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<AudioSample> 
 	: _sample(sample)
 {}
 
-void EnhancedSamplesGenerator::setFrequency(int value) {
+void EnhancedSamplesGenerator::setFrequency(int frequency) {
 	// We'll hijack this method to allow us to reset the sample index
 	// ideally we'd override the enable method, but C++ doesn't let us do that
 	if (!_sample.expired()) {
 		auto samplePtr = _sample.lock();
-		if (value < 0) {
+		if (frequency < 0) {
 			// rewind our sample if it's still valid
 			samplePtr->rewind();
 
@@ -46,7 +46,7 @@ void EnhancedSamplesGenerator::setFrequency(int value) {
 			previousSample = samplePtr->getSample();
 			currentSample = samplePtr->getSample();
 		} else {
-			samplesPerGet = (double)value / (double)(samplePtr->sampleRate);
+			samplesPerGet = ((double)frequency / (double)samplePtr->baseFrequency) * ((double)samplePtr->sampleRate / (double)(AUDIO_DEFAULT_SAMPLE_RATE));
 		}
 	}
 }
