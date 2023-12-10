@@ -93,6 +93,19 @@ void VDUStreamProcessor::vdu_sys_audio() {
 					sendAudioStatus(channel, createSampleFromBuffer(bufferId, format, sampleRate));
 				}	break;
 
+				case AUDIO_SAMPLE_SET_FREQUENCY: {
+					auto frequency = readWord_t();	if (frequency == -1) return;
+
+					sendAudioStatus(channel, setSampleFrequency(sampleNum, frequency));
+				}	break;
+
+				case AUDIO_SAMPLE_BUFFER_SET_FREQUENCY: {
+					auto bufferId = readWord_t();	if (bufferId == -1) return;
+					auto frequency = readWord_t();	if (frequency == -1) return;
+
+					sendAudioStatus(channel, setSampleFrequency(bufferId, frequency));
+				}	break;
+
 				case AUDIO_SAMPLE_DEBUG_INFO: {
 					debug_log("Sample info: %d (%d)\n\r", (int8_t)channel, sampleNum);
 					debug_log("  samples count: %d\n\r", samples.size());
@@ -242,6 +255,17 @@ void VDUStreamProcessor::setFrequencyEnvelope(uint8_t channel, uint8_t type) {
 				break;
 		}
 	}
+}
+
+// Set sample frequency
+//
+uint8_t VDUStreamProcessor::setSampleFrequency(uint16_t sampleId, uint16_t frequency) {
+	if (samples.find(sampleId) == samples.end()) {
+		debug_log("vdu_sys_audio: sample %d not found\n\r", sampleId);
+		return 0;
+	}
+	samples[sampleId]->baseFrequency = frequency;
+	return 1;
 }
 
 #endif // VDU_AUDIO_H

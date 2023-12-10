@@ -56,6 +56,7 @@ class VDUStreamProcessor {
 		uint8_t createSampleFromBuffer(uint16_t bufferId, uint8_t format, uint16_t sampleRate);
 		void setVolumeEnvelope(uint8_t channel, uint8_t type);
 		void setFrequencyEnvelope(uint8_t channel, uint8_t type);
+		uint8_t setSampleFrequency(uint16_t bufferId, uint16_t frequency);
 
 		void vdu_sys_sprites(void);
 		void receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height);

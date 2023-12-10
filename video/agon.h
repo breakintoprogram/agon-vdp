@@ -99,9 +99,11 @@
 #define AUDIO_SAMPLE_LOAD		0		// Send a sample to the VDP
 #define AUDIO_SAMPLE_CLEAR		1		// Clear/delete a sample
 #define AUDIO_SAMPLE_FROM_BUFFER	2	// Load a sample from a buffer
+#define AUDIO_SAMPLE_SET_FREQUENCY	3	// Set the base frequency of a sample
+#define AUDIO_SAMPLE_BUFFER_SET_FREQUENCY	4	// Set the base frequency of a sample (using buffer ID)
 #define AUDIO_SAMPLE_DEBUG_INFO 0x10	// Get debug info about a sample
 
-#define AUDIO_DEFAULT_FREQUENCY	523	// Default sample frequency (C5, or C above middle C)
+#define AUDIO_DEFAULT_FREQUENCY	523		// Default sample frequency (C5, or C above middle C)
 
 #define AUDIO_FORMAT_8BIT_SIGNED	0	// 8-bit signed sample
 #define AUDIO_FORMAT_8BIT_UNSIGNED	1	// 8-bit unsigned sample
