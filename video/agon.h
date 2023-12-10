@@ -68,6 +68,7 @@
 #define PACKET_MOUSE			0x09	// Mouse data
 
 #define AUDIO_CHANNELS			3		// Default number of audio channels
+#define AUDIO_DEFAULT_SAMPLE_RATE	FABGL_SOUNDGEN_DEFAULT_SAMPLE_RATE	// Default sample rate
 #define MAX_AUDIO_CHANNELS		32		// Maximum number of audio channels
 #define PLAY_SOUND_PRIORITY		3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest
 
@@ -102,6 +103,8 @@
 
 #define AUDIO_FORMAT_8BIT_SIGNED	0	// 8-bit signed sample
 #define AUDIO_FORMAT_8BIT_UNSIGNED	1	// 8-bit unsigned sample
+#define AUDIO_FORMAT_DATA_MASK		7	// data bit mask for format
+#define AUDIO_FORMAT_WITH_RATE		8	// OR this with the format to indicate a sample rate follows
 
 #define AUDIO_ENVELOPE_NONE		0		// No envelope
 #define AUDIO_ENVELOPE_ADSR		1		// Simple ADSR volume envelope

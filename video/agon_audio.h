@@ -69,7 +69,7 @@ void audioTaskKill(uint8_t channel) {
 // Initialise the sound driver
 //
 void initAudio() {
-	soundGenerator = std::make_shared<fabgl::SoundGenerator>();
+	soundGenerator = std::make_shared<fabgl::SoundGenerator>(AUDIO_DEFAULT_SAMPLE_RATE);
 	audioHandlers.reserve(MAX_AUDIO_CHANNELS);
 	debug_log("initAudio: we have reserved %d channels\n\r", audioHandlers.capacity());
 	for (uint8_t i = 0; i < AUDIO_CHANNELS; i++) {

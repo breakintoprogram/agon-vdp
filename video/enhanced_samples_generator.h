@@ -27,8 +27,6 @@ class EnhancedSamplesGenerator : public WaveformGenerator {
 		int currentSample = 0;
 		double samplesPerGet = 1.0;
 		double fractionalSampleOffset = 0.0;
-
-		const int baseFrequency = 16000;
 };
 
 EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<AudioSample> sample)
@@ -38,18 +36,18 @@ EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<AudioSample> 
 void EnhancedSamplesGenerator::setFrequency(int value) {
 	// We'll hijack this method to allow us to reset the sample index
 	// ideally we'd override the enable method, but C++ doesn't let us do that
-	if (value < 0) {
-		// rewind our sample if it's still valid
-		if (!_sample.expired()) {
-			auto samplePtr = _sample.lock();
+	if (!_sample.expired()) {
+		auto samplePtr = _sample.lock();
+		if (value < 0) {
+			// rewind our sample if it's still valid
 			samplePtr->rewind();
 
 			fractionalSampleOffset = 0.0;
 			previousSample = samplePtr->getSample();
 			currentSample = samplePtr->getSample();
+		} else {
+			samplesPerGet = (double)value / (double)(samplePtr->sampleRate);
 		}
-	} else {
-		samplesPerGet = (double)value / (double)baseFrequency;
 	}
 }
 

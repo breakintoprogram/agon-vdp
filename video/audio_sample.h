@@ -9,7 +9,8 @@
 #include "buffer_stream.h"
 
 struct AudioSample {
-	AudioSample(std::vector<std::shared_ptr<BufferStream>>& streams, uint8_t format) : blocks(streams), format(format), index(0), blockIndex(0) {}
+	AudioSample(std::vector<std::shared_ptr<BufferStream>>& streams, uint8_t format, uint32_t sampleRate = AUDIO_DEFAULT_SAMPLE_RATE, uint16_t frequency = AUDIO_DEFAULT_FREQUENCY) :
+		blocks(streams), format(format), sampleRate(sampleRate), baseFrequency(frequency), index(0), blockIndex(0) {}
 	~AudioSample();
 	int8_t getSample();
 	void rewind() {
@@ -26,16 +27,18 @@ struct AudioSample {
 		}
 	}
 	uint32_t getDuration() {
-		uint32_t duration = 0;
+		uint32_t samples = 0;
 		for (auto block : blocks) {
-			duration += block->size();
+			samples += block->size();
 		}
-		return duration / 16;
+		return (samples * 1000) / sampleRate;
 	}
 	std::vector<std::shared_ptr<BufferStream>>& blocks;
 	uint8_t			format;			// Format of the sample data
 	uint32_t		index;			// Current index inside the current sample block
 	uint32_t		blockIndex;		// Current index into the sample data blocks
+	uint32_t		sampleRate;		// Sample rate of the sample
+	uint16_t		baseFrequency;	// Base frequency of the sample
 	std::unordered_map<uint8_t, std::weak_ptr<AudioChannel>> channels;	// Channels playing this sample
 };
 

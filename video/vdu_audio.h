@@ -85,8 +85,12 @@ void VDUStreamProcessor::vdu_sys_audio() {
 				case AUDIO_SAMPLE_FROM_BUFFER: {
 					auto bufferId = readWord_t();	if (bufferId == -1) return;
 					auto format = readByte_t();		if (format == -1) return;
+					uint32_t sampleRate = AUDIO_DEFAULT_SAMPLE_RATE;
+					if (format & AUDIO_FORMAT_WITH_RATE) {
+						sampleRate = readWord_t();	if (sampleRate == -1) return;
+					}
 
-					sendAudioStatus(channel, createSampleFromBuffer(bufferId, format));
+					sendAudioStatus(channel, createSampleFromBuffer(bufferId, format, sampleRate));
 				}	break;
 
 				case AUDIO_SAMPLE_DEBUG_INFO: {
@@ -166,18 +170,20 @@ uint8_t VDUStreamProcessor::loadSample(uint16_t bufferId, uint32_t length) {
 		// timed out, or couldn't allocate buffer - so abort
 		return 0;
 	}
-	return createSampleFromBuffer(bufferId, 0);
+	return createSampleFromBuffer(bufferId, 0, AUDIO_DEFAULT_SAMPLE_RATE);
 }
 
 // Create a sample from a buffer
 //
-uint8_t VDUStreamProcessor::createSampleFromBuffer(uint16_t bufferId, uint8_t format) {
+uint8_t VDUStreamProcessor::createSampleFromBuffer(uint16_t bufferId, uint8_t format, uint16_t sampleRate) {
 	if (buffers.find(bufferId) == buffers.end()) {
 		debug_log("vdu_sys_audio: buffer %d not found\n\r", bufferId);
 		return 0;
 	}
 	clearSample(bufferId);
-	auto sample = make_shared_psram<AudioSample>(buffers[bufferId], format);
+	auto sample = (format & AUDIO_FORMAT_WITH_RATE) ?
+		make_shared_psram<AudioSample>(buffers[bufferId], format & AUDIO_FORMAT_DATA_MASK, sampleRate)
+		: make_shared_psram<AudioSample>(buffers[bufferId], format);
 	if (sample) {
 		samples[bufferId] = sample;
 		return 1;
