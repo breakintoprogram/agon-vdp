@@ -106,6 +106,44 @@ void VDUStreamProcessor::vdu_sys_audio() {
 					sendAudioStatus(channel, setSampleFrequency(bufferId, frequency));
 				}	break;
 
+				case AUDIO_SAMPLE_SET_REPEAT_START: {
+					auto repeatStart = read24_t();	if (repeatStart == -1) return;
+
+					sendAudioStatus(channel, setSampleRepeatStart(sampleNum, repeatStart));
+				}	break;
+
+				case AUDIO_SAMPLE_BUFFER_SET_REPEAT_START: {
+					auto bufferId = readWord_t();	if (bufferId == -1) return;
+					auto repeatStart = read24_t();	if (repeatStart == -1) return;
+
+					sendAudioStatus(channel, setSampleRepeatStart(bufferId, repeatStart));
+				}	break;
+
+				case AUDIO_SAMPLE_SET_REPEAT_LENGTH: {
+					auto repeatLength = read24_t();	if (repeatLength == -1) return;
+
+					sendAudioStatus(channel, setSampleRepeatLength(sampleNum, repeatLength));
+				}	break;
+
+				case AUDIO_SAMPLE_BUFFER_SET_REPEAT_LENGTH: {
+					auto bufferId = readWord_t();	if (bufferId == -1) return;
+					auto repeatLength = read24_t();	if (repeatLength == -1) return;
+
+					sendAudioStatus(channel, setSampleRepeatLength(bufferId, repeatLength));
+				}	break;
+
+				case AUDIO_SAMPLE_SEEK: {
+					auto position = read24_t();		if (position == -1) return;
+
+					if (samples.find(sampleNum) == samples.end()) {
+						debug_log("vdu_sys_audio: sample %d not found\n\r", sampleNum);
+						sendAudioStatus(channel, 0);
+						break;
+					}
+					samples[sampleNum]->seekTo(position);
+					sendAudioStatus(channel, 1);
+				}	break;
+
 				case AUDIO_SAMPLE_DEBUG_INFO: {
 					debug_log("Sample info: %d (%d)\n\r", (int8_t)channel, sampleNum);
 					debug_log("  samples count: %d\n\r", samples.size());
@@ -116,7 +154,16 @@ void VDUStreamProcessor::vdu_sys_audio() {
 						break;
 					}
 					auto buffer = sample->blocks;
-					debug_log("  length: %d\n\r", buffer.size());
+					debug_log("  length: %d blocks\n\r", buffer.size());
+					debug_log("  size: %d\n\r", sample->getSize());
+					debug_log("  format: %d\n\r", sample->format);
+					debug_log("  sample rate: %d\n\r", sample->sampleRate);
+					debug_log("  base frequency: %d\n\r", sample->baseFrequency);
+					debug_log("  repeat start: %d\n\r", sample->repeatStart);
+					debug_log("  repeat length: %d\n\r", sample->repeatLength);
+					debug_log("  repeat count: %d\n\r", sample->repeatCount);
+					debug_log("  index: %d\n\r", sample->index);
+					debug_log("  block index: %d\n\r", sample->blockIndex);
 					if (buffer.size() > 0) {
 						debug_log("  data first byte: %d\n\r", buffer[0]->getBuffer()[0]);
 					}
@@ -265,6 +312,28 @@ uint8_t VDUStreamProcessor::setSampleFrequency(uint16_t sampleId, uint16_t frequ
 		return 0;
 	}
 	samples[sampleId]->baseFrequency = frequency;
+	return 1;
+}
+
+// Set sample repeatStart
+//
+uint8_t VDUStreamProcessor::setSampleRepeatStart(uint16_t sampleId, uint32_t repeatStart) {
+	if (samples.find(sampleId) == samples.end()) {
+		debug_log("vdu_sys_audio: sample %d not found\n\r", sampleId);
+		return 0;
+	}
+	samples[sampleId]->repeatStart = repeatStart;
+	return 1;
+}
+
+// Set sample repeatLength
+//
+uint8_t VDUStreamProcessor::setSampleRepeatLength(uint16_t sampleId, uint32_t repeatLength) {
+	if (samples.find(sampleId) == samples.end()) {
+		debug_log("vdu_sys_audio: sample %d not found\n\r", sampleId);
+		return 0;
+	}
+	samples[sampleId]->repeatLength = repeatLength;
 	return 1;
 }
 

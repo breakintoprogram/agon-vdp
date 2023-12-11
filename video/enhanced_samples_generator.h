@@ -18,7 +18,7 @@ class EnhancedSamplesGenerator : public WaveformGenerator {
 		void setFrequency(int value);
 		int getSample();
 
-		int getDuration();
+		int getDuration(uint16_t frequency);
 
 	private:
 		std::weak_ptr<AudioSample> _sample;
@@ -27,6 +27,8 @@ class EnhancedSamplesGenerator : public WaveformGenerator {
 		int currentSample = 0;
 		double samplesPerGet = 1.0;
 		double fractionalSampleOffset = 0.0;
+
+		double calculateSamplerate(uint16_t frequency);
 };
 
 EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<AudioSample> sample)
@@ -40,15 +42,13 @@ void EnhancedSamplesGenerator::setFrequency(int frequency) {
 		auto samplePtr = _sample.lock();
 		if (frequency < 0) {
 			// rewind our sample if it's still valid
-			samplePtr->rewind();
-
+			samplePtr->seekTo(0);
+			// prepare our fractional sample data for playback
 			fractionalSampleOffset = 0.0;
 			previousSample = samplePtr->getSample();
 			currentSample = samplePtr->getSample();
 		} else {
-			auto baseFrequency = samplePtr->baseFrequency;
-			auto frequencyAdjust = baseFrequency > 0 ? (double)frequency / (double)baseFrequency : 1.0;
-			samplesPerGet = frequencyAdjust * ((double)samplePtr->sampleRate / (double)(AUDIO_DEFAULT_SAMPLE_RATE));
+			samplesPerGet = calculateSamplerate(frequency);
 		}
 	}
 }
@@ -80,9 +80,18 @@ int EnhancedSamplesGenerator::getSample() {
 	return sample;
 }
 
-int EnhancedSamplesGenerator::getDuration() {
-	// NB this is hard-coded for a 16khz sample rate
-	return _sample.expired() ? 0 : _sample.lock()->getDuration() / samplesPerGet;
+int EnhancedSamplesGenerator::getDuration(uint16_t frequency) {
+	return _sample.expired() ? 0 : _sample.lock()->getDuration() / calculateSamplerate(frequency);
+}
+
+double EnhancedSamplesGenerator::calculateSamplerate(uint16_t frequency) {
+	if (!_sample.expired()) {
+		auto samplePtr = _sample.lock();
+		auto baseFrequency = samplePtr->baseFrequency;
+		auto frequencyAdjust = baseFrequency > 0 ? (double)frequency / (double)baseFrequency : 1.0;
+		return frequencyAdjust * ((double)samplePtr->sampleRate / (double)(AUDIO_DEFAULT_SAMPLE_RATE));
+	}
+	return 1.0;
 }
 
 #endif // ENHANCED_SAMPLES_GENERATOR_H

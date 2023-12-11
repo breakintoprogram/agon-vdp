@@ -98,9 +98,14 @@
 
 #define AUDIO_SAMPLE_LOAD		0		// Send a sample to the VDP
 #define AUDIO_SAMPLE_CLEAR		1		// Clear/delete a sample
-#define AUDIO_SAMPLE_FROM_BUFFER	2	// Load a sample from a buffer
-#define AUDIO_SAMPLE_SET_FREQUENCY	3	// Set the base frequency of a sample
-#define AUDIO_SAMPLE_BUFFER_SET_FREQUENCY	4	// Set the base frequency of a sample (using buffer ID)
+#define AUDIO_SAMPLE_FROM_BUFFER				2	// Load a sample from a buffer
+#define AUDIO_SAMPLE_SET_FREQUENCY				3	// Set the base frequency of a sample
+#define AUDIO_SAMPLE_BUFFER_SET_FREQUENCY		4	// Set the base frequency of a sample (using buffer ID)
+#define AUDIO_SAMPLE_SET_REPEAT_START			5	// Set the repeat start point of a sample
+#define AUDIO_SAMPLE_BUFFER_SET_REPEAT_START	6	// Set the repeat start point of a sample (using buffer ID)
+#define AUDIO_SAMPLE_SET_REPEAT_LENGTH			7	// Set the repeat length of a sample
+#define AUDIO_SAMPLE_BUFFER_SET_REPEAT_LENGTH	8	// Set the repeat length of a sample (using buffer ID)
+#define AUDIO_SAMPLE_SEEK						9	// Seek to a position in a sample
 #define AUDIO_SAMPLE_DEBUG_INFO 0x10	// Get debug info about a sample
 
 #define AUDIO_DEFAULT_FREQUENCY	523		// Default sample frequency (C5, or C above middle C)
