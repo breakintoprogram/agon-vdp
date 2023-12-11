@@ -27,6 +27,7 @@ class AudioChannel {
 		void		setFrequency(uint16_t frequency);
 		void		setVolumeEnvelope(std::unique_ptr<VolumeEnvelope> envelope);
 		void		setFrequencyEnvelope(std::unique_ptr<FrequencyEnvelope> envelope);
+		void		seekTo(uint32_t position);
 		void		loop();
 		uint8_t		channel() { return _channel; }
 	private:
@@ -284,6 +285,12 @@ void AudioChannel::setFrequencyEnvelope(std::unique_ptr<FrequencyEnvelope> envel
 	}
 }
 
+void AudioChannel::seekTo(uint32_t position) {
+	if (this->_waveformType == AUDIO_WAVE_SAMPLE) {
+		((EnhancedSamplesGenerator *)this->_waveform.get())->seekTo(position);
+	}
+}
+
 void AudioChannel::waitForAbort() {
 	while (this->_state == AudioState::Abort) {
 		// wait for abort to complete
@@ -333,10 +340,7 @@ void AudioChannel::loop() {
 			this->_startTime = millis();
 			// set our initial volume and frequency
 			this->_waveform->setVolume(this->getVolume(0));
-			if (this->_waveformType == AUDIO_WAVE_SAMPLE) {
-				// hack to ensure samples always start from beginning
-				this->_waveform->setFrequency(-1);
-			}
+			this->seekTo(0);
 			this->_waveform->setFrequency(this->getFrequency(0));
 			this->_waveform->enable(true);
 			// if we have an envelope then we loop, otherwise just delay for duration			

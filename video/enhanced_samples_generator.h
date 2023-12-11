@@ -20,15 +20,24 @@ class EnhancedSamplesGenerator : public WaveformGenerator {
 
 		int getDuration(uint16_t frequency);
 
+		void seekTo(uint32_t position);
+
 	private:
 		std::weak_ptr<AudioSample> _sample;
 
-		int previousSample = 0;
-		int currentSample = 0;
-		double samplesPerGet = 1.0;
-		double fractionalSampleOffset = 0.0;
+		uint32_t		index;				// Current index inside the current sample block
+		uint32_t		blockIndex;			// Current index into the sample data blocks
+		int32_t			repeatCount = 0;	// Sample count when repeating
+		// TODO consider whether repeatStart and repeatLength may need to be here
+		// which would allow for per-channel repeat settings
+
+		int				previousSample = 0;
+		int				currentSample = 0;
+		double			samplesPerGet = 1.0;
+		double			fractionalSampleOffset = 0.0;
 
 		double calculateSamplerate(uint16_t frequency);
+		int8_t getNextSample();
 };
 
 EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<AudioSample> sample)
@@ -36,21 +45,7 @@ EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<AudioSample> 
 {}
 
 void EnhancedSamplesGenerator::setFrequency(int frequency) {
-	// We'll hijack this method to allow us to reset the sample index
-	// ideally we'd override the enable method, but C++ doesn't let us do that
-	if (!_sample.expired()) {
-		auto samplePtr = _sample.lock();
-		if (frequency < 0) {
-			// rewind our sample if it's still valid
-			samplePtr->seekTo(0);
-			// prepare our fractional sample data for playback
-			fractionalSampleOffset = 0.0;
-			previousSample = samplePtr->getSample();
-			currentSample = samplePtr->getSample();
-		} else {
-			samplesPerGet = calculateSamplerate(frequency);
-		}
-	}
+	samplesPerGet = calculateSamplerate(frequency);
 }
 
 int EnhancedSamplesGenerator::getSample() {
@@ -63,7 +58,7 @@ int EnhancedSamplesGenerator::getSample() {
 	// if we've moved far enough along, read the next sample
 	while (fractionalSampleOffset >= 1.0) {
 		previousSample = currentSample;
-		currentSample = samplePtr->getSample();
+		currentSample = getNextSample();
 		fractionalSampleOffset -= 1.0;
 	}
 
@@ -84,6 +79,18 @@ int EnhancedSamplesGenerator::getDuration(uint16_t frequency) {
 	return _sample.expired() ? 0 : _sample.lock()->getDuration() / calculateSamplerate(frequency);
 }
 
+void EnhancedSamplesGenerator::seekTo(uint32_t position) {
+	if (!_sample.expired()) {
+		auto samplePtr = _sample.lock();
+		samplePtr->seekTo(position, index, blockIndex, repeatCount);
+
+		// prepare our fractional sample data for playback
+		fractionalSampleOffset = 0.0;
+		previousSample = samplePtr->getSample(index, blockIndex);
+		currentSample = samplePtr->getSample(index, blockIndex);
+	}
+}
+
 double EnhancedSamplesGenerator::calculateSamplerate(uint16_t frequency) {
 	if (!_sample.expired()) {
 		auto samplePtr = _sample.lock();
@@ -92,6 +99,23 @@ double EnhancedSamplesGenerator::calculateSamplerate(uint16_t frequency) {
 		return frequencyAdjust * ((double)samplePtr->sampleRate / (double)(AUDIO_DEFAULT_SAMPLE_RATE));
 	}
 	return 1.0;
+}
+
+int8_t EnhancedSamplesGenerator::getNextSample() {
+	if (!_sample.expired()) {
+		auto samplePtr = _sample.lock();
+		auto sample = samplePtr->getSample(index, blockIndex);
+		
+		// looping magic
+		repeatCount--;
+		if (repeatCount == 0) {
+			// we've reached the end of the repeat section, so loop back
+			seekTo(samplePtr->repeatStart);
+		}
+
+		return sample;
+	}
+	return 0;
 }
 
 #endif // ENHANCED_SAMPLES_GENERATOR_H

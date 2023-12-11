@@ -132,18 +132,6 @@ void VDUStreamProcessor::vdu_sys_audio() {
 					sendAudioStatus(channel, setSampleRepeatLength(bufferId, repeatLength));
 				}	break;
 
-				case AUDIO_SAMPLE_SEEK: {
-					auto position = read24_t();		if (position == -1) return;
-
-					if (samples.find(sampleNum) == samples.end()) {
-						debug_log("vdu_sys_audio: sample %d not found\n\r", sampleNum);
-						sendAudioStatus(channel, 0);
-						break;
-					}
-					samples[sampleNum]->seekTo(position);
-					sendAudioStatus(channel, 1);
-				}	break;
-
 				case AUDIO_SAMPLE_DEBUG_INFO: {
 					debug_log("Sample info: %d (%d)\n\r", (int8_t)channel, sampleNum);
 					debug_log("  samples count: %d\n\r", samples.size());
@@ -161,9 +149,6 @@ void VDUStreamProcessor::vdu_sys_audio() {
 					debug_log("  base frequency: %d\n\r", sample->baseFrequency);
 					debug_log("  repeat start: %d\n\r", sample->repeatStart);
 					debug_log("  repeat length: %d\n\r", sample->repeatLength);
-					debug_log("  repeat count: %d\n\r", sample->repeatCount);
-					debug_log("  index: %d\n\r", sample->index);
-					debug_log("  block index: %d\n\r", sample->blockIndex);
 					if (buffer.size() > 0) {
 						debug_log("  data first byte: %d\n\r", buffer[0]->getBuffer()[0]);
 					}
@@ -206,6 +191,14 @@ void VDUStreamProcessor::vdu_sys_audio() {
 				initAudioChannel(channel);
 			}
 		}	break;
+
+		case AUDIO_CMD_SEEK: {
+			auto position = read24_t();		if (position == -1) return;
+
+			if (channelEnabled(channel)) {
+				audioChannels[channel]->seekTo(position);
+			}
+		}	break;
 	}
 }
 
@@ -243,7 +236,7 @@ uint8_t VDUStreamProcessor::createSampleFromBuffer(uint16_t bufferId, uint8_t fo
 	clearSample(bufferId);
 	auto sample = (format & AUDIO_FORMAT_WITH_RATE) ?
 		make_shared_psram<AudioSample>(buffers[bufferId], format & AUDIO_FORMAT_DATA_MASK, sampleRate)
-		: make_shared_psram<AudioSample>(buffers[bufferId], format);
+		: make_shared_psram<AudioSample>(buffers[bufferId], format & AUDIO_FORMAT_DATA_MASK);
 	if (sample) {
 		if (format & AUDIO_FORMAT_TUNEABLE) {
 			sample->baseFrequency = AUDIO_DEFAULT_FREQUENCY;

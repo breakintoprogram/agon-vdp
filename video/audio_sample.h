@@ -10,21 +10,20 @@
 
 struct AudioSample {
 	AudioSample(std::vector<std::shared_ptr<BufferStream>>& streams, uint8_t format, uint32_t sampleRate = AUDIO_DEFAULT_SAMPLE_RATE, uint16_t frequency = 0) :
-		blocks(streams), format(format), sampleRate(sampleRate), baseFrequency(frequency), index(0), blockIndex(0) {}
+		blocks(streams), format(format), sampleRate(sampleRate), baseFrequency(frequency) {}
 	~AudioSample();
-	int8_t getSample();
-	void seekTo(uint32_t position);
+
+	int8_t getSample(uint32_t & index, uint32_t & blockIndex);
+	void seekTo(uint32_t position, uint32_t & index, uint32_t & blockIndex, int32_t & repeatCount);
 	uint32_t getSize();
 	uint32_t getDuration();
+
 	std::vector<std::shared_ptr<BufferStream>>& blocks;
 	uint8_t			format;				// Format of the sample data
-	uint32_t		index;				// Current index inside the current sample block
-	uint32_t		blockIndex;			// Current index into the sample data blocks
 	uint32_t		sampleRate;			// Sample rate of the sample
 	uint16_t		baseFrequency = 0;	// Base frequency of the sample
 	int32_t			repeatStart = 0;	// Start offset for repeat, in samples
 	int32_t			repeatLength = -1;	// Length of the repeat section in samples, -1 means to end of sample
-	int32_t			repeatCount = 0;	// Sample count when repeating
 	std::unordered_map<uint8_t, std::weak_ptr<AudioChannel>> channels;	// Channels playing this sample
 };
 
@@ -42,7 +41,7 @@ AudioSample::~AudioSample() {
 	debug_log("AudioSample cleared\n\r");
 }
 
-int8_t AudioSample::getSample() {
+int8_t AudioSample::getSample(uint32_t & index, uint32_t & blockIndex) {
 	// get the next sample
 	if (blockIndex >= blocks.size()) {
 		// we've reached the end of the sample, and haven't looped, so return 0 (silence)
@@ -51,13 +50,6 @@ int8_t AudioSample::getSample() {
 
 	auto block = blocks[blockIndex];
 	int8_t sample = block->getBuffer()[index++];
-	
-	// looping magic
-	repeatCount--;
-	if (repeatCount == 0) {
-		// we've reached the end of the repeat section, so loop back
-		seekTo(repeatStart);
-	}
 
 	if (index >= block->size()) {
 		// block reached end, move to next block
@@ -72,7 +64,7 @@ int8_t AudioSample::getSample() {
 	return sample;
 }
 
-void AudioSample::seekTo(uint32_t position) {
+void AudioSample::seekTo(uint32_t position, uint32_t & index, uint32_t & blockIndex, int32_t & repeatCount) {
 	// NB repeatCount calculation here can result in zero, or a negative number,
 	// or a number that's beyond the end of the sample, which is fine
 	// it just means that the sample will never loop
