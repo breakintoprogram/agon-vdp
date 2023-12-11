@@ -199,6 +199,14 @@ void VDUStreamProcessor::vdu_sys_audio() {
 				audioChannels[channel]->seekTo(position);
 			}
 		}	break;
+
+		case AUDIO_CMD_DURATION: {
+			auto duration = read24_t();		if (duration == -1) return;
+
+			if (channelEnabled(channel)) {
+				audioChannels[channel]->setDuration(duration);
+			}
+		}
 	}
 }
 
@@ -278,9 +286,9 @@ void VDUStreamProcessor::setFrequencyEnvelope(uint8_t channel, uint8_t type) {
 				debug_log("vdu_sys_audio: channel %d - frequency envelope disabled\n\r", channel);
 				break;
 			case AUDIO_FREQUENCY_ENVELOPE_STEPPED:
-				auto phaseCount = readByte_t();	if (phaseCount == -1) return;
+				auto phaseCount = readByte_t();		if (phaseCount == -1) return;
 				auto control = readByte_t();		if (control == -1) return;
-				auto stepLength = readWord_t();	if (stepLength == -1) return;
+				auto stepLength = readWord_t();		if (stepLength == -1) return;
 				auto phases = make_shared_psram<std::vector<FrequencyStepPhase>>();
 				for (auto n = 0; n < phaseCount; n++) {
 					auto adjustment = readWord_t();	if (adjustment == -1) return;

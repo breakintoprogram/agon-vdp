@@ -86,6 +86,7 @@
 #define AUDIO_CMD_DISABLE		9		// Disables (destroys) a channel
 #define AUDIO_CMD_RESET			10		// Reset audio channel
 #define AUDIO_CMD_SEEK			11		// Seek to a position in a sample
+#define AUDIO_CMD_DURATION		12		// Set the duration of a channel
 
 #define AUDIO_WAVE_DEFAULT		0		// Default waveform (Square wave)
 #define AUDIO_WAVE_SQUARE		0		// Square wave

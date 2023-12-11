@@ -25,6 +25,7 @@ class AudioChannel {
 		void		setWaveform(int8_t waveformType, std::shared_ptr<AudioChannel> channelRef, uint16_t sampleId = 0);
 		void		setVolume(uint8_t volume);
 		void		setFrequency(uint16_t frequency);
+		void		setDuration(int32_t duration);
 		void		setVolumeEnvelope(std::unique_ptr<VolumeEnvelope> envelope);
 		void		setFrequencyEnvelope(std::unique_ptr<FrequencyEnvelope> envelope);
 		void		seekTo(uint32_t position);
@@ -55,7 +56,7 @@ extern std::unordered_map<uint16_t, std::shared_ptr<AudioSample>> samples;	// St
 AudioChannel::AudioChannel(uint8_t channel) {
 	this->_channel = channel;
 	this->_state = AudioState::Idle;
-	this->_volume = 0;
+	this->_volume = 64;
 	this->_frequency = 750;
 	this->_duration = -1;
 	setWaveform(AUDIO_WAVE_DEFAULT, nullptr);
@@ -264,6 +265,30 @@ void AudioChannel::setFrequency(uint16_t frequency) {
 			default:
 				this->_waveform->setFrequency(frequency);
 		}
+	}
+}
+
+void AudioChannel::setDuration(int32_t duration) {
+	debug_log("AudioChannel: setDuration %d\n\r", duration);
+	if (duration == 0xFFFFFF) {
+		duration = -1;
+	}
+	this->_duration = duration;
+
+	if (this->_waveform) {
+		waitForAbort();
+		switch (this->_state) {
+			case AudioState::Idle:
+				// kick off a new note playback
+				this->_state = AudioState::Pending;
+				break;
+			case AudioState::Playing:
+				audioTaskAbortDelay(this->_channel);
+				break;
+			default:
+				// any other state we should be looping so it will just get picked up
+				break;
+		}	
 	}
 }
 
