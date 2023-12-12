@@ -3,6 +3,7 @@
 
 #include <fabgl.h>
 
+#include "buffers.h"
 #include "graphics.h"
 #include "sprites.h"
 #include "types.h"
@@ -16,8 +17,8 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 		case 0: {	// Select bitmap
 			auto rb = readByte_t();
 			if (rb >= 0) {
-				setCurrentBitmap(rb);
-				debug_log("vdu_sys_sprites: bitmap %d selected\n\r", getCurrentBitmap());
+				setCurrentBitmap(rb + BUFFERED_BITMAP_BASEID);
+				debug_log("vdu_sys_sprites: bitmap %d selected\n\r", getCurrentBitmapId());
 			}
 		}	break;
 
@@ -26,8 +27,15 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 			auto rw = readWord_t(); if (rw == -1) return;
 			auto rh = readWord_t(); if (rh == -1) return;
 
-			receiveBitmap(cmd, rw, rh);
+			if (rw == 0 && rh == 0) {
+				// TODO support defining bitmap from screen area
+				// as per Acorn GXR
+				// which defines area with last two graphics move commands
+				debug_log("vdu_sys_sprites: bitmap %d - zero size\n\r", getCurrentBitmapId());
+				return;
+			}
 
+			receiveBitmap(cmd, rw, rh);
 		}	break;
 
 		case 3: {	// Draw bitmap to screen (x,y)
@@ -35,7 +43,7 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 			auto ry = readWord_t(); if (ry == -1) return;
 
 			drawBitmap(rx,ry);
-			debug_log("vdu_sys_sprites: bitmap %d draw command\n\r", getCurrentBitmap());
+			debug_log("vdu_sys_sprites: bitmap %d draw command\n\r", getCurrentBitmapId());
 		}	break;
 
 	   /*
@@ -63,7 +71,7 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 
 		case 6:	{	// Add frame to sprite
 			auto b = readByte_t(); if (b == -1) return;
-			addSpriteFrame(b);
+			addSpriteFrame(b + BUFFERED_BITMAP_BASEID);
 			debug_log("vdu_sys_sprites: sprite %d - bitmap %d added as frame %d\n\r", getCurrentSprite(), b, getSprite()->framesCount-1);
 		}	break;
 
@@ -119,53 +127,136 @@ void VDUStreamProcessor::vdu_sys_sprites(void) {
 		}	break;
 
 		case 16: {	// Reset
-			cls(false);
 			resetSprites();
 			resetBitmaps();
+			cls(false);
 			debug_log("vdu_sys_sprites: reset\n\r");
+		}	break;
+
+		case 17: {	// Reset sprites only
+			resetSprites();
+			debug_log("vdu_sys_sprites: reset sprites\n\r");
+		}	break;
+
+		// Extended bitmap commands
+		case 0x20: {	// Select bitmap, 16-bit buffer ID
+			auto b = readWord_t(); if (b == -1) return;
+			setCurrentBitmap((uint16_t) b);
+			debug_log("vdu_sys_sprites: bitmap %d selected\n\r", getCurrentBitmapId());
+		}	break;
+
+		case 0x21: {	// Create bitmap from buffer
+			auto width = readWord_t(); if (width == -1) return;
+			auto height = readWord_t(); if (height == -1) return;
+			auto format = readByte_t(); if (format == -1) return;
+			createBitmapFromBuffer(getCurrentBitmapId(), format, width, height);
+		}	break;
+
+		case 0x26: {	// add sprite frame for bitmap (long ID)
+			auto bufferId = readWord_t(); if (bufferId == -1) return;
+			addSpriteFrame(bufferId);
+			debug_log("vdu_sys_sprites: sprite %d - bitmap %d added as frame %d\n\r", getCurrentSprite(), bufferId, getSprite()->framesCount-1);
+		}	break;
+
+		case 0x40: {	// Setup mouse cursor from current bitmap
+			auto hotX = readByte_t(); if (hotX == -1) return;
+			auto hotY = readByte_t(); if (hotY == -1) return;
+			if (makeCursor(getCurrentBitmapId(), hotX, hotY)) {
+				debug_log("vdu_sys_sprites: cursor created from bitmap %d\n\r", getCurrentBitmapId());
+			} else {
+				debug_log("vdu_sys_sprites: cursor failed to create from bitmap %d\n\r", getCurrentBitmapId());
+			}
+		}	break;
+
+		default: {
+			debug_log("vdu_sys_sprites: unknown command %d\n\r", cmd);
 		}	break;
 	}
 }
 
 void VDUStreamProcessor::receiveBitmap(uint8_t cmd, uint16_t width, uint16_t height) {
-	//
-	// Allocate new heap data
-	//
-	void * dataptr = PreferPSRAMAlloc(sizeof(uint32_t)*width*height);
+	auto bufferId = getCurrentBitmapId();
 
-	if (dataptr != NULL) {                  
-		if (cmd == 1) {
-			//
-			// Read data to the new databuffer
-			//
-			for (auto n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = readLong_b();  
-			debug_log("vdu_sys_sprites: bitmap %d - data received - width %d, height %d\n\r", getCurrentBitmap(), width, height);
+	// clear the buffer
+	bufferClear(bufferId);
+
+	uint32_t size = sizeof(uint32_t) * width * height;
+
+	if (cmd == 1) {
+		// receive the data
+		if (bufferWrite(bufferId, size) != 0) {
+			// timed out, or couldn't allocate buffer - so abort
+			return;
 		}
-		if (cmd == 2) {
-			uint32_t color = readLong_b();
-			//
-			// Define single color
-			//
-			for (auto n = 0; n < width*height; n++) ((uint32_t *)dataptr)[n] = color;            
-			debug_log("vdu_sys_sprites: bitmap %d - set to solid color - width %d, height %d\n\r", getCurrentBitmap(), width, height);            
+		// create RGBA8888 bitmap from buffer
+		createBitmapFromBuffer(bufferId, 0, width, height);
+	} else if (cmd == 2) {
+		uint32_t color;
+		auto remaining = readIntoBuffer((uint8_t *)&color, sizeof(uint32_t));
+		if (remaining > 0) {
+			debug_log("vdu_sys_sprites: failed to receive color data\n\r");
+			return;
 		}
-		// Create bitmap structure
-		//
-		createBitmap(width, height, dataptr);
+		// create a new buffer of appropriate size
+		auto buffer = bufferCreate(bufferId, size);
+		if (!buffer) {
+			debug_log("vdu_sys_sprites: failed to create buffer\n\r");
+			return;
+		}
+		auto dataptr = (uint32_t *)buffer->getBuffer();
+		for (auto n = 0; n < width*height; n++) dataptr[n] = color;
+		// create RGBA8888 bitmap from buffer
+		createBitmapFromBuffer(bufferId, 0, width, height);
 	}
-	else { 
-		//
-		// Discard incoming serial data if failed to allocate memory
-		//
-		if (cmd == 1) {
-			discardBytes(4*width*height);
-		}
-		if (cmd == 2) {
-			discardBytes(4);
-		}
-		debug_log("vdu_sys_sprites: bitmap %d - data discarded, no memory available - width %d, height %d\n\r", getCurrentBitmap(), width, height);
+	return;
+}
+
+void VDUStreamProcessor::createBitmapFromBuffer(uint16_t bufferId, uint8_t format, uint16_t width, uint16_t height) {
+	clearBitmap(bufferId);
+	// do we have a buffer with this ID?
+	if (buffers.find(bufferId) == buffers.end()) {
+		debug_log("vdu_sys_sprites: buffer %d not found\n\r", bufferId);
+		return;
+	}
+	// is this a singular buffer we can use for a bitmap source?
+	if (buffers[bufferId].size() != 1) {
+		debug_log("vdu_sys_sprites: buffer %d is not a singular buffer and cannot be used for a bitmap source\n\r", bufferId);
+		return;
 	}
 
+	// create bitmap from buffer
+	auto stream = buffers[bufferId][0];
+	// map our pixel format, default to RGBA8888
+	PixelFormat pixelFormat = PixelFormat::RGBA8888;
+	auto bytesPerPixel = 4.;
+	switch (format) {
+		case 0:	// RGBA8888
+			pixelFormat = PixelFormat::RGBA8888;
+			bytesPerPixel = 4.;
+			break;
+		case 1:	// RGBA2222
+			pixelFormat = PixelFormat::RGBA2222;
+			bytesPerPixel = 1.;
+			break;
+		case 2: // Mono/Mask - TODO not sure exactly how to handle this
+			pixelFormat = PixelFormat::Mask;
+			bytesPerPixel = 1/8;
+			break;
+		default:
+			pixelFormat = PixelFormat::RGBA8888;
+			bytesPerPixel = 4.;
+			debug_log("vdu_sys_sprites: buffer %d - unknown pixel format %d, defaulting to RGBA8888\n\r", bufferId, format);
+	}
+	// Check that our stream length matches the expected length
+	auto streamLength = stream->size();
+	auto expectedLength = width * height * bytesPerPixel;
+	if (streamLength != expectedLength) {
+		debug_log("vdu_sys_sprites: buffer %d - stream length %d does not match expected length %f\n\r", bufferId, streamLength, expectedLength);
+		return;
+	}
+	auto data = stream->getBuffer();
+	bitmaps[bufferId] = make_shared_psram<Bitmap>(width, height, (uint8_t *)data, pixelFormat);
+	debug_log("vdu_sys_sprites: bitmap created for bufferId %d, format %d, (%dx%d)\n\r", bufferId, format, width, height);
 }
 
 #endif // _VDU_SPRITES_H_

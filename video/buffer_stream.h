@@ -18,7 +18,11 @@ class BufferStream : public Stream {
 		}
 
 		void rewind() {
-			bufferPosition = 0;
+			seekTo(0);
+		}
+
+		void seekTo(uint32_t position) {
+			bufferPosition = position;
 		}
 
 		inline uint8_t * getBuffer() {

@@ -21,7 +21,8 @@ class audio_channel {
 		~audio_channel();
 		uint8_t		play_note(uint8_t volume, uint16_t frequency, int32_t duration);
 		uint8_t		getStatus();
-		void		setWaveform(int8_t waveformType, std::shared_ptr<audio_channel> channelRef);
+		std::unique_ptr<fabgl::WaveformGenerator>	getSampleWaveform(uint16_t sampleId, std::shared_ptr<audio_channel> channelRef);
+		void		setWaveform(int8_t waveformType, std::shared_ptr<audio_channel> channelRef, uint16_t sampleId = 0);
 		void		setVolume(uint8_t volume);
 		void		setFrequency(uint16_t frequency);
 		void		setVolumeEnvelope(std::unique_ptr<VolumeEnvelope> envelope);
@@ -48,7 +49,7 @@ class audio_channel {
 
 #include "audio_sample.h"
 #include "enhanced_samples_generator.h"
-extern std::unordered_map<uint8_t, std::shared_ptr<audio_sample>> samples;	// Storage for the sample data
+extern std::unordered_map<uint16_t, std::shared_ptr<audio_sample>> samples;	// Storage for the sample data
 
 audio_channel::audio_channel(uint8_t channel) {
 	this->_channel = channel;
@@ -77,6 +78,17 @@ uint8_t audio_channel::play_note(uint8_t volume, uint16_t frequency, int32_t dur
 			this->_volume = volume;
 			this->_frequency = frequency;
 			this->_duration = duration == 65535 ? -1 : duration;
+			if (this->_duration == 0 && this->_waveformType == AUDIO_WAVE_SAMPLE) {
+				// zero duration means play whole sample
+				this->_duration = ((EnhancedSamplesGenerator *)this->_waveform.get())->getDuration();
+				if (this->_volumeEnvelope) {
+					// subtract the "release" time from the duration
+					this->_duration -= this->_volumeEnvelope->getRelease();
+				}
+				if (this->_duration < 0) {
+					this->_duration = 1;
+				}
+			}
 			this->_state = AUDIO_STATE_PENDING;
 			debug_log("audio_driver: play_note %d,%d,%d,%d\n\r", this->_channel, this->_volume, this->_frequency, this->_duration);
 			return 1;
@@ -110,7 +122,23 @@ uint8_t audio_channel::getStatus() {
 	return status;
 }
 
-void audio_channel::setWaveform(int8_t waveformType, std::shared_ptr<audio_channel> channelRef) {
+std::unique_ptr<fabgl::WaveformGenerator> audio_channel::getSampleWaveform(uint16_t sampleId, std::shared_ptr<audio_channel> channelRef) {
+	if (samples.find(sampleId) != samples.end()) {
+		auto sample = samples.at(sampleId);
+		// remove this channel from other samples
+		for (auto samplePair : samples) {
+			if (samplePair.second) {
+				samplePair.second->channels.erase(_channel);
+			}
+		}
+		sample->channels[_channel] = channelRef;
+
+		return make_unique_psram<EnhancedSamplesGenerator>(sample);
+	}
+	return nullptr;
+}
+
+void audio_channel::setWaveform(int8_t waveformType, std::shared_ptr<audio_channel> channelRef, uint16_t sampleId) {
 	std::unique_ptr<fabgl::WaveformGenerator> newWaveform = nullptr;
 
 	switch (waveformType) {
@@ -132,30 +160,22 @@ void audio_channel::setWaveform(int8_t waveformType, std::shared_ptr<audio_chann
 		case AUDIO_WAVE_VICNOISE:
 			newWaveform = make_unique_psram<VICNoiseGenerator>();
 			break;
+		case AUDIO_WAVE_SAMPLE:
+			// Buffer-based sample playback
+			debug_log("audio_driver: using sample buffer %d for waveform\n\r", sampleId);
+			newWaveform = getSampleWaveform(sampleId, channelRef);
+			break;
 		default:
 			// negative values indicate a sample number
 			if (waveformType < 0) {
-				uint8_t sampleNum = -waveformType - 1;
-				if (sampleNum < MAX_AUDIO_SAMPLES) {
-					debug_log("audio_driver: using sample %d for waveform (%d)\n\r", waveformType, sampleNum);
-					if (samples.find(sampleNum) != samples.end()) {
-						auto sample = samples.at(sampleNum);
-						newWaveform = make_unique_psram<EnhancedSamplesGenerator>(sample);
-						// remove this channel from other samples
-						for (auto samplePair : samples) {
-							if (samplePair.second) {
-								samplePair.second->channels.erase(_channel);
-							}
-						}
-						sample->channels[_channel] = channelRef;
-					} else {
-						debug_log("audio_driver: sample %d not found\n\r", waveformType);
-					}
-				}
+				// convert our negative sample number to a positive sample number starting at our base buffer ID
+				int16_t sampleNum = BUFFERED_SAMPLE_BASEID + (-waveformType - 1);
+				debug_log("audio_driver: using sample %d for waveform (%d)\n\r", waveformType, sampleNum);
+				newWaveform = getSampleWaveform(sampleNum, channelRef);
+				waveformType = AUDIO_WAVE_SAMPLE;
 			} else {
 				debug_log("audio_driver: unknown waveform type %d\n\r", waveformType);
 			}
-			waveformType = AUDIO_WAVE_SAMPLE;
 			break;
 	}
 

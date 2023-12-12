@@ -36,7 +36,7 @@ In the Additional Board Manager URLs text box, enter the following URL:
 
 `https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`
 
-In the Board Manager (from the Tools menu), select the esp32 board, making sure version 2.0.4 is installed.
+In the Board Manager (from the Tools menu), select the esp32 board (by Espressif Systems), making sure version 2.0.14 is installed.
 
 Now the board can be selected and configured:
 
@@ -58,8 +58,8 @@ And for the Port, you will need to determine the Com port that the Agon Light is
 
 Now the third party libraries will need to be installed from the Library Manager in the Tools menu
 
-* vdp-gl version 1.0.3 (Official fork of FabGL 1.0.8 for Agon)
-* ESP32Time version 2.0.0
+* vdp-gl version 1.0.4 (Official fork of FabGL 1.0.8 for Agon)
+* ESP32Time version 2.0.4
 
 It is important you use these exact versions otherwise I cannot guarantee the code will compile or run correctly.
 

@@ -48,7 +48,7 @@ void VDUStreamProcessor::vdu_sys_hexload(void) {
 	uint8_t data;
 	uint8_t ihexchecksum,ez80checksum;
 
-	bool done,defaultaddress,ez80checksumerror;
+	bool done,defaultaddress;
 	uint16_t errorcount;
 
 	printFmt("Receiving Intel HEX records - VDP:%d 8N1\r\n\r\n", SERIALBAUDRATE);

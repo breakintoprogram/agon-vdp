@@ -14,6 +14,7 @@
 
 #include "agon.h"
 #include "agon_audio.h"
+#include "buffers.h"
 #include "types.h"
 
 // Audio VDU command support (VDU 23, 0, &85, <args>)
@@ -49,16 +50,23 @@ void VDUStreamProcessor::vdu_sys_audio() {
 
 		case AUDIO_CMD_WAVEFORM: {
 			auto waveform = readByte_t();	if (waveform == -1) return;
+			auto sampleNum = 0;
+
+			if (waveform == AUDIO_WAVE_SAMPLE) {
+				// explit buffer number given for sample
+				sampleNum = readWord_t();	if (sampleNum == -1) return;
+			}
 
 			// set waveform, interpretting waveform number as a signed 8-bit value
 			// to allow for negative values to be used as sample numbers
-			setWaveform(channel, (int8_t) waveform);
+			setWaveform(channel, (int8_t) waveform, sampleNum);
 		}	break;
 
 		case AUDIO_CMD_SAMPLE: {
-			// sample number is negative 8 bit number, and provided in channel number param
-			int8_t sampleNum = -(int8_t)channel - 1;	// convert to positive, ranged from zero
 			auto action = readByte_t();		if (action == -1) return;
+
+			// sample number is negative 8 bit number, and provided in channel number param
+			int16_t sampleNum = BUFFERED_SAMPLE_BASEID + (-(int8_t)channel - 1);	// convert to positive, ranged from zero
 
 			switch (action) {
 				case AUDIO_SAMPLE_LOAD: {
@@ -73,18 +81,26 @@ void VDUStreamProcessor::vdu_sys_audio() {
 					sendAudioStatus(channel, clearSample(sampleNum));
 				}	break;
 
+				case AUDIO_SAMPLE_FROM_BUFFER: {
+					auto bufferId = readWord_t();	if (bufferId == -1) return;
+					auto format = readByte_t();		if (format == -1) return;
+
+					sendAudioStatus(channel, createSampleFromBuffer(bufferId, format));
+				}	break;
+
 				case AUDIO_SAMPLE_DEBUG_INFO: {
 					debug_log("Sample info: %d (%d)\n\r", (int8_t)channel, sampleNum);
 					debug_log("  samples count: %d\n\r", samples.size());
 					debug_log("  free mem: %d\n\r", heap_caps_get_free_size(MALLOC_CAP_8BIT));
-					audio_sample* sample = samples[sampleNum].get();
+					auto sample = samples[sampleNum];
 					if (sample == nullptr) {
 						debug_log("  sample is null\n\r");
 						break;
 					}
-					debug_log("  length: %d\n\r", sample->length);
-					if (sample->length > 0) {
-						debug_log("  data first byte: %d\n\r", sample->data[0]);
+					auto buffer = sample->blocks;
+					debug_log("  length: %d\n\r", buffer.size());
+					if (buffer.size() > 0) {
+						debug_log("  data first byte: %d\n\r", buffer[0]->getBuffer()[0]);
 					}
 				} break;
 
@@ -140,33 +156,32 @@ void VDUStreamProcessor::sendAudioStatus(uint8_t channel, uint8_t status) {
 
 // Load a sample
 //
-uint8_t VDUStreamProcessor::loadSample(uint8_t sampleIndex, uint32_t length) {
+uint8_t VDUStreamProcessor::loadSample(uint16_t bufferId, uint32_t length) {
 	debug_log("free mem: %d\n\r", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-	if (sampleIndex < MAX_AUDIO_SAMPLES) {
-		debug_log("loadSample: sample %d - length %d\n\r", sampleIndex, length);
-		// Clear out existing sample
-		clearSample(sampleIndex);
 
-		auto sample = make_shared_psram<audio_sample>(length);
-		auto data = sample->data;
+	bufferClear(bufferId);
 
-		if (data) {
-			// read data into buffer
-			for (auto n = 0; n < length; n++) sample->data[n] = readByte_b();
-			samples[sampleIndex] = sample;
-			debug_log("vdu_sys_audio: sample %d - data loaded, length %d\n\r", sampleIndex, sample->length);
-			return 1;
-		} else {
-			// Failed to allocate memory
-			// discard incoming serial data
-			discardBytes(length);
-			debug_log("vdu_sys_audio: sample %d - data discarded, no memory available length %d\n\r", sampleIndex, length);
-			return 0;
-		}
+	if (bufferWrite(bufferId, length) != 0) {
+		// timed out, or couldn't allocate buffer - so abort
+		return 0;
 	}
-	// Invalid sample number - discard incoming serial data
-	discardBytes(length);
-	debug_log("vdu_sys_audio: sample %d - data discarded, invalid sample number\n\r", sampleIndex);
+	return createSampleFromBuffer(bufferId, 0);
+}
+
+// Create a sample from a buffer
+//
+uint8_t VDUStreamProcessor::createSampleFromBuffer(uint16_t bufferId, uint8_t format) {
+	if (buffers.find(bufferId) == buffers.end()) {
+		debug_log("vdu_sys_audio: buffer %d not found\n\r", bufferId);
+		return 0;
+	}
+	clearSample(bufferId);
+	auto sample = make_shared_psram<audio_sample>(buffers[bufferId], format);
+	// auto sample = make_shared_psram<audio_sample>(bufferId, format);
+	if (sample) {
+		samples[bufferId] = sample;
+		return 1;
+	}
 	return 0;
 }
 

@@ -17,14 +17,15 @@ class EnhancedSamplesGenerator : public WaveformGenerator {
 
 		void setFrequency(int value);
 		int getSample();
+
+		int getDuration();
 	
 	private:
 		std::weak_ptr<audio_sample> _sample;
-		int _index;
 };
 
-EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<audio_sample> sample) 
-	: _sample(sample), _index(0)
+EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<audio_sample> sample)
+	: _sample(sample)
 {}
 
 void EnhancedSamplesGenerator::setFrequency(int value) {
@@ -32,7 +33,11 @@ void EnhancedSamplesGenerator::setFrequency(int value) {
 	// but we'll hijack this method to allow us to reset the sample index
 	// ideally we'd override the enable method, but C++ doesn't let us do that
 	if (value < 0) {
-		_index = 0;
+		// rewind our sample if it's still valid
+		if (!_sample.expired()) {
+			auto samplePtr = _sample.lock();
+			samplePtr->rewind();
+		}
 	}
 }
 
@@ -42,13 +47,7 @@ int EnhancedSamplesGenerator::getSample() {
 	}
 
 	auto samplePtr = _sample.lock();
-	auto sample = samplePtr->data[_index++];
-	
-	// Insert looping magic here
-	if (_index >= samplePtr->length) {
-		// reached end, so loop
-		_index = 0;
-	}
+	int sample = samplePtr->getSample();
 
 	// process volume
 	sample = sample * volume() / 127;
@@ -56,6 +55,11 @@ int EnhancedSamplesGenerator::getSample() {
 	decDuration();
 
 	return sample;
+}
+
+int EnhancedSamplesGenerator::getDuration() {
+	// NB this is hard-coded for a 16khz sample rate
+	return _sample.expired() ? 0 : _sample.lock()->getDuration();
 }
 
 #endif // ENHANCED_SAMPLES_GENERATOR_H

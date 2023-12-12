@@ -6,7 +6,7 @@
 //					Igor Chaves Cananea (vdp-gl maintenance)
 //					Steve Sims (Audio enhancements, refactoring, bug fixes)
 // Created:			22/03/2022
-// Last Updated:	12/09/2023
+// Last Updated:	11/11/2023
 //
 // Modinfo:
 // 11/07/2022:		Baud rate tweaked for Agon Light, HW Flow Control temporarily commented out
@@ -43,32 +43,38 @@
 // 13/08/2023:				RC2	+ New video modes, mode change resets page mode
 // 05/09/2023:					+ New audio enhancements, improved mode change code
 // 12/09/2023:					+ Refactored
+// 11/11/2023:				RC3 + See Github for full list of changes
 
+#include <WiFi.h>
 #include <HardwareSerial.h>
 #include <fabgl.h>
 
 #define VERSION			1
 #define REVISION		4
-#define RC				2
+#define RC				0
 
 #define	DEBUG			0						// Serial Debug Mode: 1 = enable
-#define SERIALKB		0						// Serial Keyboard: 1 = enable (Experimental)
 #define SERIALBAUDRATE	115200
 
+HardwareSerial	DBGSerial(0);
+
+bool			terminalMode = false;			// Terminal mode (for CP/M)
+bool			consoleMode = false;			// Serial console mode (0 = off, 1 = console enabled)
+
 #include "agon.h"								// Configuration file
-#include "agon_keyboard.h"						// Keyboard support
+#include "agon_ps2.h"							// Keyboard support
 #include "agon_audio.h"							// Audio support
+#include "agon_ttxt.h"
 #include "graphics.h"							// Graphics support
 #include "cursor.h"								// Cursor support
 #include "vdp_protocol.h"						// VDP Protocol
 #include "vdu_stream_processor.h"
 #include "hexload.h"
 
-bool					terminalMode = false;	// Terminal mode
 fabgl::Terminal			Terminal;				// Used for CP/M mode
 VDUStreamProcessor *	processor;				// VDU Stream Processor
 
-HardwareSerial DBGSerial(0);
+#include "zdi.h"								// ZDI debugging console
 
 void setup() {
 	disableCore0WDT(); delay(200);				// Disable the watchdog timers
@@ -77,7 +83,7 @@ void setup() {
 	setupVDPProtocol();
 	processor = new VDUStreamProcessor(&VDPSerial);
 	processor->wait_eZ80();
-	setupKeyboard();
+	setupKeyboardAndMouse();
 	init_audio();
 	copy_font();
 	set_mode(1);
@@ -99,10 +105,13 @@ void loop() {
 		}
 		cursorVisible = ((count & 0xFFFF) == 0);
 		if (cursorVisible) {
+    		if (!cursorState && ttxtMode) ttxt_instance.flash(true);
 			cursorState = !cursorState;
 			do_cursor();
+      		if (!cursorState && ttxtMode) ttxt_instance.flash(false);
 		}
 		do_keyboard();
+		do_mouse();
 
 		if (processor->byteAvailable()) {
 			if (cursorState) {
@@ -157,6 +166,20 @@ void do_keyboard_terminal() {
 	}
 }
 
+// Handle the mouse
+//
+void do_mouse() {
+	// get mouse delta, if the mouse is active
+	MouseDelta delta;
+	if (mouseMoved(&delta)) {
+		auto mouse = getMouse();
+		auto mStatus = mouse->status();
+		// update mouse cursor position if it's active
+		setMouseCursorPos(mStatus.X, mStatus.Y);
+		processor->sendMouseData(&delta);
+	}
+}
+
 // The boot screen
 //
 void boot_screen() {
@@ -183,6 +206,14 @@ void debug_log(const char *format, ...) {
 	}
 	va_end(ap);
 	#endif
+}
+
+// Set console mode
+// Parameters:
+// - mode: 0 = off, 1 = on
+//
+void setConsoleMode(bool mode) {
+	consoleMode = mode;
 }
 
 // Switch to terminal mode
