@@ -201,7 +201,7 @@ void AudioChannel::setWaveform(int8_t waveformType, std::shared_ptr<AudioChannel
 		}
 		this->_waveform = std::move(newWaveform);
 		_waveformType = waveformType;
-		soundGenerator->attach(this->_waveform.get());
+		attachSoundGenerator();
 		debug_log("AudioChannel: setWaveform %d done\n\r", waveformType);
 	}
 }
