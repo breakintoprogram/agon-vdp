@@ -10,7 +10,7 @@
 #include "envelopes/volume.h"
 #include "envelopes/frequency.h"
 
-extern std::shared_ptr<fabgl::SoundGenerator> soundGenerator;	// audio handling sub-system
+extern std::unique_ptr<fabgl::SoundGenerator> soundGenerator;	// audio handling sub-system
 extern void audioTaskAbortDelay(uint8_t channel);
 
 // The audio channel class
@@ -21,17 +21,20 @@ class AudioChannel {
 		~AudioChannel();
 		uint8_t		playNote(uint8_t volume, uint16_t frequency, int32_t duration);
 		uint8_t		getStatus();
-		std::unique_ptr<fabgl::WaveformGenerator>	getSampleWaveform(uint16_t sampleId, std::shared_ptr<AudioChannel> channelRef);
 		void		setWaveform(int8_t waveformType, std::shared_ptr<AudioChannel> channelRef, uint16_t sampleId = 0);
 		void		setVolume(uint8_t volume);
 		void		setFrequency(uint16_t frequency);
 		void		setDuration(int32_t duration);
 		void		setVolumeEnvelope(std::unique_ptr<VolumeEnvelope> envelope);
 		void		setFrequencyEnvelope(std::unique_ptr<FrequencyEnvelope> envelope);
+		void		setSampleRate(uint16_t sampleRate);
+		WaveformGenerator * getWaveform() { return this->_waveform.get(); }
+		void		attachSoundGenerator();
 		void		seekTo(uint32_t position);
 		void		loop();
 		uint8_t		channel() { return _channel; }
 	private:
+		std::unique_ptr<fabgl::WaveformGenerator>	getSampleWaveform(uint16_t sampleId, std::shared_ptr<AudioChannel> channelRef);
 		void		waitForAbort();
 		uint8_t		getVolume(uint32_t elapsed);
 		uint16_t	getFrequency(uint32_t elapsed);
@@ -307,6 +310,18 @@ void AudioChannel::setFrequencyEnvelope(std::unique_ptr<FrequencyEnvelope> envel
 		// swap to looping
 		this->_state = AudioState::PlayLoop;
 		audioTaskAbortDelay(this->_channel);
+	}
+}
+
+void AudioChannel::setSampleRate(uint16_t sampleRate) {
+	if (this->_waveform) {
+		this->_waveform->setSampleRate(sampleRate);
+	}
+}
+
+void AudioChannel::attachSoundGenerator() {
+	if (this->_waveform) {
+		soundGenerator->attach(this->_waveform.get());
 	}
 }
 

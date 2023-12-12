@@ -16,12 +16,12 @@ class EnhancedSamplesGenerator : public WaveformGenerator {
 		EnhancedSamplesGenerator(std::shared_ptr<AudioSample> sample);
 
 		void setFrequency(int value);
+		void setSampleRate(int value);
 		int getSample();
 
 		int getDuration(uint16_t frequency);
 
 		void seekTo(uint32_t position);
-
 	private:
 		std::weak_ptr<AudioSample> _sample;
 
@@ -31,6 +31,7 @@ class EnhancedSamplesGenerator : public WaveformGenerator {
 		// TODO consider whether repeatStart and repeatLength may need to be here
 		// which would allow for per-channel repeat settings
 
+		int				frequency = 0;
 		int				previousSample = 0;
 		int				currentSample = 0;
 		double			samplesPerGet = 1.0;
@@ -44,7 +45,13 @@ EnhancedSamplesGenerator::EnhancedSamplesGenerator(std::shared_ptr<AudioSample> 
 	: _sample(sample)
 {}
 
-void EnhancedSamplesGenerator::setFrequency(int frequency) {
+void EnhancedSamplesGenerator::setFrequency(int value) {
+	frequency = value;
+	samplesPerGet = calculateSamplerate(value);
+}
+
+void EnhancedSamplesGenerator::setSampleRate(int value) {
+	WaveformGenerator::setSampleRate(value);
 	samplesPerGet = calculateSamplerate(frequency);
 }
 
@@ -96,7 +103,7 @@ double EnhancedSamplesGenerator::calculateSamplerate(uint16_t frequency) {
 		auto samplePtr = _sample.lock();
 		auto baseFrequency = samplePtr->baseFrequency;
 		auto frequencyAdjust = baseFrequency > 0 ? (double)frequency / (double)baseFrequency : 1.0;
-		return frequencyAdjust * ((double)samplePtr->sampleRate / (double)(AUDIO_DEFAULT_SAMPLE_RATE));
+		return frequencyAdjust * ((double)samplePtr->sampleRate / (double)(sampleRate()));
 	}
 	return 1.0;
 }

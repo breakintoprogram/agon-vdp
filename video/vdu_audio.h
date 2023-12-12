@@ -206,7 +206,18 @@ void VDUStreamProcessor::vdu_sys_audio() {
 			if (channelEnabled(channel)) {
 				audioChannels[channel]->setDuration(duration);
 			}
-		}
+		} break;
+
+		case AUDIO_CMD_SAMPLERATE: {
+			auto sampleRate = readWord_t();	if (sampleRate == -1) return;
+
+			if (channel == 255) {
+				// set underlying sample rate
+				setSampleRate(sampleRate);
+			} else if (channelEnabled(channel)) {
+				audioChannels[channel]->setSampleRate(sampleRate);
+			}
+		}	break;
 	}
 }
 

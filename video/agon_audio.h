@@ -25,7 +25,7 @@ std::vector<TaskHandle_t, psram_allocator<TaskHandle_t>> audioHandlers;
 
 std::unordered_map<uint16_t, std::shared_ptr<AudioSample>> samples;	// Storage for the sample data
 
-std::shared_ptr<fabgl::SoundGenerator> soundGenerator;				// audio handling sub-system
+std::unique_ptr<fabgl::SoundGenerator> soundGenerator;				// audio handling sub-system
 
 // Audio channel driver task
 //
@@ -66,16 +66,41 @@ void audioTaskKill(uint8_t channel) {
 	}
 }
 
+// Change the sample rate
+//
+void setSampleRate(uint16_t sampleRate) {
+	// make a new sound generator and re-attach all our active channels
+	if (sampleRate == 65535) {
+		sampleRate = AUDIO_DEFAULT_SAMPLE_RATE;
+	}
+	// detatch the old sound generator
+	if (soundGenerator) {
+		soundGenerator->play(false);
+		for (auto channelPair : audioChannels) {
+			auto channel = channelPair.second;
+			soundGenerator->detach(channel->getWaveform());
+		}
+	}
+	// delete the old sound generator
+	soundGenerator = nullptr;
+	soundGenerator = std::unique_ptr<fabgl::SoundGenerator>(new fabgl::SoundGenerator(sampleRate));
+	for (auto channelPair : audioChannels) {
+		auto channel = channelPair.second;
+		channel->attachSoundGenerator();
+	}
+	soundGenerator->play(true);
+}
+
 // Initialise the sound driver
 //
 void initAudio() {
-	soundGenerator = std::make_shared<fabgl::SoundGenerator>(AUDIO_DEFAULT_SAMPLE_RATE);
+	// make new sound generator
+	setSampleRate(AUDIO_DEFAULT_SAMPLE_RATE);
 	audioHandlers.reserve(MAX_AUDIO_CHANNELS);
 	debug_log("initAudio: we have reserved %d channels\n\r", audioHandlers.capacity());
 	for (uint8_t i = 0; i < AUDIO_CHANNELS; i++) {
 		initAudioChannel(i);
 	}
-	soundGenerator->play(true);
 }
 
 // Channel enabled?
