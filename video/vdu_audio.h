@@ -345,6 +345,9 @@ uint8_t VDUStreamProcessor::setSampleRepeatLength(uint16_t sampleId, uint32_t re
 		debug_log("vdu_sys_audio: sample %d not found\n\r", sampleId);
 		return 0;
 	}
+	if (repeatLength == 0xFFFFFF) {
+		repeatLength = -1;
+	}
 	samples[sampleId]->repeatLength = repeatLength;
 	return 1;
 }
