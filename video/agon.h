@@ -68,7 +68,7 @@
 #define PACKET_MOUSE			0x09	// Mouse data
 
 #define AUDIO_CHANNELS			3		// Default number of audio channels
-#define AUDIO_DEFAULT_SAMPLE_RATE	FABGL_SOUNDGEN_DEFAULT_SAMPLE_RATE	// Default sample rate
+#define AUDIO_DEFAULT_SAMPLE_RATE	16384	// Default sample rate
 #define MAX_AUDIO_CHANNELS		32		// Maximum number of audio channels
 #define PLAY_SOUND_PRIORITY		3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest
 
