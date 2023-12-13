@@ -59,6 +59,7 @@
 HardwareSerial	DBGSerial(0);
 
 bool			terminalMode = false;			// Terminal mode (for CP/M)
+bool			exitTerminal = false;			// Flag to indicate terminal mode should be exited
 bool			consoleMode = false;			// Serial console mode (0 = off, 1 = console enabled)
 
 #include "agon.h"								// Configuration file
@@ -71,7 +72,7 @@ bool			consoleMode = false;			// Serial console mode (0 = off, 1 = console enabl
 #include "vdu_stream_processor.h"
 #include "hexload.h"
 
-fabgl::Terminal			Terminal;				// Used for CP/M mode
+std::unique_ptr<fabgl::Terminal>	Terminal;	// Used for CP/M mode
 VDUStreamProcessor *	processor;				// VDU Stream Processor
 
 #include "zdi.h"								// ZDI debugging console
@@ -100,6 +101,10 @@ void loop() {
 
 	while (true) {
 		if (terminalMode) {
+			if (exitTerminal) {
+				switchTerminalMode(false);
+				continue;
+			}
 			do_keyboard_terminal();
 			continue;
 		}
@@ -162,7 +167,7 @@ void do_keyboard_terminal() {
 	// Write anything read from z80 to the screen
 	//
 	while (processor->byteAvailable()) {
-		Terminal.write(processor->readByte());
+		Terminal->write(processor->readByte());
 	}
 }
 
@@ -218,13 +223,43 @@ void setConsoleMode(bool mode) {
 
 // Switch to terminal mode
 //
-void switchTerminalMode() {
+void switchTerminalMode(bool enable) {
+	if (terminalMode == enable) {
+		return;
+	}
+	exitTerminal = false;
 	cls(true);
 	canvas.reset();
-	Terminal.begin(_VGAController.get());	
-	Terminal.connectSerialPort(VDPSerial);
-	Terminal.enableCursor(true);
-	terminalMode = true;
+	if (enable) {
+		Terminal = std::unique_ptr<fabgl::Terminal>(new fabgl::Terminal());
+		Terminal->begin(_VGAController.get());	
+		Terminal->connectSerialPort(VDPSerial);
+		Terminal->enableCursor(true);
+		// onVirtualKey is triggered whenever a key is pressed or released
+		Terminal->onVirtualKeyItem = [&](VirtualKeyItem * vkItem) {
+			if (vkItem->vk == VirtualKey::VK_F12) {
+				if (vkItem->CTRL && (vkItem->LALT || vkItem->RALT)) {
+					// CTRL + ALT + F12: emergency exit terminal mode
+					exitTerminal = true;
+				}
+			}
+		};
+
+		// onUserSequence is triggered whenever a User Sequence has been received (ESC + '_#' ... '$'), where '...' is sent here
+		Terminal->onUserSequence = [&](char const * seq) {
+			// 'Q!': exit terminal mode
+			if (strcmp("Q!", seq) == 0) {
+				exitTerminal = true;
+			}
+		};
+	} else {
+		Terminal->deactivate();
+		Terminal = nullptr;
+		set_mode(1);
+		processor->sendModeInformation();
+	}
+	terminalMode = enable;
+	debug_log("Terminal mode %s\n\r", terminalMode ? "enabled" : "disabled");
 }
 
 void print(char const * text) {
