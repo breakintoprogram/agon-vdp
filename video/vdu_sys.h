@@ -147,6 +147,15 @@ void VDUStreamProcessor::vdu_sys_video() {
 		case VDP_MOUSE: {				// VDU 23, 0, &89, command, <args>
 			vdu_sys_mouse();
 		}	break;
+		case VDP_UDG: {					// VDU 23, 0, &90, c, <args>
+			auto c = readByte_t();		// Redefine a display character
+			if (c >= 0) {
+				vdu_sys_udg(c);
+			}
+		}	break;
+		case VDP_UDG_RESET: {			// VDU 23, 0, &91
+			copy_font();				// Reset UDGs
+		}	break;
 		case VDP_BUFFERED: {			// VDU 23, 0, &A0, bufferId; command, <args>
 			vdu_sys_buffered();
 		}	break;

@@ -30,7 +30,7 @@ uint8_t			palette[64];					// Storage for the palette
 // Copy the AGON font data from Flash to RAM
 //
 void copy_font() {
-	memcpy(fabgl::FONT_AGON_DATA + 256, fabgl::FONT_AGON_BITMAP, sizeof(fabgl::FONT_AGON_BITMAP));
+	memcpy(fabgl::FONT_AGON_DATA, fabgl::FONT_AGON_BITMAP, sizeof(fabgl::FONT_AGON_BITMAP));
 }
 
 // Redefine a character in the font
