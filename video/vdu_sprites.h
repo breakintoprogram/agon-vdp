@@ -2,6 +2,7 @@
 #define _VDU_SPRITES_H_
 
 #include <fabgl.h>
+#include <cmath>
 
 #include "buffers.h"
 #include "graphics.h"
@@ -238,9 +239,9 @@ void VDUStreamProcessor::createBitmapFromBuffer(uint16_t bufferId, uint8_t forma
 			pixelFormat = PixelFormat::RGBA2222;
 			bytesPerPixel = 1.;
 			break;
-		case 2: // Mono/Mask - TODO not sure exactly how to handle this
+		case 2: // Mono/Mask
 			pixelFormat = PixelFormat::Mask;
-			bytesPerPixel = 1/8;
+			bytesPerPixel = 1./8.;
 			break;
 		default:
 			pixelFormat = PixelFormat::RGBA8888;
@@ -249,13 +250,18 @@ void VDUStreamProcessor::createBitmapFromBuffer(uint16_t bufferId, uint8_t forma
 	}
 	// Check that our stream length matches the expected length
 	auto streamLength = stream->size();
-	auto expectedLength = width * height * bytesPerPixel;
+	auto widthInBytes = std::ceil((double)width * bytesPerPixel);
+	uint32_t expectedLength = widthInBytes * height;
 	if (streamLength != expectedLength) {
-		debug_log("vdu_sys_sprites: buffer %d - stream length %d does not match expected length %f\n\r", bufferId, streamLength, expectedLength);
+		debug_log("vdu_sys_sprites: buffer %d - stream length %d does not match expected length %d\n\r", bufferId, streamLength, expectedLength);
 		return;
 	}
 	auto data = stream->getBuffer();
-	bitmaps[bufferId] = make_shared_psram<Bitmap>(width, height, (uint8_t *)data, pixelFormat);
+	if (bytesPerPixel < 1) {
+		bitmaps[bufferId] = make_shared_psram<Bitmap>(width, height, (uint8_t *)data, pixelFormat, gfg);
+	} else {
+		bitmaps[bufferId] = make_shared_psram<Bitmap>(width, height, (uint8_t *)data, pixelFormat);
+	}
 	debug_log("vdu_sys_sprites: bitmap created for bufferId %d, format %d, (%dx%d)\n\r", bufferId, format, width, height);
 }
 
