@@ -239,6 +239,18 @@
 //
 void debug_log(const char *format, ...);
 
+// Terminal states
+//
+enum TerminalState {
+	Disabled,
+	Disabling,
+	Enabling,
+	Enabled,
+	Suspending,
+	Suspended,
+	Resuming
+};
+
 // Additional modelines
 //
 #ifndef VGA_640x240_60Hz

@@ -15,7 +15,7 @@
 #include "vdu_sprites.h"
 #include "updater.h"
 
-extern void switchTerminalMode();				// Switch to terminal mode
+extern void startTerminal();					// Start the terminal
 extern void setConsoleMode(bool mode);			// Set console mode
 
 bool			initialised = false;			// Is the system initialised yet?
@@ -173,7 +173,7 @@ void VDUStreamProcessor::vdu_sys_video() {
 			setConsoleMode((bool) b);
 		}	break;
 		case VDP_TERMINALMODE: {		// VDU 23, 0, &FF
-			switchTerminalMode(); 		// Switch to terminal mode
+			startTerminal();		 	// Switch to, or resume, terminal mode
 		}	break;
   	}
 }
