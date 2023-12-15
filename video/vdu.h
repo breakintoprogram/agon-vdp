@@ -1,11 +1,16 @@
 #ifndef VDU_H
 #define VDU_H
 
+#include <HardwareSerial.h>
+
 #include "agon.h"
 #include "cursor.h"
 #include "graphics.h"
 #include "vdu_audio.h"
 #include "vdu_sys.h"
+
+extern bool consoleMode;
+extern HardwareSerial DBGSerial;
 
 // Handle VDU commands
 //
@@ -213,7 +218,7 @@ void VDUStreamProcessor::vdu_plot() {
 					plotLine(false, true);
 					break;
 				case 0x10:	// dot-dash line
-				case 0x18:	// dot-dash line, omitting last point
+				case 0x18:	// dot-dash line, omitting first point
 				case 0x30:	// dot-dash line, omitting first, pattern continued
 				case 0x38:	// dot-dash line, omitting both, pattern continued
 					debug_log("plot dot-dash line not implemented\n\r");
@@ -228,22 +233,28 @@ void VDUStreamProcessor::vdu_plot() {
 					plotPoint();
 					break;
 				case 0x48:	// line fill left/right to non-bg
-				case 0x58:	// line fill right to bg
-				case 0x68:	// line fill left/left to fg
-				case 0x78:	// line fill right to non-fg
-					debug_log("plot line with fill left and/or right not implemented\n\r");
+					fillHorizontalLine(true, false, gbg);
 					break;
 				case 0x50:	// triangle fill
 					setGraphicsFill(mode);
 					plotTriangle();
 					break;
+				case 0x58:	// line fill right to bg
+					fillHorizontalLine(false, true, gbg);
+					break;
 				case 0x60:	// rectangle fill
 					setGraphicsFill(mode);
 					plotRectangle();
 					break;
+				case 0x68:	// line fill left/left to fg
+					fillHorizontalLine(true, true, gfg);
+					break;
 				case 0x70:	// parallelogram fill
 					setGraphicsFill(mode);
 					plotParallelogram();
+					break;
+				case 0x78:	// line fill right to non-fg
+					fillHorizontalLine(false, false, gfg);
 					break;
 				case 0x80:	// flood to non-bg
 				case 0x88:	// flood to fg
