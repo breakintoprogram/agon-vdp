@@ -263,7 +263,7 @@ void VDUStreamProcessor::bufferClear(uint16_t bufferId) {
 // This is used for creating buffers to redirect output to
 //
 std::shared_ptr<WritableBufferStream> VDUStreamProcessor::bufferCreate(uint16_t bufferId, uint32_t size) {
-	if (bufferId == 0 || bufferId == 65535) {
+	if (bufferId == 65535) {
 		debug_log("bufferCreate: bufferId %d is reserved\n\r", bufferId);
 		return nullptr;
 	}
