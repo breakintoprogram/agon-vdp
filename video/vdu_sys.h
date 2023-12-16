@@ -147,6 +147,12 @@ void VDUStreamProcessor::vdu_sys_video() {
 		case VDP_MOUSE: {				// VDU 23, 0, &89, command, <args>
 			vdu_sys_mouse();
 		}	break;
+		case VDP_READ_COLOUR: {			// VDU 23, 0, &94, index
+			auto index = readByte_t();	// Read colour from palette
+			if (index >= 0) {
+				sendColour(index);
+			}
+		}	break;
 		case VDP_BUFFERED: {			// VDU 23, 0, &A0, bufferId; command, <args>
 			vdu_sys_buffered();
 		}	break;
@@ -234,6 +240,44 @@ void VDUStreamProcessor::sendScreenPixel(uint16_t x, uint16_t y) {
 		pixel.G,
 		pixel.B,
 		pixelIndex,	// And the pixel index in the palette
+	};
+	send_packet(PACKET_SCRPIXEL, sizeof packet, packet);	
+}
+
+// VDU 23, 0, &94, index: Send a colour back to MOS
+//
+void VDUStreamProcessor::sendColour(uint8_t colour) {
+	RGB888 pixel;
+	if (colour < 64) {
+		// Colour is a palette lookup
+		uint8_t c = palette[colour % getVGAColourDepth()];
+		pixel = colourLookup[c];
+	} else {
+		// Colour may be an active colour lookup
+		switch (colour) {
+			case 128:	// text foreground
+				pixel = tfg;
+				break;
+			case 129:	// text background
+				pixel = tbg;
+				break;
+			case 130:	// graphics foreground
+				pixel = gfg;
+				break;
+			case 131:	// graphics background
+				pixel = gbg;
+				break;
+			default:
+				// Unrecognised colour - no response
+				return;
+		}
+	}
+
+	uint8_t packet[] = {
+		pixel.R,	// Send the colour components
+		pixel.G,
+		pixel.B,
+		colour,
 	};
 	send_packet(PACKET_SCRPIXEL, sizeof packet, packet);	
 }
