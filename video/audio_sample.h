@@ -16,7 +16,6 @@ struct AudioSample {
 	int8_t getSample(uint32_t & index, uint32_t & blockIndex);
 	void seekTo(uint32_t position, uint32_t & index, uint32_t & blockIndex, int32_t & repeatCount);
 	uint32_t getSize();
-	uint32_t getDuration();
 
 	std::vector<std::shared_ptr<BufferStream>>& blocks;
 	uint8_t			format;				// Format of the sample data
@@ -92,11 +91,6 @@ uint32_t AudioSample::getSize() {
 		samples += block->size();
 	}
 	return samples;
-}
-
-uint32_t AudioSample::getDuration() {
-	// returns duration of sample in ms when played back without tuning
-	return (getSize() * 1000) / sampleRate;
 }
 
 #endif // AUDIO_SAMPLE_H

@@ -83,7 +83,10 @@ int EnhancedSamplesGenerator::getSample() {
 }
 
 int EnhancedSamplesGenerator::getDuration(uint16_t frequency) {
-	return _sample.expired() ? 0 : _sample.lock()->getDuration() / calculateSamplerate(frequency);
+	// TODO this will produce an incorrect duration if the sample rate for the channel has been
+	// adjusted to differ from the underlying audio system sample rate
+	// At this point it's not clear how to resolve this, so we'll assume it hasn't been adjusted
+	return _sample.expired() ? 0 : (_sample.lock()->getSize() * 1000 / sampleRate()) / calculateSamplerate(frequency);
 }
 
 void EnhancedSamplesGenerator::seekTo(uint32_t position) {
