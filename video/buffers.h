@@ -25,7 +25,7 @@ int32_t resolveBufferId(int32_t bufferId, uint16_t currentId) {
 }
 
 // Reverse values in a buffer
-void reverseValues(uint8_t * data, uint32_t length, uint8_t valueSize) {
+void reverseValues(uint8_t * data, uint32_t length, uint16_t valueSize) {
 	// get last offset into buffer
 	auto bufferEnd = length - valueSize;
 
