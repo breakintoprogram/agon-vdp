@@ -45,6 +45,8 @@
 #define VDP_RTC					0x87	// RTC
 #define VDP_KEYSTATE			0x88	// Keyboard repeat rate and LED status
 #define VDP_MOUSE				0x89	// Mouse data
+#define VDP_UDG					0x90	// User defined characters
+#define VDP_UDG_RESET			0x91	// Reset UDGs
 #define VDP_BUFFERED			0xA0	// Buffered commands
 #define VDP_UPDATER				0xA1	// Update VDP
 #define VDP_LOGICALCOORDS		0xC0	// Switch BBC Micro style logical coords on and off

@@ -10,13 +10,12 @@
 // Handle VDU commands
 //
 void VDUStreamProcessor::vdu(uint8_t c) {
-
 	// We want to send raw chars back to the debugger
 	// this allows binary (faster) data transfer in ZDI mode
 	// to inspect memory and register values
 	//
-	if(consoleMode) {
-		DBGSerial.write (c);
+	if (consoleMode) {
+		DBGSerial.write(c);
 	}
 	
 	switch(c) {
@@ -86,6 +85,10 @@ void VDUStreamProcessor::vdu(uint8_t c) {
 		case 0x1A:	// Reset text and graphics viewports
 			vdu_resetViewports();
 			break;
+		case 0x1B: { // VDU 27
+			auto b = readByte_t();	if (b == -1) return;
+			plotCharacter(b);
+		}	break;
 		case 0x1C:	// Define a text viewport
 			vdu_textViewport();
 			break;
