@@ -40,10 +40,10 @@ inline uint16_t getCurrentBitmapId() {
 	return currentBitmap;
 }
 
-void drawBitmap(uint16_t x, uint16_t y) {
+void drawBitmap(uint16_t x, uint16_t y, bool compensateHeight = false) {
 	auto bitmap = getBitmap();
 	if (bitmap) {
-		canvas->drawBitmap(x, y, bitmap.get());
+		canvas->drawBitmap(x, (compensateHeight && logicalCoords) ? y - bitmap->height : y, bitmap.get());
 	} else {
 		debug_log("drawBitmap: bitmap %d not found\n\r", currentBitmap);
 	}
