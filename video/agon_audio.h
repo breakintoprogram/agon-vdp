@@ -73,12 +73,12 @@ void setSampleRate(uint16_t sampleRate) {
 	if (sampleRate == 65535) {
 		sampleRate = AUDIO_DEFAULT_SAMPLE_RATE;
 	}
-	// detatch the old sound generator
+	// detach the old sound generator
 	if (soundGenerator) {
 		soundGenerator->play(false);
 		for (auto channelPair : audioChannels) {
 			auto channel = channelPair.second;
-			soundGenerator->detach(channel->getWaveform());
+			channel->detachSoundGenerator();
 		}
 	}
 	// delete the old sound generator
@@ -160,7 +160,7 @@ uint8_t clearSample(uint16_t sampleId) {
 		debug_log("clearSample: sample %d not found\n\r", sampleId);
 		return 0;
 	}
-	samples.erase(sampleId);
+	samples[sampleId] = nullptr;
 	debug_log("reset sample\n\r");
 	return 1;
 }
