@@ -59,7 +59,7 @@
 HardwareSerial	DBGSerial(0);
 
 bool			terminalMode = false;			// Terminal mode (for CP/M)
-bool			consoleMode = true;			// Serial console mode (0 = off, 1 = console enabled)
+bool			consoleMode = true;				// Serial console mode (0 = off, 1 = console enabled)
 
 #include "agon.h"								// Configuration file
 #include "agon_ps2.h"							// Keyboard support

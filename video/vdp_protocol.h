@@ -16,12 +16,21 @@
 
 #define VDPSerial Serial2
 
+void vdp_serial_half_duplex ()
+{
+	VDPSerial.setHwFlowCtrlMode(HW_FLOWCTRL_RTS);				// default to half-duplex
+}
+void vdp_serial_full_duplex ()
+{
+	VDPSerial.setHwFlowCtrlMode(HW_FLOWCTRL_CTS_RTS);			// set to full-duplex when EZ80 OS indicates this
+}
+
 void setupVDPProtocol() {
 	VDPSerial.end();
 	VDPSerial.setRxBufferSize(UART_RX_SIZE);					// Can't be called when running
 	VDPSerial.begin(UART_BR, SERIAL_8N1, UART_RX, UART_TX);
-	VDPSerial.setHwFlowCtrlMode(HW_FLOWCTRL_CTS_RTS, 64);			// Can be called whenever
 	VDPSerial.setPins(UART_NA, UART_NA, UART_CTS, UART_RTS);	// Must be called after begin
+	vdp_serial_half_duplex ();
 }
 
 // TODO remove the following - it's only here for cursor.h to send escape key when doing paged mode handling

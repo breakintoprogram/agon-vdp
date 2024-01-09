@@ -189,6 +189,11 @@ void VDUStreamProcessor::sendGeneralPoll() {
 	uint8_t packet[] = {
 		(uint8_t) (b & 0xFF),
 	};
+	// for EZ80 OS-es with ID>1 assume full_duplex
+	// this includes MOS hw-cts-rts branch and ElectronOS
+	// for fast error-free reads and writes to EZ80
+	if (b>1)
+		vdp_serial_full_duplex ();
 	send_packet(PACKET_GP, sizeof packet, packet);
 	initialised = true;	
 }
