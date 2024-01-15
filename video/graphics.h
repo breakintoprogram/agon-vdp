@@ -69,21 +69,21 @@ char getScreenChar(uint16_t px, uint16_t py) {
 		// Now scan the screen and get the 8 byte pixel representation in charData
 		//
 		for (uint8_t y = 0; y < 8; y++) {
-	    	charRow = 0;
-	    	for (uint8_t x = 0; x < 8; x++) {
-	      		pixel = canvas->getPixel(px + x, py + y);
-	      		if (!(pixel.R == R && pixel.G == G && pixel.B == B)) {
+			charRow = 0;
+			for (uint8_t x = 0; x < 8; x++) {
+				pixel = canvas->getPixel(px + x, py + y);
+				if (!(pixel.R == R && pixel.G == G && pixel.B == B)) {
 					charRow |= (0x80 >> x);
-	    		}
-	    	}
-	    	charData[y] = charRow;
+				}
+			}
+			charData[y] = charRow;
 		}
 		//
 		// Finally try and match with the character set array
 		//
 		for (auto i = 32; i <= 255; i++) {
-	    	if (cmpChar(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {	
-	    		return i;		
+			if (cmpChar(charData, &fabgl::FONT_AGON_DATA[i * 8], 8)) {
+				return i;
 			}
 		}
 	}
@@ -127,7 +127,7 @@ void setPalette(uint8_t l, uint8_t p, uint8_t r, uint8_t g, uint8_t b) {
 			col = RGB888(r, g, b);
 		} else if (p < 64) {			// If p < 64, then look the value up in the colour lookup table
 			col = colourLookup[p];
-		} else {				
+		} else {
 			debug_log("vdu_palette: p=%d not supported\n\r", p);
 			return;
 		}
@@ -157,7 +157,7 @@ void resetPalette(const uint8_t colours[]) {
 //
 fabgl::PaintOptions getPaintOptions(uint8_t mode, fabgl::PaintOptions priorPaintOptions) {
 	fabgl::PaintOptions p = priorPaintOptions;
-	
+
 	switch (mode) {
 		case 0: p.NOT = 0; p.swapFGBG = 0; break;
 		case 4: p.NOT = 1; p.swapFGBG = 0; break;
@@ -178,7 +178,7 @@ void setTextColour(uint8_t colour) {
 	}
 	else if (colour >= 128 && colour < 192) {
 		tbg = colourLookup[c];
-		debug_log("vdu_colour: tbg %d = %02X : %02X,%02X,%02X\n\r", colour, c, tbg.R, tbg.G, tbg.B);	
+		debug_log("vdu_colour: tbg %d = %02X : %02X,%02X,%02X\n\r", colour, c, tbg.R, tbg.G, tbg.B);
 	}
 	else {
 		debug_log("vdu_colour: invalid colour %d\n\r", colour);
@@ -189,7 +189,7 @@ void setTextColour(uint8_t colour) {
 //
 void setGraphicsColour(uint8_t mode, uint8_t colour) {
 	if (ttxtMode) return;
-	
+
 	uint8_t c = palette[colour % getVGAColourDepth()];
 
 	if (mode <= 6) {
@@ -216,15 +216,15 @@ void setGraphicsColour(uint8_t mode, uint8_t colour) {
 void clearViewport(Rect * viewport) {
 	if (ttxtMode) {
 		ttxt_instance.cls();
-	} else {       
-  		if (canvas) {
-	  		if (useViewports) {
-		  		canvas->fillRectangle(*viewport);
-		  	}
-		  	else {
-			  canvas->clear();
+	} else {
+		if (canvas) {
+			if (useViewports) {
+				canvas->fillRectangle(*viewport);
 			}
-	  	}
+			else {
+				canvas->clear();
+			}
+		}
 	}
 }
 
@@ -330,7 +330,7 @@ void plotTriangle() {
 	Point p[3] = {
 		p3,
 		p2,
-		p1, 
+		p1,
 	};
 	canvas->drawPath(p, 3);
 	canvas->fillPath(p, 3);
@@ -430,20 +430,20 @@ void plotBitmap() {
 //
 void plotCharacter(char c) {
 	if (ttxtMode) {
-    	ttxt_instance.draw_char(activeCursor->X, activeCursor->Y, c);
-  	} else {
-  		if (textCursorActive()) {
-	  		canvas->setClippingRect(defaultViewport);
+		ttxt_instance.draw_char(activeCursor->X, activeCursor->Y, c);
+	} else {
+		if (textCursorActive()) {
+			canvas->setClippingRect(defaultViewport);
 			canvas->setPenColor(tfg);
 			canvas->setBrushColor(tbg);
 			canvas->setPaintOptions(tpo);
-	  	} else {
-		  canvas->setClippingRect(graphicsViewport);
-		  canvas->setPenColor(gfg);
-		  canvas->setPaintOptions(gpo);
+		} else {
+			canvas->setClippingRect(graphicsViewport);
+			canvas->setPenColor(gfg);
+			canvas->setPaintOptions(gpo);
 		}
 		canvas->drawChar(activeCursor->X, activeCursor->Y, c);
-  	}
+	}
 	cursorRight();
 }
 
@@ -479,17 +479,17 @@ void drawCursor(Point p) {
 
 
 // Clear the screen
-// 
+//
 void cls(bool resetViewports) {
 	if (resetViewports) {
-    	if (ttxtMode) {
-    		ttxt_instance.set_window(0,24,39,0);
+		if (ttxtMode) {
+			ttxt_instance.set_window(0,24,39,0);
 		}
 		viewportReset();
 	}
 	if (canvas) {
 		canvas->setPenColor(tfg);
-		canvas->setBrushColor(tbg);	
+		canvas->setBrushColor(tbg);
 		canvas->setPaintOptions(tpo);
 		clearViewport(getViewport(VIEWPORT_TEXT));
 	}
@@ -506,7 +506,7 @@ void cls(bool resetViewports) {
 void clg() {
 	if (canvas) {
 		canvas->setPenColor(gfg);
-		canvas->setBrushColor(gbg);	
+		canvas->setBrushColor(gbg);
 		canvas->setPaintOptions(gpo);
 		clearViewport(getViewport(VIEWPORT_GRAPHICS));
 	}
@@ -566,12 +566,12 @@ int8_t change_mode(uint8_t mode) {
 			errVal = change_resolution(2, VGA_640x240_60Hz);
 			break;
 		case 7:
-	    	errVal = change_resolution(16, VGA_640x480_60Hz);
-	    	if (errVal == 0) {
-	      		errVal = ttxt_instance.init();
-	    		if (errVal == 0) ttxtMode = true; 
-	    	}
-	    	break;
+			errVal = change_resolution(16, VGA_640x480_60Hz);
+			if (errVal == 0) {
+				errVal = ttxt_instance.init();
+				if (errVal == 0) ttxtMode = true;
+			}
+			break;
 		case 8:
 			errVal = change_resolution(64, QVGA_320x240_60Hz);		// VGA "Mode X"
 			break;
@@ -628,7 +628,7 @@ int8_t change_mode(uint8_t mode) {
 			break;
 		case 138:
 			errVal = change_resolution(4, QVGA_320x240_60Hz, true);
-			break;	
+			break;
 		case 139:
 			errVal = change_resolution(2, QVGA_320x240_60Hz, true);
 			break;
@@ -643,7 +643,7 @@ int8_t change_mode(uint8_t mode) {
 			break;
 		case 143:
 			errVal = change_resolution(2, VGA_320x200_70Hz, true);
-			break;									
+			break;
 	}
 	if (errVal != 0) {
 		return errVal;
@@ -716,23 +716,48 @@ void setLegacyModes(bool legacy) {
 void scrollRegion(Rect * region, uint8_t direction, int16_t movement) {
 	canvas->setScrollingRegion(region->X1, region->Y1, region->X2, region->Y2);
 	if (ttxtMode) {
-    	if (direction == 3) ttxt_instance.scroll();
-  	} else {
+		if (direction == 3) ttxt_instance.scroll();
+	} else {
+		canvas->setPenColor(tbg);
+		auto moveX = 0;
+		auto moveY = 0;
 		switch (direction) {
-			case 0:	// Right
-				canvas->scroll(movement, 0);
-		  		break;
-			case 1: // Left
-				canvas->scroll(-movement, 0);
+			case 0:		// Right
+				moveX = 1;
 				break;
-			case 2: // Down
-				canvas->scroll(0, movement);
+			case 1:		// Left
+				moveX = -1;
 				break;
-			case 3: // Up
-				canvas->scroll(0, -movement);
+			case 2:		// Down
+				moveY = 1;
 				break;
-  		}
-  	} 
+			case 3:		// Up
+				moveY = -1;
+				break;
+			case 4:		// positive X
+				moveX = cursorBehaviour & 0x02 ? -1 : 1;
+				break;
+			case 5:		// negative X
+				moveX = cursorBehaviour & 0x02 ? 1 : -1;
+				break;
+			case 6:		// positive Y
+				moveY = cursorBehaviour & 0x04 ? -1 : 1;
+				break;
+			case 7:		// negative Y
+				moveY = cursorBehaviour & 0x04 ? 1 : -1;
+				break;
+		}
+		if (moveX != 0 || moveY != 0) {
+			if (movement == 0) {
+				if (moveX != 0) {
+					movement = fontW;
+				} else {
+					movement = fontH;
+				}
+			}
+			canvas->scroll(movement * moveX, movement * moveY);
+		}
+	}
 }
 
 #endif
