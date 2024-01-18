@@ -33,7 +33,7 @@ void VDUStreamProcessor::vdu(uint8_t c) {
 			setActiveViewport(VIEWPORT_GRAPHICS);
 			break;
 		case 0x07:	// Bell
-			play_note(0, 100, 750, 125);
+			playNote(0, 100, 750, 125);
 			break;
 		case 0x08:  // Cursor Left
 			cursorLeft();

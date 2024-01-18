@@ -30,7 +30,7 @@
 // 29/03/2023:					+ Typo in boot screen fixed
 // 01/04/2023:					+ Added resetPalette to MODE, timeouts to VDU commands
 // 08/04/2023:				RC4 + Removed delay in readbyte_t, fixed VDP_SCRCHAR, VDP_SCRPIXEL
-// 12/04/2023:					+ Fixed bug in play_note
+// 12/04/2023:					+ Fixed bug in playNote
 // 13/04/2023:					+ Fixed bootup fail with no keyboard
 // 17/04/2023:				RC5 + Moved wait_completion in vdu so that it only executes after graphical operations
 // 18/04/2023:					+ Minor tweaks to wait completion logic
@@ -84,7 +84,7 @@ void setup() {
 	processor = new VDUStreamProcessor(&VDPSerial);
 	processor->wait_eZ80();
 	setupKeyboardAndMouse();
-	init_audio();
+	initAudio();
 	copy_font();
 	set_mode(1);
 	processor->sendModeInformation();

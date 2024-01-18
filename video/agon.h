@@ -68,6 +68,7 @@
 #define PACKET_MOUSE			0x09	// Mouse data
 
 #define AUDIO_CHANNELS			3		// Default number of audio channels
+#define AUDIO_DEFAULT_SAMPLE_RATE	16384	// Default sample rate
 #define MAX_AUDIO_CHANNELS		32		// Maximum number of audio channels
 #define PLAY_SOUND_PRIORITY		3		// Sound driver task priority with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest
 
@@ -84,6 +85,9 @@
 #define AUDIO_CMD_ENABLE		8		// Enables a channel
 #define AUDIO_CMD_DISABLE		9		// Disables (destroys) a channel
 #define AUDIO_CMD_RESET			10		// Reset audio channel
+#define AUDIO_CMD_SEEK			11		// Seek to a position in a sample
+#define AUDIO_CMD_DURATION		12		// Set the duration of a channel
+#define AUDIO_CMD_SAMPLERATE	13		// Set the samplerate for channel or underlying audio system
 
 #define AUDIO_WAVE_DEFAULT		0		// Default waveform (Square wave)
 #define AUDIO_WAVE_SQUARE		0		// Square wave
@@ -97,11 +101,22 @@
 
 #define AUDIO_SAMPLE_LOAD		0		// Send a sample to the VDP
 #define AUDIO_SAMPLE_CLEAR		1		// Clear/delete a sample
-#define AUDIO_SAMPLE_FROM_BUFFER	2	// Load a sample from a buffer
+#define AUDIO_SAMPLE_FROM_BUFFER				2	// Load a sample from a buffer
+#define AUDIO_SAMPLE_SET_FREQUENCY				3	// Set the base frequency of a sample
+#define AUDIO_SAMPLE_BUFFER_SET_FREQUENCY		4	// Set the base frequency of a sample (using buffer ID)
+#define AUDIO_SAMPLE_SET_REPEAT_START			5	// Set the repeat start point of a sample
+#define AUDIO_SAMPLE_BUFFER_SET_REPEAT_START	6	// Set the repeat start point of a sample (using buffer ID)
+#define AUDIO_SAMPLE_SET_REPEAT_LENGTH			7	// Set the repeat length of a sample
+#define AUDIO_SAMPLE_BUFFER_SET_REPEAT_LENGTH	8	// Set the repeat length of a sample (using buffer ID)
 #define AUDIO_SAMPLE_DEBUG_INFO 0x10	// Get debug info about a sample
+
+#define AUDIO_DEFAULT_FREQUENCY	523		// Default sample frequency (C5, or C above middle C)
 
 #define AUDIO_FORMAT_8BIT_SIGNED	0	// 8-bit signed sample
 #define AUDIO_FORMAT_8BIT_UNSIGNED	1	// 8-bit unsigned sample
+#define AUDIO_FORMAT_DATA_MASK		7	// data bit mask for format
+#define AUDIO_FORMAT_WITH_RATE		8	// OR this with the format to indicate a sample rate follows
+#define AUDIO_FORMAT_TUNEABLE		16	// OR this with the format to indicate sample can be tuned (frequency adjustable)
 
 #define AUDIO_ENVELOPE_NONE		0		// No envelope
 #define AUDIO_ENVELOPE_ADSR		1		// Simple ADSR volume envelope
@@ -118,12 +133,14 @@
 #define AUDIO_STATUS_HAS_VOLUME_ENVELOPE	0x08	// Channel has a volume envelope set
 #define AUDIO_STATUS_HAS_FREQUENCY_ENVELOPE	0x10	// Channel has a frequency envelope set
 
-#define AUDIO_STATE_IDLE		0		// Channel is idle/silent
-#define AUDIO_STATE_PENDING		1		// Channel is pending (note will be played next loop call)
-#define AUDIO_STATE_PLAYING		2		// Channel is playing a note (passive)
-#define AUDIO_STATE_PLAY_LOOP	3		// Channel is in active note playing loop
-#define AUDIO_STATE_RELEASE		4		// Channel is releasing a note
-#define AUDIO_STATE_ABORT		5		// Channel is aborting a note
+enum AudioState : uint8_t {	// Audio channel state
+	Idle = 0,				// currently idle/silent
+	Pending,				// note will be played next loop call
+	Playing,				// playing (passive)
+	PlayLoop,				// active playing loop (used when an envelope is active)
+	Release,				// in "release" phase
+	Abort					// aborting a note
+};
 
 // Mouse commands
 #define MOUSE_ENABLE			0		// Enable mouse
